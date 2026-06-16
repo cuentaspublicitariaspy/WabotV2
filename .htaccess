@@ -1,0 +1,21 @@
+<Files ".env">
+    Require all denied
+</Files>
+
+<FilesMatch "\.(sql|md|ps1)$">
+    Require all denied
+</FilesMatch>
+
+Options -Indexes
+
+RewriteEngine On
+
+RewriteCond %{REQUEST_URI} ^/WabotV2/admin/ [NC,OR]
+RewriteCond %{REQUEST_URI} ^/wabot/admin/ [NC]
+RewriteRule ^admin/(.*)$ $1 [R=301,L]
+
+RewriteRule ^conversations\.php$ conversaciones.php [R=301,L,NC]
+RewriteRule ^knowledge\.php$ conocimiento.php [R=301,L,NC]
+RewriteRule ^analytics\.php$ estadisticas.php [R=301,L,NC]
+RewriteRule ^templates\.php$ plantillas.php [R=301,L,NC]
+RewriteRule ^users\.php$ usuarios.php [R=301,L,NC]
