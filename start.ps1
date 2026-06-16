@@ -6,7 +6,7 @@ $Port = 8081
 Write-Host "=== WabotV2 - Entorno Local ===" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Acceso A) Usando XAMPP Apache (MySQL ya corriendo):" -ForegroundColor Yellow
-Write-Host "   Admin: http://localhost/WabotV2/admin/login.php" -ForegroundColor White
+Write-Host "   Panel: http://localhost/WabotV2/" -ForegroundColor White
 Write-Host ""
 Write-Host "Acceso B) Servidor PHP embebido + ngrok (para probar webhook):" -ForegroundColor Yellow
 
@@ -18,7 +18,7 @@ $phpJob = Start-Job -ScriptBlock {
 Start-Sleep -Seconds 2
 
 Write-Host "   Servidor: http://localhost:$Port" -ForegroundColor Green
-Write-Host "   Admin:    http://localhost:$Port/admin/login.php" -ForegroundColor Gray
+Write-Host "   Panel:    http://localhost:$Port/" -ForegroundColor Gray
 Write-Host "   Webhook:  http://localhost:$Port/webhook.php" -ForegroundColor Gray
 Write-Host ""
 
