@@ -6,13 +6,17 @@ $pageTitle = $pageTitle ?? 'Wabot';
 $userName = htmlspecialchars($user['nombre']);
 $userRol = htmlspecialchars($user['rol']);
 $userEmail = '';
+$userWhatsapp = '';
+$userFoto = '';
 try {
-    $stmt = Database::getConnection()->prepare("SELECT email FROM usuarios WHERE id = ?");
+    $stmt = Database::getConnection()->prepare("SELECT email, whatsapp, foto_perfil FROM usuarios WHERE id = ?");
     $stmt->execute([(int)$user['id']]);
     $row = $stmt->fetch();
     $userEmail = htmlspecialchars($row['email'] ?? '');
+    $userWhatsapp = htmlspecialchars($row['whatsapp'] ?? '');
+    $userFoto = htmlspecialchars($row['foto_perfil'] ?? '');
 } catch (Exception $e) {}
-$avatarUrl = "https://ui-avatars.com/api/?name=" . urlencode($user['nombre']) . "&background=10b981&color=fff";
+$avatarUrl = $userFoto ? $userFoto : "https://ui-avatars.com/api/?name=" . urlencode($user['nombre']) . "&background=10b981&color=fff";
 $navLinks = [
     'dashboard' => ['label' => 'Dashboard', 'icon' => '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>', 'href' => 'index.php'],
     'conversaciones' => ['label' => 'Conversaciones', 'icon' => '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>', 'href' => 'conversaciones.php'],
@@ -95,24 +99,68 @@ $adminNavLinks = [
 
     <!-- Profile Modal -->
     <div id="profile-modal" class="fixed inset-0 z-50 hidden modal-overlay flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div class="p-6 border-b border-slate-100 flex justify-between items-center">
-                <h3 class="text-lg font-bold text-slate-800">Editar Perfil</h3>
+                <h3 class="text-lg font-bold text-slate-800">Mi Perfil</h3>
                 <button onclick="closeProfile()" class="text-slate-400 hover:text-slate-600 transition text-xl leading-none">&times;</button>
             </div>
-            <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="md:col-span-2 flex items-center gap-6">
-                    <img src="<?= $avatarUrl ?>" class="w-20 h-20 rounded-full border-4 border-slate-100">
+            <form id="profile-form" class="p-6 space-y-5">
+                <div class="flex items-center gap-5">
+                    <div class="relative">
+                        <img id="profile-preview" src="<?= $avatarUrl ?>" class="w-20 h-20 rounded-full border-4 border-slate-100 object-cover">
+                        <label for="foto_input" class="absolute bottom-0 right-0 w-7 h-7 bg-emerald-500 rounded-full flex items-center justify-center cursor-pointer shadow-md hover:bg-emerald-600 transition">
+                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        </label>
+                        <input type="file" id="foto_input" name="foto_perfil" accept="image/*" class="hidden" onchange="previewFoto(event)">
+                    </div>
                     <div>
-                        <p class="font-semibold text-slate-800"><?= $userName ?></p>
+                        <p class="font-semibold text-slate-800 text-lg"><?= $userName ?></p>
                         <p class="text-sm text-slate-500"><?= $userEmail ?></p>
-                        <p class="text-xs text-slate-400 mt-1">Rol: <?= $userRol ?></p>
+                        <span class="inline-block mt-1 text-xs font-medium px-2 py-0.5 rounded-full <?= $userRol === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700' ?>"><?= ucfirst($userRol) ?></span>
                     </div>
                 </div>
-            </div>
-            <div class="p-6 border-t border-slate-100 flex justify-end gap-3">
-                <button onclick="closeProfile()" class="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition">Cancelar</button>
-                <a href="logout.php" class="px-4 py-2 bg-red-50 text-red-600 font-medium rounded-lg hover:bg-red-100 transition">Cerrar sesión</a>
+                <div class="grid grid-cols-1 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Nombre</label>
+                        <input type="text" name="nombre" value="<?= $userName ?>" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                        <input type="email" name="email" value="<?= $userEmail ?>" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">WhatsApp</label>
+                        <input type="text" name="whatsapp" value="<?= $userWhatsapp ?>" placeholder="+595981234567" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+                    </div>
+                </div>
+                <div id="profile-msg" class="hidden text-sm font-medium px-3 py-2 rounded-lg"></div>
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" onclick="closeProfile()" class="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition text-sm">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition text-sm">Guardar cambios</button>
+                </div>
+            </form>
+            <hr class="border-slate-200 mx-6">
+            <form id="password-form" class="p-6 space-y-4">
+                <h4 class="text-sm font-bold text-slate-800">Cambiar contraseña</h4>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Contraseña actual</label>
+                    <input type="password" name="password_actual" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Nueva contraseña</label>
+                    <input type="password" name="password_nueva" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Confirmar nueva contraseña</label>
+                    <input type="password" name="password_confirmar" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+                </div>
+                <div id="password-msg" class="hidden text-sm font-medium px-3 py-2 rounded-lg"></div>
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="submit" class="px-4 py-2 bg-slate-800 text-white font-medium rounded-lg hover:bg-slate-900 transition text-sm">Cambiar contraseña</button>
+                </div>
+            </form>
+            <div class="p-6 border-t border-slate-100 flex justify-between items-center">
+                <a href="logout.php" class="px-4 py-2 bg-red-50 text-red-600 font-medium rounded-lg hover:bg-red-100 transition text-sm"><i class="bi bi-box-arrow-right me-1"></i>Cerrar sesión</a>
             </div>
         </div>
     </div>
@@ -125,6 +173,62 @@ $adminNavLinks = [
         }
         function closeProfile() { modal.classList.add('hidden'); }
         modal.addEventListener('click', (e) => { if (e.target === modal) closeProfile(); });
+
+        function previewFoto(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => document.getElementById('profile-preview').src = ev.target.result;
+            reader.readAsDataURL(file);
+        }
+
+        function showMsg(el, msg, ok) {
+            el.classList.remove('hidden', 'text-green-800', 'bg-green-100', 'text-red-800', 'bg-red-100');
+            el.textContent = msg;
+            el.classList.add(ok ? 'text-green-800' : 'text-red-800', ok ? 'bg-green-100' : 'bg-red-100');
+            if (ok) setTimeout(() => el.classList.add('hidden'), 3000);
+        }
+
+        document.getElementById('profile-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fd = new FormData(e.target);
+            fd.set('action', 'guardar');
+            const msg = document.getElementById('profile-msg');
+            msg.classList.add('hidden');
+            try {
+                const res = await fetch('ajax/perfil.php', { method: 'POST', body: fd });
+                const data = await res.json();
+                if (data.success) {
+                    showMsg(msg, 'Perfil actualizado', true);
+                    if (data.foto) document.getElementById('profile-preview').src = data.foto;
+                } else {
+                    showMsg(msg, data.errors?.join(', ') || 'Error al guardar', false);
+                }
+            } catch (err) {
+                showMsg(msg, 'Error de conexión', false);
+            }
+        });
+
+        document.getElementById('password-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fd = new FormData(e.target);
+            fd.set('action', 'cambiar_password');
+            const msg = document.getElementById('password-msg');
+            msg.classList.add('hidden');
+            try {
+                const res = await fetch('ajax/perfil.php', { method: 'POST', body: fd });
+                const data = await res.json();
+                if (data.success) {
+                    showMsg(msg, 'Contraseña cambiada correctamente', true);
+                    e.target.reset();
+                } else {
+                    showMsg(msg, data.errors?.join(', ') || 'Error al cambiar contraseña', false);
+                }
+            } catch (err) {
+                showMsg(msg, 'Error de conexión', false);
+            }
+        });
+
         setInterval(function(){ fetch('ajax/session.php',{method:'POST'}).catch(()=>{}); }, 30000);
     </script>
     <?= $extraScripts ?? '' ?>
