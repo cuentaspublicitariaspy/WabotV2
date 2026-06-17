@@ -45,21 +45,6 @@ ob_start();
   </h1>
 </div>
 
-<!-- Online agents -->
-<div class="bg-white border border-slate-100 rounded-2xl p-5 mb-5">
-  <h5 class="text-sm font-semibold text-slate-700 mb-3">Agentes en línea</h5>
-  <div class="flex flex-wrap gap-2">
-    <?php if (empty($agentesActivos)): ?>
-      <span class="text-xs text-slate-400">No hay agentes conectados. Solo IA disponible.</span>
-    <?php else: foreach ($agentesActivos as $a): ?>
-      <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-full">
-        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-        <?= htmlspecialchars($a['nombre']) ?>
-      </span>
-    <?php endforeach; endif; ?>
-  </div>
-</div>
-
 <!-- New user form -->
 <div class="bg-white border border-slate-100 rounded-2xl p-5 mb-5">
   <h5 class="text-sm font-semibold text-slate-700 mb-4">Crear nuevo usuario</h5>
