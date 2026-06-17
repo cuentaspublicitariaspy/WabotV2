@@ -159,4 +159,12 @@ class ChatManager
         $row = $stmt->fetch();
         return $row ? (int)$row['id'] : null;
     }
+
+    public function getUltimoMensajeInTime(int $conversacionId): ?string
+    {
+        $stmt = $this->db->prepare("SELECT created_at FROM mensajes WHERE conversacion_id = ? AND direccion = 'in' ORDER BY created_at DESC LIMIT 1");
+        $stmt->execute([$conversacionId]);
+        $row = $stmt->fetch();
+        return $row ? $row['created_at'] : null;
+    }
 }

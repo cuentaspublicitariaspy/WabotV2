@@ -34,9 +34,25 @@ class AgentRouter
         $stmt->execute([$usuarioId]);
 
         $stmt = $this->db->prepare(
-            "UPDATE conversaciones SET asignado_a = NULL WHERE asignado_a = ? AND estado = 'pendiente'"
+            "UPDATE conversaciones SET asignado_a = NULL WHERE asignado_a = ?"
         );
         $stmt->execute([$usuarioId]);
+    }
+
+    public function marcarAusente(int $usuarioId): void
+    {
+        $stmt = $this->db->prepare(
+            "UPDATE conversaciones SET asignado_a = NULL WHERE asignado_a = ?"
+        );
+        $stmt->execute([$usuarioId]);
+    }
+
+    public function estaActivo(int $usuarioId): bool
+    {
+        $this->limpiarSesionesExpiradas();
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM agentes_sesion WHERE usuario_id = ? AND activo = 1");
+        $stmt->execute([$usuarioId]);
+        return (int)$stmt->fetchColumn() > 0;
     }
 
     public function ping(int $usuarioId): void

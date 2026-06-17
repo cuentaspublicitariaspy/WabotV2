@@ -3,73 +3,41 @@ require_once __DIR__ . '/includes/Auth.php';
 require_once __DIR__ . '/includes/Database.php';
 requireLogin();
 $user = getUsuarioActual();
+$activePage = 'estadisticas';
+$pageTitle = 'Estadísticas';
+ob_start();
 ?>
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Estadísticas - Wabot</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <aside class="sidebar">
-        <div class="sidebar-brand"><h2>&#128172; Wabot</h2><span>WhatsApp Multiagente</span></div>
-        <div class="sidebar-user">
-            <div class="avatar"><?= strtoupper(substr($user['nombre'], 0, 1)) ?></div>
-            <div class="user-info">
-                <div class="user-name"><?= htmlspecialchars($user['nombre']) ?></div>
-                <div class="user-rol"><?= $user['rol'] ?></div>
-            </div>
-        </div>
-        <nav class="sidebar-nav">
-            <a href="index.php"><span class="nav-icon">&#128202;</span> Dashboard</a>
-            <a href="conversaciones.php"><span class="nav-icon">&#128172;</span> Conversaciones</a>
-            <a href="conocimiento.php"><span class="nav-icon">&#128196;</span> Conocimiento</a>
-            <a href="estadisticas.php" class="active"><span class="nav-icon">&#128200;</span> Estadísticas</a>
-            <?php if ($user['rol'] === 'admin'): ?>
-                <div class="nav-section">Administración</div>
-                <a href="plantillas.php"><span class="nav-icon">&#128233;</span> Plantillas</a>
-                <a href="usuarios.php"><span class="nav-icon">&#128101;</span> Usuarios</a>
-            <?php endif; ?>
-        </nav>
-        <div class="sidebar-footer"><a href="logout.php">&#128682; Cerrar sesión</a></div>
-    </aside>
-    <div class="main-content">
-        <div class="main-header"><h3>&#128200; Estadísticas</h3></div>
-        <div class="admin-content analytics-content">
-            <div class="cards" id="metrics-cards"></div>
-            <div class="section"><h3>Rendimiento por agente</h3><div class="table-wrapper" id="agent-table"></div></div>
-            <div class="section"><h3>Actividad por hora</h3><div class="table-wrapper" id="hour-table"></div></div>
-            <div class="section"><h3>Conversaciones por departamento</h3><div class="table-wrapper" id="dept-table"></div></div>
-        </div>
+<div class="flex items-center justify-between mb-5">
+  <h1 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+    <svg class="w-6 h-6 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+    Estadísticas
+  </h1>
+</div>
+<div id="metrics-cards" class="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6"></div>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+  <div class="bg-white border border-slate-100 rounded-2xl overflow-hidden">
+    <div class="px-5 py-3 border-b border-slate-100"><h5 class="text-sm font-semibold text-slate-700">Rendimiento por agente</h5></div>
+    <div id="agent-table"></div>
+  </div>
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+    <div class="bg-white border border-slate-100 rounded-2xl overflow-hidden">
+      <div class="px-5 py-3 border-b border-slate-100"><h5 class="text-sm font-semibold text-slate-700">Actividad por hora</h5></div>
+      <div id="hour-table"></div>
     </div>
-    <script>
-        function loadMetrics() {
-            fetch('ajax/metrics.php').then(r=>r.json()).then(data=>{
-                document.getElementById('metrics-cards').innerHTML=`
-                    <div class="card"><div class="card-value">${data.total}</div><div class="card-label">Total respuestas</div></div>
-                    <div class="card"><div class="card-value">${data.promedio_seg}s</div><div class="card-label">Tiempo promedio</div></div>
-                    <div class="card"><div class="card-value">${data.minimo_seg}s</div><div class="card-label">Respuesta más rápida</div></div>
-                    <div class="card"><div class="card-value">${data.maximo_seg}s</div><div class="card-label">Respuesta más lenta</div></div>
-                    <div class="card card-secondary"><div class="card-value">${data.humano_count}</div><div class="card-label">Por humanos</div></div>
-                    <div class="card card-secondary"><div class="card-value">${data.ia_count}</div><div class="card-label">Por IA</div></div>`;
-                let h='<table class="table"><thead><tr><th>Agente</th><th>Total</th><th>Promedio</th></tr></thead><tbody>';
-                if(data.por_agente.length===0) h+='<tr><td colspan="3" style="text-align:center;color:#8696a0;">Sin datos</td></tr>';
-                else data.por_agente.forEach(a=>{h+=`<tr><td>${esc(a.nombre)}</td><td>${a.total}</td><td>${Math.round(a.promedio)}s</td></tr>`;});
-                document.getElementById('agent-table').innerHTML=h+'</tbody></table>';
-                let h2='<table class="table"><thead><tr><th>Hora</th><th>Mensajes</th></tr></thead><tbody>';
-                if(data.por_hora.length===0) h2+='<tr><td colspan="2" style="text-align:center;color:#8696a0;">Sin datos</td></tr>';
-                else data.por_hora.forEach(h=>{h2+=`<tr><td>${h.hora}:00</td><td>${h.total}</td></tr>`;});
-                document.getElementById('hour-table').innerHTML=h2+'</tbody></table>';
-                let h3='<table class="table"><thead><tr><th>Departamento</th><th>Conversaciones</th></tr></thead><tbody>';
-                if(data.por_departamento.length===0) h3+='<tr><td colspan="2" style="text-align:center;color:#8696a0;">Sin datos</td></tr>';
-                else data.por_departamento.forEach(d=>{h3+=`<tr><td>${esc(d.departamento)}</td><td>${d.total}</td></tr>`;});
-                document.getElementById('dept-table').innerHTML=h3+'</tbody></table>';
-            });
-        }
-        function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
-        loadMetrics(); setInterval(loadMetrics,15000);
-    </script>
-</body>
-</html>
+    <div class="bg-white border border-slate-100 rounded-2xl overflow-hidden">
+      <div class="px-5 py-3 border-b border-slate-100"><h5 class="text-sm font-semibold text-slate-700">Por departamento</h5></div>
+      <div id="dept-table"></div>
+    </div>
+  </div>
+</div>
+
+<?php $extraScripts = <<<EOS
+<script>
+function card(label,val){return'<div class="bg-slate-50 rounded-2xl p-4 border border-slate-100"><p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">'+label+'</p><p class="text-2xl font-bold text-slate-900">'+val+'</p></div>';}
+function loadMetrics(){fetch('ajax/metrics.php').then(r=>r.json()).then(d=>{document.getElementById('metrics-cards').innerHTML=card('Total respuestas',d.total)+card('Tiempo promedio',d.promedio_seg+'s')+card('Más rápida',d.minimo_seg+'s')+card('Más lenta',d.maximo_seg+'s')+card('Por humanos',d.humano_count)+card('Por IA',d.ia_count);let h='<table class="w-full text-sm"><thead class="bg-slate-50 text-left text-xs text-slate-500 uppercase tracking-wider"><tr><th class="px-4 py-3 font-medium">Agente</th><th class="px-4 py-3 font-medium">Total</th><th class="px-4 py-3 font-medium">Promedio</th></tr></thead><tbody class="divide-y divide-slate-50">';if(d.por_agente.length===0)h+='<tr><td colspan="3" class="px-4 py-8 text-center text-slate-400">Sin datos</td></tr>';else d.por_agente.forEach(a=>{h+='<tr class="hover:bg-slate-50"><td class="px-4 py-3 font-medium text-slate-800">'+esc(a.nombre)+'</td><td class="px-4 py-3 text-slate-500">'+a.total+'</td><td class="px-4 py-3 text-slate-500">'+Math.round(a.promedio)+'s</td></tr>';});document.getElementById('agent-table').innerHTML=h+'</tbody></table>';let h2='<table class="w-full text-sm"><thead class="bg-slate-50 text-left text-xs text-slate-500 uppercase tracking-wider"><tr><th class="px-4 py-3 font-medium">Hora</th><th class="px-4 py-3 font-medium">Msjs</th></tr></thead><tbody class="divide-y divide-slate-50">';if(d.por_hora.length===0)h2+='<tr><td colspan="2" class="px-4 py-8 text-center text-slate-400">Sin datos</td></tr>';else d.por_hora.forEach(h=>{h2+='<tr class="hover:bg-slate-50"><td class="px-4 py-3 text-slate-800">'+h.hora+':00</td><td class="px-4 py-3 text-slate-500">'+h.total+'</td></tr>';});document.getElementById('hour-table').innerHTML=h2+'</tbody></table>';let h3='<table class="w-full text-sm"><thead class="bg-slate-50 text-left text-xs text-slate-500 uppercase tracking-wider"><tr><th class="px-4 py-3 font-medium">Depto</th><th class="px-4 py-3 font-medium">Conv</th></tr></thead><tbody class="divide-y divide-slate-50">';if(d.por_departamento.length===0)h3+='<tr><td colspan="2" class="px-4 py-8 text-center text-slate-400">Sin datos</td></tr>';else d.por_departamento.forEach(d=>{h3+='<tr class="hover:bg-slate-50"><td class="px-4 py-3 text-slate-800">'+esc(d.departamento)+'</td><td class="px-4 py-3 text-slate-500">'+d.total+'</td></tr>';});document.getElementById('dept-table').innerHTML=h3+'</tbody></table>';});}
+function esc(s){const e=document.createElement('div');e.textContent=s||'';return e.innerHTML;}
+loadMetrics();setInterval(loadMetrics,15000);
+</script>
+EOS;
+$mainContent = ob_get_clean();
+require __DIR__ . '/includes/layout_tailwind.php';

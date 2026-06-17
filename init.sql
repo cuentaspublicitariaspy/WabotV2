@@ -88,4 +88,4 @@ CREATE TABLE IF NOT EXISTS plantillas (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT IGNORE INTO usuarios (nombre, email, password_hash, rol)
-VALUES ('Admin', 'rolo27281@gmail.com', '$2y$10$CY9LSAU3EbVCEkjNu2aT3.XZg4nx4fYRhyD5U0.MGqqPxWEpftlui', 'admin');
+VALUES ('Admin', 'rolo27281@gmail.com', '$2y$10$5nxdX.2GAa1NSeTtDtWph./fGvEIRDmSRBIJJRpY4PezEhPP.ICWy', 'admin');

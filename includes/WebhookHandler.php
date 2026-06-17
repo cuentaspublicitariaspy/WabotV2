@@ -186,6 +186,13 @@ class WebhookHandler
         $hayAgentes = $this->agentRouter->hayAgentesDisponibles();
 
         if ($hayAgentes) {
+            $conversacion = $this->chatManager->getConversacion($conversacionId);
+            $agenteActual = $conversacion['asignado_a'] ?? null;
+
+            if ($agenteActual !== null && $this->agentRouter->estaActivo((int)$agenteActual)) {
+                return;
+            }
+
             $agenteId = $this->agentRouter->getAgenteParaAsignar();
             if ($agenteId !== null) {
                 $this->agentRouter->asignarConversacion($conversacionId, $agenteId);

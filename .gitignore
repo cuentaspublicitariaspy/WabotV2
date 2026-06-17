@@ -4,3 +4,8 @@ vendor/
 node_modules/
 .DS_Store
 Thumbs.db
+
+# Debug / temp files
+output_debug.html
+usuarios_debug.html
+visual/
