@@ -12,14 +12,14 @@ $fullHeight = true;
 ob_start();
 ?>
 <div class="d-flex flex-fill h-100 overflow-hidden">
-  <div class="w-96 border-r border-slate-100 d-flex flex-column bg-white shrink-0">
+  <div class="w-[28rem] border-r border-slate-100 d-flex flex-column bg-white shrink-0">
     <div class="p-4 border-b border-slate-100">
       <input type="text" id="search-input" class="w-full border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Buscar conversación..." oninput="loadConversations()">
     </div>
-    <div class="px-4 py-2.5 border-b border-slate-100 d-flex gap-1.5">
-      <button class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 font-medium transition filter-btn active" data-filter="" onclick="setFilter(this, '')">Todas</button>
-      <button class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 font-medium transition filter-btn" data-filter="pendiente" onclick="setFilter(this, 'pendiente')">Pendientes</button>
-      <button class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 font-medium transition filter-btn" data-filter="respondido" onclick="setFilter(this, 'respondido')">Respondidas</button>
+    <div class="px-4 py-2.5 border-b border-slate-100 d-flex gap-2">
+      <button class="text-xs px-4 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 font-medium transition filter-btn active" data-filter="" onclick="setFilter(this, '')">Todas</button>
+      <button class="text-xs px-4 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 font-medium transition filter-btn" data-filter="pendiente" onclick="setFilter(this, 'pendiente')">Pendientes</button>
+      <button class="text-xs px-4 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 font-medium transition filter-btn" data-filter="respondido" onclick="setFilter(this, 'respondido')">Respondidas</button>
     </div>
     <div id="agent-status" class="px-4 py-2 border-b border-slate-100 text-xs" style="min-height:28px;"></div>
     <div id="conversation-list" class="overflow-auto" style="flex:1 1 0;min-height:0">
