@@ -38,8 +38,21 @@ $router = new AgentRouter();
 $router->asignarConversacion($conversacionId, $user['id']);
 $chatManager->marcarLeido($conversacionId, $user['id']);
 $mensajeInId = $chatManager->getUltimoMensajeInId($conversacionId);
-$handler = new WebhookHandler();
-$mensajeOutId = $handler->sendMessage($conversacion['wa_phone'], $mensaje, WHATSAPP_PHONE_NUMBER_ID, $user['id']);
+// Resolve cliente credentials if available
+$whatsappToken = WHATSAPP_TOKEN;
+$whatsappPhone = WHATSAPP_PHONE_NUMBER_ID;
+$clienteId = $conversacion['cliente_id'] ?? null;
+if ($clienteId) {
+    $stmt = Database::getConnection()->prepare("SELECT whatsapp_token, whatsapp_phone_number_id FROM clientes WHERE id = ? AND activo = 1");
+    $stmt->execute([$clienteId]);
+    $cliente = $stmt->fetch();
+    if ($cliente) {
+        $whatsappToken = $cliente['whatsapp_token'];
+        $whatsappPhone = $cliente['whatsapp_phone_number_id'];
+    }
+}
+$handler = new WebhookHandler($whatsappToken, $whatsappPhone, $clienteId);
+$mensajeOutId = $handler->sendMessage($conversacion['wa_phone'], $mensaje, $whatsappPhone, $user['id']);
 if ($mensajeOutId !== null) {
     if ($mensajeInId) {
         $metrics = new MetricsCollector();

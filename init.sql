@@ -1,5 +1,24 @@
+CREATE TABLE IF NOT EXISTS clientes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL DEFAULT '',
+    email VARCHAR(255) NOT NULL DEFAULT '',
+    activo TINYINT(1) NOT NULL DEFAULT 1,
+    meta_app_id VARCHAR(100) DEFAULT NULL,
+    whatsapp_token TEXT DEFAULT NULL,
+    whatsapp_phone_number_id VARCHAR(50) DEFAULT NULL,
+    whatsapp_business_account_id VARCHAR(50) DEFAULT NULL,
+    whatsapp_verify_token VARCHAR(100) DEFAULT NULL,
+    whatsapp_app_secret VARCHAR(100) DEFAULT NULL,
+    openai_api_key VARCHAR(255) DEFAULT NULL,
+    openai_model VARCHAR(50) DEFAULT 'gpt-4o-mini',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_phone_number_id (whatsapp_phone_number_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS usuarios (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    cliente_id INT DEFAULT NULL,
     nombre VARCHAR(100) NOT NULL,
     email VARCHAR(255) NOT NULL UNIQUE,
     whatsapp VARCHAR(20) DEFAULT NULL,
@@ -15,6 +34,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
 
 CREATE TABLE IF NOT EXISTS conversaciones (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    cliente_id INT DEFAULT NULL,
     wa_phone VARCHAR(20) NOT NULL,
     wa_name VARCHAR(100) NOT NULL DEFAULT '',
     ultimo_mensaje TEXT NULL,
@@ -29,8 +49,10 @@ CREATE TABLE IF NOT EXISTS conversaciones (
     INDEX idx_estado (estado),
     INDEX idx_ultimo_tiempo (ultimo_tiempo),
     INDEX idx_asignado (asignado_a),
+    INDEX idx_cliente (cliente_id),
     FOREIGN KEY (leido_por) REFERENCES usuarios(id) ON DELETE SET NULL,
-    FOREIGN KEY (asignado_a) REFERENCES usuarios(id) ON DELETE SET NULL
+    FOREIGN KEY (asignado_a) REFERENCES usuarios(id) ON DELETE SET NULL,
+    FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS mensajes (

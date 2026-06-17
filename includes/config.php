@@ -32,6 +32,7 @@ define('DB_NAME', getenv('DB_NAME') ?: '');
 define('DB_USER', getenv('DB_USER') ?: '');
 define('DB_PASS', getenv('DB_PASS') ?: '');
 
+define('META_APP_ID', getenv('META_APP_ID') ?: '');
 define('ADMIN_EMAIL', getenv('ADMIN_EMAIL') ?: 'admin@ejemplo.com');
 define('ADMIN_SESSION_KEY', 'wabot_admin_logged_in');
 define('ADMIN_USER_ID_KEY', 'wabot_user_id');

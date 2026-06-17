@@ -11,18 +11,22 @@ class ChatManager
         $this->db = Database::getConnection();
     }
 
-    public function getOrCreateConversacion(string $waPhone, string $waName = ''): int
+    public function getOrCreateConversacion(string $waPhone, string $waName = '', ?int $clienteId = null): int
     {
         $stmt = $this->db->prepare("SELECT id FROM conversaciones WHERE wa_phone = ?");
         $stmt->execute([$waPhone]);
         $row = $stmt->fetch();
 
         if ($row) {
+            if ($clienteId !== null) {
+                $stmt = $this->db->prepare("UPDATE conversaciones SET cliente_id = COALESCE(cliente_id, ?) WHERE id = ?");
+                $stmt->execute([$clienteId, (int)$row['id']]);
+            }
             return (int)$row['id'];
         }
 
-        $stmt = $this->db->prepare("INSERT INTO conversaciones (wa_phone, wa_name) VALUES (?, ?)");
-        $stmt->execute([$waPhone, $waName]);
+        $stmt = $this->db->prepare("INSERT INTO conversaciones (wa_phone, wa_name, cliente_id) VALUES (?, ?, ?)");
+        $stmt->execute([$waPhone, $waName, $clienteId]);
         return (int)$this->db->lastInsertId();
     }
 

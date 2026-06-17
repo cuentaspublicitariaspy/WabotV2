@@ -13,30 +13,25 @@ class WebhookHandler
 {
     private ChatManager $chatManager;
     private AgentRouter $agentRouter;
+    private string $whatsappToken;
+    private string $whatsappPhoneNumberId;
+    private ?int $clienteId;
 
-    public function __construct()
+    public function __construct(string $whatsappToken = '', string $whatsappPhoneNumberId = '', ?int $clienteId = null)
     {
         $this->chatManager = new ChatManager();
         $this->agentRouter = new AgentRouter();
+        $this->whatsappToken = $whatsappToken ?: WHATSAPP_TOKEN;
+        $this->whatsappPhoneNumberId = $whatsappPhoneNumberId ?: WHATSAPP_PHONE_NUMBER_ID;
+        $this->clienteId = $clienteId;
     }
 
-    public function handleVerification(): void
+    public function handleMessage(string $rawBody, string $token = '', string $phoneNumberId = '', ?int $clienteId = null): void
     {
-        $mode = $_GET['hub_mode'] ?? '';
-        $token = $_GET['hub_verify_token'] ?? '';
-        $challenge = $_GET['hub_challenge'] ?? '';
+        if ($token) $this->whatsappToken = $token;
+        if ($phoneNumberId) $this->whatsappPhoneNumberId = $phoneNumberId;
+        if ($clienteId !== null) $this->clienteId = $clienteId;
 
-        if ($mode === 'subscribe' && $token === WHATSAPP_VERIFY_TOKEN) {
-            echo $challenge;
-            return;
-        }
-
-        http_response_code(403);
-        echo json_encode(['error' => 'Verification failed']);
-    }
-
-    public function handleMessage(string $rawBody): void
-    {
         $input = json_decode($rawBody, true);
 
         if (!$input || !isset($input['entry'][0]['changes'][0]['value'])) {
@@ -46,7 +41,7 @@ class WebhookHandler
         }
 
         $change = $input['entry'][0]['changes'][0]['value'];
-        $phoneNumberId = $change['metadata']['phone_number_id'] ?? WHATSAPP_PHONE_NUMBER_ID;
+        $phoneNumberId = $change['metadata']['phone_number_id'] ?? $this->whatsappPhoneNumberId;
 
         if (isset($change['messages'][0])) {
             $message = $change['messages'][0];
@@ -77,7 +72,7 @@ class WebhookHandler
 
     public function sendMessage(string $to, string $text, string $phoneNumberId = '', ?int $usuarioId = null): ?int
     {
-        $phoneNumberId = $phoneNumberId ?: WHATSAPP_PHONE_NUMBER_ID;
+        $phoneNumberId = $phoneNumberId ?: $this->whatsappPhoneNumberId;
         $url = "https://graph.facebook.com/v21.0/" . $phoneNumberId . "/messages";
 
         $data = [
@@ -96,7 +91,7 @@ class WebhookHandler
             CURLOPT_POST => true,
             CURLOPT_HTTPHEADER => [
                 'Content-Type: application/json',
-                'Authorization: Bearer ' . WHATSAPP_TOKEN,
+                'Authorization: Bearer ' . $this->whatsappToken,
             ],
             CURLOPT_POSTFIELDS => json_encode($data),
             CURLOPT_RETURNTRANSFER => true,
@@ -117,7 +112,7 @@ class WebhookHandler
         $respData = json_decode($response, true);
         $waMessageId = $respData['messages'][0]['id'] ?? null;
 
-        $conversacionId = $this->chatManager->getOrCreateConversacion($to);
+        $conversacionId = $this->chatManager->getOrCreateConversacion($to, '', $this->clienteId);
         $mensajeId = $this->chatManager->guardarMensaje($conversacionId, $text, 'out', $waMessageId, $usuarioId);
         $this->chatManager->actualizarConversacion($conversacionId, $text, 'respondido');
 
@@ -126,7 +121,7 @@ class WebhookHandler
 
     public function markAsRead(string $to, string $messageId, string $phoneNumberId = ''): void
     {
-        $phoneNumberId = $phoneNumberId ?: WHATSAPP_PHONE_NUMBER_ID;
+        $phoneNumberId = $phoneNumberId ?: $this->whatsappPhoneNumberId;
         $url = "https://graph.facebook.com/v21.0/" . $phoneNumberId . "/messages";
 
         $data = [
@@ -140,7 +135,7 @@ class WebhookHandler
             CURLOPT_POST => true,
             CURLOPT_HTTPHEADER => [
                 'Content-Type: application/json',
-                'Authorization: Bearer ' . WHATSAPP_TOKEN,
+                'Authorization: Bearer ' . $this->whatsappToken,
             ],
             CURLOPT_POSTFIELDS => json_encode($data),
             CURLOPT_RETURNTRANSFER => true,
@@ -168,7 +163,7 @@ class WebhookHandler
     {
         $this->markAsRead($waPhone, $messageId, $phoneNumberId);
 
-        $conversacionId = $this->chatManager->getOrCreateConversacion($waPhone, $waName);
+        $conversacionId = $this->chatManager->getOrCreateConversacion($waPhone, $waName, $this->clienteId);
         $mensajeInId = $this->chatManager->guardarMensaje($conversacionId, $text, 'in', $messageId);
         $this->chatManager->actualizarConversacion($conversacionId, $text, 'pendiente');
 
