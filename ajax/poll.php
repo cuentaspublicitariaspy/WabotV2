@@ -14,7 +14,9 @@ if ($conversacionId > 0) {
 }
 $search = $_GET['search'] ?? '';
 $filter = $_GET['filter'] ?? '';
-$esAdmin = $user['rol'] === 'admin';
-$conversaciones = $chatManager->getConversaciones($search, $filter, (int)$user['id'], $esAdmin);
+$rol = $user['rol'];
+$esAdmin = in_array($rol, ['super_admin', 'admin']);
+$clienteId = $rol === 'super_admin' ? null : ($user['cliente_id'] ?? null);
+$conversaciones = $chatManager->getConversaciones($search, $filter, (int)$user['id'], $esAdmin, $clienteId);
 $router = new AgentRouter();
 echo json_encode(['conversaciones' => $conversaciones, 'nuevosMensajes' => true, 'agentes_activos' => $router->getAgentesActivos()]);

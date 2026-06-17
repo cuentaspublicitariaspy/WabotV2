@@ -2,6 +2,7 @@
 require_once __DIR__ . '/includes/Auth.php';
 require_once __DIR__ . '/includes/Database.php';
 requireLogin();
+requireAdmin();
 
 $user = getUsuarioActual();
 $db = Database::getConnection();

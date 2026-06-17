@@ -49,7 +49,7 @@ class ChatManager
         $stmt->execute([$usuarioId, $conversacionId]);
     }
 
-    public function getConversaciones(string $search = '', string $estadoFiltro = '', ?int $usuarioId = null, bool $esAdmin = false): array
+    public function getConversaciones(string $search = '', string $estadoFiltro = '', ?int $usuarioId = null, bool $esAdmin = false, ?int $clienteId = null): array
     {
         $sql = "SELECT c.*, u.nombre as leido_por_nombre, a.nombre as asignado_a_nombre
                 FROM conversaciones c
@@ -61,6 +61,11 @@ class ChatManager
         if (!$esAdmin && $usuarioId !== null) {
             $sql .= " AND (c.asignado_a = ? OR c.asignado_a IS NULL)";
             $params[] = $usuarioId;
+        }
+
+        if ($clienteId !== null) {
+            $sql .= " AND c.cliente_id = ?";
+            $params[] = $clienteId;
         }
 
         if ($search !== '') {

@@ -6,6 +6,10 @@ requireAdmin();
 
 $db = Database::getConnection();
 $message = ''; $messageType = '';
+$user = getUsuarioActual();
+$currentRol = $user['rol'];
+$currentClienteId = $user['cliente_id'] ?? null;
+$esSuperAdmin = $currentRol === 'super_admin';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -13,21 +17,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $nombre = trim($_POST['nombre'] ?? ''); $email = trim($_POST['email'] ?? ''); $password = $_POST['password'] ?? ''; $rol = $_POST['rol'] ?? 'agent';
         if ($nombre === '' || $email === '' || $password === '') { $message = 'Todos los campos obligatorios'; $messageType = 'danger'; }
         else {
+            if (!$esSuperAdmin) $rol = 'agent';
             $hash = password_hash($password, PASSWORD_BCRYPT);
-            try { $db->prepare("INSERT INTO usuarios (nombre, email, password_hash, rol) VALUES (?, ?, ?, ?)")->execute([$nombre, $email, $hash, $rol]); $message = 'Usuario creado'; $messageType = 'success'; }
-            catch (PDOException $e) { $message = 'Error: email ya existe'; $messageType = 'danger'; }
+            $clienteId = $esSuperAdmin ? (isset($_POST['cliente_id']) ? (int)$_POST['cliente_id'] : null) : $currentClienteId;
+            try {
+                if ($clienteId) {
+                    $db->prepare("INSERT INTO usuarios (nombre, email, password_hash, rol, cliente_id) VALUES (?, ?, ?, ?, ?)")->execute([$nombre, $email, $hash, $rol, $clienteId]);
+                } else {
+                    $db->prepare("INSERT INTO usuarios (nombre, email, password_hash, rol) VALUES (?, ?, ?, ?)")->execute([$nombre, $email, $hash, $rol]);
+                }
+                $message = 'Usuario creado'; $messageType = 'success';
+            } catch (PDOException $e) { $message = 'Error: email ya existe'; $messageType = 'danger'; }
         }
-    } elseif ($action === 'toggle') { $id=(int)($_POST['user_id']??0); if($id>0){ $db->prepare("UPDATE usuarios SET activo = IF(activo=1,0,1) WHERE id=?")->execute([$id]); $message='Estado cambiado'; $messageType='success'; } }
+    } elseif ($action === 'toggle') { $id=(int)($_POST['user_id']??0); if($id>0){ $stmt=$db->prepare("UPDATE usuarios SET activo = IF(activo=1,0,1) WHERE id=? AND rol!='super_admin'"); $stmt->execute([$id]); $message='Estado cambiado'; $messageType='success'; } }
     elseif ($action === 'toggle_disponible') { $id=(int)($_POST['user_id']??0); if($id>0){ $db->prepare("UPDATE usuarios SET disponible = IF(disponible=1,0,1) WHERE id=?")->execute([$id]); $message='Disponibilidad cambiada'; $messageType='success'; } }
     elseif ($action === 'ausente') { $id=(int)($_POST['user_id']??0); if($id>0){ $router->marcarAusente($id); $message='Conversaciones del agente liberadas'; $messageType='success'; } }
-    elseif ($action === 'delete') { $id=(int)($_POST['user_id']??0); if($id>0){ $db->prepare("DELETE FROM usuarios WHERE id=? AND rol!='admin'")->execute([$id]); $message='Usuario eliminado'; $messageType='success'; } }
+    elseif ($action === 'delete') { $id=(int)($_POST['user_id']??0); if($id>0){ $db->prepare("DELETE FROM usuarios WHERE id=? AND rol NOT IN ('super_admin','admin')")->execute([$id]); $message='Usuario eliminado'; $messageType='success'; } }
 }
 
 $router = new AgentRouter();
 $agentesActivos = $router->getAgentesActivos();
 $activosIds = array_column($agentesActivos, 'id');
-$usuarios = $db->query("SELECT id, nombre, email, rol, activo, disponible, ultimo_acceso, ultimo_logout, created_at FROM usuarios ORDER BY id")->fetchAll();
-$user = getUsuarioActual();
+
+// Filter users by scope
+if ($esSuperAdmin) {
+    $usuarios = $db->query("SELECT u.*, c.nombre as empresa FROM usuarios u LEFT JOIN clientes c ON u.cliente_id = c.id ORDER BY u.id")->fetchAll();
+    $empresas = $db->query("SELECT id, nombre FROM clientes WHERE activo = 1 ORDER BY nombre")->fetchAll();
+} else {
+    $stmt = $db->prepare("SELECT u.*, c.nombre as empresa FROM usuarios u LEFT JOIN clientes c ON u.cliente_id = c.id WHERE u.cliente_id = ? OR (u.cliente_id IS NULL AND u.rol = 'super_admin') ORDER BY u.id");
+    $stmt->execute([$currentClienteId]);
+    $usuarios = $stmt->fetchAll();
+}
+
 $activePage = 'usuarios';
 $pageTitle = 'Usuarios';
 ob_start();
@@ -41,22 +62,30 @@ ob_start();
 <div class="flex items-center justify-between mb-5">
   <h1 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
     <svg class="w-6 h-6 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-    Usuarios del sistema
+    Usuarios
   </h1>
 </div>
 
 <!-- New user form -->
 <div class="bg-white border border-slate-100 rounded-2xl p-5 mb-5">
   <h5 class="text-sm font-semibold text-slate-700 mb-4">Crear nuevo usuario</h5>
-  <form method="POST" class="grid grid-cols-1 sm:grid-cols-5 gap-3" autocomplete="off">
+  <form method="POST" class="grid grid-cols-1 sm:grid-cols-6 gap-3" autocomplete="off">
     <input type="hidden" name="action" value="create">
     <input type="text" name="nombre" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Nombre" required>
     <input type="email" name="email" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Email" required>
     <input type="password" name="password" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Contraseña" autocomplete="new-password" required>
     <select name="rol" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500">
       <option value="agent">Agente</option>
-      <option value="admin">Admin</option>
+      <?php if ($esSuperAdmin): ?><option value="admin">Admin</option><?php endif; ?>
     </select>
+    <?php if ($esSuperAdmin && !empty($empresas)): ?>
+    <select name="cliente_id" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500">
+      <option value="">Sin empresa</option>
+      <?php foreach ($empresas as $emp): ?>
+      <option value="<?= $emp['id'] ?>"><?= htmlspecialchars($emp['nombre']) ?></option>
+      <?php endforeach; ?>
+    </select>
+    <?php endif; ?>
     <button type="submit" class="px-5 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 transition shadow-lg shadow-emerald-200">Crear</button>
   </form>
 </div>
@@ -72,6 +101,7 @@ ob_start();
         <tr>
           <th class="px-3 py-2 font-medium">Nombre</th>
           <th class="px-3 py-2 font-medium">Email</th>
+          <?php if ($esSuperAdmin): ?><th class="px-3 py-2 font-medium">Empresa</th><?php endif; ?>
           <th class="px-3 py-2 font-medium">Rol</th>
           <th class="px-3 py-2 font-medium">Estado</th>
           <th class="px-3 py-2 font-medium">Disp.</th>
@@ -80,12 +110,13 @@ ob_start();
         </tr>
       </thead>
       <tbody class="divide-y divide-slate-50">
-        <?php foreach ($usuarios as $u): $online = in_array($u['id'], $activosIds); ?>
+        <?php foreach ($usuarios as $u): $online = in_array($u['id'], $activosIds); $esSuper = $u['rol'] === 'super_admin'; ?>
         <tr class="hover:bg-slate-50">
           <td class="px-3 py-2 font-medium text-slate-800 whitespace-nowrap"><?= htmlspecialchars($u['nombre']) ?></td>
           <td class="px-3 py-2 text-slate-500"><?= htmlspecialchars($u['email']) ?></td>
+          <?php if ($esSuperAdmin): ?><td class="px-3 py-2 text-slate-400"><?= htmlspecialchars($u['empresa'] ?? '-') ?></td><?php endif; ?>
           <td class="px-3 py-2">
-            <span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-medium <?= $u['rol']==='admin' ? 'bg-purple-50 text-purple-600' : 'bg-blue-50 text-blue-600' ?>"><?= $u['rol'] ?></span>
+            <span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-medium <?= $esSuper ? 'bg-rose-50 text-rose-600' : ($u['rol']==='admin' ? 'bg-purple-50 text-purple-600' : 'bg-blue-50 text-blue-600') ?>"><?= $u['rol'] ?></span>
           </td>
           <td class="px-3 py-2 whitespace-nowrap">
             <?php if ($online): ?>
@@ -97,14 +128,17 @@ ob_start();
             <?php endif; ?>
           </td>
           <td class="px-3 py-2 text-center">
+            <?php if (!$esSuper): ?>
             <form method="POST" style="display:inline">
               <input type="hidden" name="action" value="toggle_disponible">
               <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
               <button type="submit" class="p-0.5 rounded-full transition <?= $u['disponible'] ? 'text-emerald-500 hover:text-emerald-600' : 'text-slate-300 hover:text-slate-500' ?>" title="<?= $u['disponible']?'Disponible':'No disponible' ?>"><i class="bi <?= $u['disponible']?'bi-check-circle-fill':'bi-circle' ?> text-base"></i></button>
             </form>
+            <?php endif; ?>
           </td>
           <td class="px-3 py-2 text-slate-400 whitespace-nowrap"><?= $u['ultimo_acceso'] ? date('d/m H:i', strtotime($u['ultimo_acceso'])) : '-' ?></td>
           <td class="px-3 py-2 whitespace-nowrap">
+            <?php if (!$esSuper): ?>
             <?php if ($u['rol'] !== 'admin'): ?>
             <form method="POST" style="display:inline">
               <input type="hidden" name="action" value="ausente"><input type="hidden" name="user_id" value="<?= $u['id'] ?>">
@@ -120,6 +154,7 @@ ob_start();
               <input type="hidden" name="action" value="delete"><input type="hidden" name="user_id" value="<?= $u['id'] ?>">
               <button type="submit" class="w-7 h-7 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-500 transition inline-flex items-center justify-center" title="Eliminar"><i class="bi bi-trash text-sm"></i></button>
             </form>
+            <?php endif; ?>
             <?php endif; ?>
           </td>
         </tr>

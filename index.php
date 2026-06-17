@@ -15,13 +15,18 @@ if ($user !== null) {
     $router = new AgentRouter();
     $templateManager = new TemplateManager();
 
-    $totalConversaciones = (int)$db->query("SELECT COUNT(*) FROM conversaciones")->fetchColumn();
-    $pendientes = (int)$db->query("SELECT COUNT(*) FROM conversaciones WHERE estado = 'pendiente'")->fetchColumn();
-    $totalMensajes = (int)$db->query("SELECT COUNT(*) FROM mensajes")->fetchColumn();
+    $rol = $user['rol'];
+    $clienteId = $rol === 'super_admin' ? null : ($user['cliente_id'] ?? null);
+    $clienteFilter = $clienteId !== null ? " AND c.cliente_id = " . (int)$clienteId : "";
+    $metricasFilter = $clienteId !== null ? " AND m2.cliente_id = " . (int)$clienteId : "";
+
+    $totalConversaciones = (int)$db->query("SELECT COUNT(*) FROM conversaciones c WHERE 1=1$clienteFilter")->fetchColumn();
+    $pendientes = (int)$db->query("SELECT COUNT(*) FROM conversaciones c WHERE estado = 'pendiente'$clienteFilter")->fetchColumn();
+    $totalMensajes = (int)$db->query("SELECT COUNT(*) FROM mensajes m JOIN conversaciones c ON m.conversacion_id = c.id WHERE 1=1$clienteFilter")->fetchColumn();
     $agentesActivos = $router->getAgentesActivos();
     $agentesOnline = count($agentesActivos);
-    $respondidosHoy = (int)$db->query("SELECT COUNT(*) FROM metricas WHERE DATE(created_at) = CURDATE()")->fetchColumn();
-    $iaRespondidos = (int)$db->query("SELECT COUNT(*) FROM metricas WHERE respondido_por_ia = 1 AND DATE(created_at) = CURDATE()")->fetchColumn();
+    $respondidosHoy = (int)$db->query("SELECT COUNT(*) FROM metricas m2 WHERE DATE(m2.created_at) = CURDATE()$metricasFilter")->fetchColumn();
+    $iaRespondidos = (int)$db->query("SELECT COUNT(*) FROM metricas m2 WHERE m2.respondido_por_ia = 1 AND DATE(m2.created_at) = CURDATE()$metricasFilter")->fetchColumn();
 
     $activePage = 'dashboard';
     $pageTitle = 'Dashboard';
@@ -116,7 +121,7 @@ if ($user !== null) {
                 </thead>
                 <tbody class="divide-y divide-slate-50">
                     <?php
-                    $recientes = $chatManager->getConversaciones('', '', (int)$user['id'], $user['rol'] === 'admin');
+                    $recientes = $chatManager->getConversaciones('', '', (int)$user['id'], in_array($rol, ['super_admin', 'admin']), $clienteId);
                     $mostrados = 0;
                     foreach ($recientes as $c):
                         if ($mostrados >= 10) break;

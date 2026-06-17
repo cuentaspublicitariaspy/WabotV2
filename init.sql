@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     whatsapp VARCHAR(20) DEFAULT NULL,
     foto_perfil VARCHAR(255) DEFAULT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    rol ENUM('admin', 'agent') NOT NULL DEFAULT 'agent',
+    rol ENUM('super_admin', 'admin', 'agent') NOT NULL DEFAULT 'agent',
     activo TINYINT(1) NOT NULL DEFAULT 1,
     ultimo_acceso DATETIME NULL,
     ultimo_logout DATETIME NULL,
@@ -112,4 +112,4 @@ CREATE TABLE IF NOT EXISTS plantillas (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT IGNORE INTO usuarios (nombre, email, password_hash, rol)
-VALUES ('Admin', 'rolo27281@gmail.com', '$2y$10$5nxdX.2GAa1NSeTtDtWph./fGvEIRDmSRBIJJRpY4PezEhPP.ICWy', 'admin');
+VALUES ('Vendiendo En Internet', 'rolo27281@gmail.com', '$2y$10$5nxdX.2GAa1NSeTtDtWph./fGvEIRDmSRBIJJRpY4PezEhPP.ICWy', 'super_admin');

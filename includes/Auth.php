@@ -13,6 +13,7 @@ function getUsuarioActual(): ?array
             'id' => $_SESSION[ADMIN_USER_ID_KEY] ?? 0,
             'nombre' => $_SESSION[ADMIN_USER_NAME_KEY] ?? '',
             'rol' => $_SESSION[ADMIN_USER_ROL_KEY] ?? '',
+            'cliente_id' => $_SESSION[ADMIN_CLIENTE_ID_KEY] ?? null,
         ];
     }
     return null;
@@ -29,7 +30,17 @@ function requireLogin(): void
 function requireAdmin(): void
 {
     $user = getUsuarioActual();
-    if ($user === null || $user['rol'] !== 'admin') {
+    if ($user === null || !in_array($user['rol'], ['super_admin', 'admin'])) {
+        http_response_code(403);
+        echo 'Acceso denegado';
+        exit;
+    }
+}
+
+function requireSuperAdmin(): void
+{
+    $user = getUsuarioActual();
+    if ($user === null || $user['rol'] !== 'super_admin') {
         http_response_code(403);
         echo 'Acceso denegado';
         exit;
@@ -39,7 +50,7 @@ function requireAdmin(): void
 function login(string $email, string $password): array
 {
     $db = Database::getConnection();
-    $stmt = $db->prepare("SELECT id, nombre, email, password_hash, rol, activo FROM usuarios WHERE email = ?");
+    $stmt = $db->prepare("SELECT id, nombre, email, password_hash, rol, activo, cliente_id FROM usuarios WHERE email = ?");
     $stmt->execute([$email]);
     $user = $stmt->fetch();
 
@@ -55,6 +66,7 @@ function login(string $email, string $password): array
     $_SESSION[ADMIN_USER_ID_KEY] = (int)$user['id'];
     $_SESSION[ADMIN_USER_NAME_KEY] = $user['nombre'];
     $_SESSION[ADMIN_USER_ROL_KEY] = $user['rol'];
+    $_SESSION[ADMIN_CLIENTE_ID_KEY] = $user['cliente_id'] !== null ? (int)$user['cliente_id'] : null;
 
     $stmt = $db->prepare("UPDATE usuarios SET ultimo_acceso = NOW() WHERE id = ?");
     $stmt->execute([$user['id']]);

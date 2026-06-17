@@ -29,16 +29,19 @@ class MetricsCollector
         $stmt->execute([$conversacionId, $mensajeInId, $mensajeOutId, $diff, $respondidoPor, $respondidoPorIa ? 1 : 0]);
     }
 
-    public function getMetricasGlobales(?int $usuarioId = null): array
+    public function getMetricasGlobales(?int $usuarioId = null, ?int $clienteId = null): array
     {
+        $clienteJoin = $clienteId !== null ? " JOIN conversaciones c2 ON m.conversacion_id = c2.id AND c2.cliente_id = " . (int)$clienteId : "";
+        $clienteWhere = $clienteId !== null ? " AND c2.cliente_id = " . (int)$clienteId : "";
+
         if ($usuarioId !== null) {
-            $total = $this->db->prepare("SELECT COUNT(*) FROM metricas WHERE respondido_por = ? OR respondido_por_ia = 1");
+            $total = $this->db->prepare("SELECT COUNT(*) FROM metricas m$clienteJoin WHERE (m.respondido_por = ? OR m.respondido_por_ia = 1)");
             $total->execute([$usuarioId]);
-            $promedio = $this->db->prepare("SELECT AVG(tiempo_respuesta_seg) FROM metricas WHERE tiempo_respuesta_seg IS NOT NULL AND respondido_por = ?");
+            $promedio = $this->db->prepare("SELECT AVG(m.tiempo_respuesta_seg) FROM metricas m$clienteJoin WHERE m.tiempo_respuesta_seg IS NOT NULL AND m.respondido_por = ?");
             $promedio->execute([$usuarioId]);
-            $maximo = $this->db->prepare("SELECT MAX(tiempo_respuesta_seg) FROM metricas WHERE tiempo_respuesta_seg IS NOT NULL AND respondido_por = ?");
+            $maximo = $this->db->prepare("SELECT MAX(m.tiempo_respuesta_seg) FROM metricas m$clienteJoin WHERE m.tiempo_respuesta_seg IS NOT NULL AND m.respondido_por = ?");
             $maximo->execute([$usuarioId]);
-            $minimo = $this->db->prepare("SELECT MIN(tiempo_respuesta_seg) FROM metricas WHERE tiempo_respuesta_seg IS NOT NULL AND respondido_por = ?");
+            $minimo = $this->db->prepare("SELECT MIN(m.tiempo_respuesta_seg) FROM metricas m$clienteJoin WHERE m.tiempo_respuesta_seg IS NOT NULL AND m.respondido_por = ?");
             $minimo->execute([$usuarioId]);
 
             $porAgente = $this->db->prepare(
@@ -51,16 +54,16 @@ class MetricsCollector
             $porAgente->execute([$usuarioId]);
 
             $porHora = $this->db->prepare(
-                "SELECT HOUR(created_at) as hora, COUNT(*) as total
-                 FROM metricas
-                 WHERE respondido_por = ?
-                 GROUP BY HOUR(created_at)
+                "SELECT HOUR(m.created_at) as hora, COUNT(*) as total
+                 FROM metricas m$clienteJoin
+                 WHERE m.respondido_por = ?
+                 GROUP BY HOUR(m.created_at)
                  ORDER BY hora"
             );
             $porHora->execute([$usuarioId]);
 
             $iaTotal = $this->db->query("SELECT COUNT(*) FROM metricas WHERE respondido_por_ia = 1")->fetchColumn();
-            $humanoCount = $this->db->prepare("SELECT COUNT(*) FROM metricas WHERE respondido_por = ? AND respondido_por_ia = 0");
+            $humanoCount = $this->db->prepare("SELECT COUNT(*) FROM metricas m$clienteJoin WHERE m.respondido_por = ? AND m.respondido_por_ia = 0");
             $humanoCount->execute([$usuarioId]);
 
             $porDepartamento = $this->db->prepare(
@@ -86,14 +89,14 @@ class MetricsCollector
             ];
         }
 
-        $total = $this->db->query("SELECT COUNT(*) FROM metricas")->fetchColumn();
-        $promedio = $this->db->query("SELECT AVG(tiempo_respuesta_seg) FROM metricas WHERE tiempo_respuesta_seg IS NOT NULL")->fetchColumn();
-        $maximo = $this->db->query("SELECT MAX(tiempo_respuesta_seg) FROM metricas WHERE tiempo_respuesta_seg IS NOT NULL")->fetchColumn();
-        $minimo = $this->db->query("SELECT MIN(tiempo_respuesta_seg) FROM metricas WHERE tiempo_respuesta_seg IS NOT NULL")->fetchColumn();
+        $total = $this->db->query("SELECT COUNT(*) FROM metricas m$clienteJoinFull")->fetchColumn();
+        $promedio = $this->db->query("SELECT AVG(m.tiempo_respuesta_seg) FROM metricas m$clienteJoinFull WHERE m.tiempo_respuesta_seg IS NOT NULL")->fetchColumn();
+        $maximo = $this->db->query("SELECT MAX(m.tiempo_respuesta_seg) FROM metricas m$clienteJoinFull WHERE m.tiempo_respuesta_seg IS NOT NULL")->fetchColumn();
+        $minimo = $this->db->query("SELECT MIN(m.tiempo_respuesta_seg) FROM metricas m$clienteJoinFull WHERE m.tiempo_respuesta_seg IS NOT NULL")->fetchColumn();
 
         $porAgente = $this->db->query(
             "SELECT u.nombre, COUNT(*) as total, AVG(m.tiempo_respuesta_seg) as promedio
-             FROM metricas m
+             FROM metricas m$clienteJoinFull
              JOIN usuarios u ON m.respondido_por = u.id
              WHERE m.respondido_por IS NOT NULL AND m.respondido_por_ia = 0
              GROUP BY u.id, u.nombre
@@ -101,14 +104,14 @@ class MetricsCollector
         )->fetchAll();
 
         $porHora = $this->db->query(
-            "SELECT HOUR(created_at) as hora, COUNT(*) as total
-             FROM metricas
-             GROUP BY HOUR(created_at)
+            "SELECT HOUR(m.created_at) as hora, COUNT(*) as total
+             FROM metricas m$clienteJoinFull
+             GROUP BY HOUR(m.created_at)
              ORDER BY hora"
         )->fetchAll();
 
-        $iaCount = $this->db->query("SELECT COUNT(*) FROM metricas WHERE respondido_por_ia = 1")->fetchColumn();
-        $humanoCount = $this->db->query("SELECT COUNT(*) FROM metricas WHERE respondido_por_ia = 0 AND respondido_por IS NOT NULL")->fetchColumn();
+        $iaCount = $this->db->query("SELECT COUNT(*) FROM metricas m$clienteJoinFull WHERE m.respondido_por_ia = 1")->fetchColumn();
+        $humanoCount = $this->db->query("SELECT COUNT(*) FROM metricas m$clienteJoinFull WHERE m.respondido_por_ia = 0 AND m.respondido_por IS NOT NULL")->fetchColumn();
 
         $porDepartamento = $this->db->query(
             "SELECT COALESCE(c.departamento, 'general') as departamento, COUNT(*) as total
