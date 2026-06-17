@@ -27,7 +27,7 @@ try {
             } else {
                 $uploadDir = __DIR__ . '/../uploads/';
                 if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
-                $fotoPath = 'uploads/perfil_' . $userId . '_' . time() . '.' . $ext;
+                $fotoPath = '/uploads/perfil_' . $userId . '_' . time() . '.' . $ext;
                 if (!move_uploaded_file($foto['tmp_name'], $uploadDir . basename($fotoPath))) {
                     $errors[] = 'Error al subir la imagen';
                     $fotoPath = null;
