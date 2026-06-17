@@ -63,11 +63,11 @@ ob_start();
 <!-- New user form -->
 <div class="bg-white border border-slate-100 rounded-2xl p-5 mb-5">
   <h5 class="text-sm font-semibold text-slate-700 mb-4">Crear nuevo usuario</h5>
-  <form method="POST" class="grid grid-cols-1 sm:grid-cols-5 gap-3">
+  <form method="POST" class="grid grid-cols-1 sm:grid-cols-5 gap-3" autocomplete="off">
     <input type="hidden" name="action" value="create">
     <input type="text" name="nombre" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Nombre" required>
     <input type="email" name="email" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Email" required>
-    <input type="password" name="password" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Contraseña" required>
+    <input type="password" name="password" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Contraseña" autocomplete="new-password" required>
     <select name="rol" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500">
       <option value="agent">Agente</option>
       <option value="admin">Admin</option>
