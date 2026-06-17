@@ -44,7 +44,6 @@ $pageTitle = $pageTitle ?? 'Wabot';
       <?php if ($user['rol'] === 'admin'): ?>
       <li class="nav-header">Administración</li>
       <li class="nav-item"><a href="estadisticas.php" class="nav-link <?= $activePage === 'estadisticas' ? 'active' : '' ?>"><i class="nav-icon bi bi-bar-chart"></i><p>Estadísticas</p></a></li>
-      <li class="nav-item"><a href="plantillas.php" class="nav-link <?= $activePage === 'plantillas' ? 'active' : '' ?>"><i class="nav-icon bi bi-envelope"></i><p>Plantillas</p></a></li>
       <li class="nav-item"><a href="usuarios.php" class="nav-link <?= $activePage === 'usuarios' ? 'active' : '' ?>"><i class="nav-icon bi bi-people"></i><p>Usuarios</p></a></li>
       <?php endif; ?>
     </ul>
