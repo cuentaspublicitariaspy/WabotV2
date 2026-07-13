@@ -1,0 +1,355 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ABM - RODAS AI</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🤖</text></svg>">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
+.header{background:#1e293b;border-bottom:1px solid #334155;padding:16px 24px;display:flex;align-items:center;justify-content:space-between}
+.header h1{font-size:20px;font-weight:700;color:#f1f5f9}
+.header h1 span{color:#34d399}
+.header-right{display:flex;align-items:center;gap:12px}
+.logout-btn{background:transparent;border:1px solid #475569;color:#94a3b8;padding:6px 14px;border-radius:8px;font-size:13px;cursor:pointer;transition:all .2s}
+.logout-btn:hover{border-color:#ef4444;color:#ef4444}
+.container{max-width:1200px;margin:0 auto;padding:24px}
+.toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.toolbar h2{font-size:18px;font-weight:600;color:#f1f5f9}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;border:none;cursor:pointer;transition:all .2s}
+.btn-primary{background:#059669;color:#fff}
+.btn-primary:hover{background:#047857}
+.btn-sm{padding:4px 10px;font-size:12px}
+.btn-edit{background:#1d4ed8;color:#fff}
+.btn-edit:hover{background:#1e40af}
+.btn-delete{background:#dc2626;color:#fff}
+.btn-delete:hover{background:#b91c1c}
+.btn-copy{background:#475569;color:#fff}
+.btn-copy:hover{background:#334155}
+.table-wrap{background:#1e293b;border-radius:12px;border:1px solid #334155;overflow:hidden}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:12px 16px;font-size:12px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;background:#0f172a;border-bottom:1px solid #334155}
+td{padding:12px 16px;font-size:14px;border-bottom:1px solid #2d3a4e}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#1a2744}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:3px 8px;border-radius:6px}
+.badge-on{background:#065f46;color:#6ee7b7}
+.badge-off{background:#7f1d1d;color:#fca5a5}
+.actions{display:flex;gap:6px}
+.text-muted{color:#64748b;font-size:13px}
+.font-mono{font-family:'SF Mono','Fira Code','Cascadia Code',monospace;font-size:12px}
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:1000;padding:16px}
+.modal-overlay.active{display:flex}
+.modal{background:#1e293b;border-radius:16px;border:1px solid #334155;width:100%;max-width:500px;max-height:90vh;overflow-y:auto;box-shadow:0 25px 50px rgba(0,0,0,.4)}
+.modal-header{padding:16px 20px;border-bottom:1px solid #334155;display:flex;justify-content:space-between;align-items:center}
+.modal-header h3{font-size:16px;font-weight:700;color:#f1f5f9}
+.modal-close{background:none;border:none;color:#64748b;font-size:22px;cursor:pointer;padding:0;line-height:1}
+.modal-close:hover{color:#f1f5f9}
+.modal-body{padding:20px}
+.modal-footer{padding:16px 20px;border-top:1px solid #334155;display:flex;justify-content:flex-end;gap:8px}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:13px;font-weight:600;color:#94a3b8;margin-bottom:4px}
+.form-group input[type="text"],.form-group input[type="url"]{width:100%;padding:10px 12px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:14px;outline:none;transition:border .2s}
+.form-group input:focus{border-color:#059669}
+.form-group .hint{font-size:11px;color:#64748b;margin-top:2px}
+.toggle-wrap{display:flex;align-items:center;gap:10px}
+.toggle{position:relative;width:44px;height:24px;background:#475569;border-radius:12px;cursor:pointer;transition:background .2s}
+.toggle.active{background:#059669}
+.toggle:after{content:'';position:absolute;top:2px;left:2px;width:20px;height:20px;background:#fff;border-radius:50%;transition:transform .2s}
+.toggle.active:after{transform:translateX(20px)}
+.toggle-label{font-size:14px;color:#e2e8f0}
+.result-box{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:16px;margin-bottom:16px}
+.result-box .key-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0}
+.result-box .key-row .label{font-size:12px;color:#94a3b8}
+.result-box .key-row .value{font-family:'SF Mono','Fira Code',monospace;font-size:12px;color:#34d399;word-break:break-all;margin-right:8px}
+.embed-box{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:12px;margin-bottom:8px}
+.embed-box code{display:block;font-family:'SF Mono','Fira Code',monospace;font-size:11px;color:#6ee7b7;word-break:break-all;line-height:1.6;white-space:pre-wrap}
+.empty-state{text-align:center;padding:48px 16px;color:#64748b}
+.empty-state p{font-size:14px;margin-bottom:8px}
+.empty-state .icon{font-size:40px;margin-bottom:12px}
+.toast{position:fixed;bottom:24px;right:24px;background:#1e293b;border:1px solid #334155;border-radius:10px;padding:12px 20px;font-size:13px;color:#e2e8f0;box-shadow:0 10px 30px rgba(0,0,0,.5);display:none;z-index:2000;animation:slideIn .3s ease}
+.toast.show{display:block}
+@keyframes slideIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>RODAS AI <span>ABM</span></h1>
+  <div class="header-right">
+    <span id="user-display" class="text-muted" style="font-size:13px"></span>
+    <button class="logout-btn" onclick="logout()">Salir</button>
+  </div>
+</div>
+
+<div class="container" id="app"></div>
+
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-title">Nuevo Cliente</h3>
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer" id="modal-footer"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+var STATE = { token: null, clients: {}, editing: null };
+
+function qs(s) { return document.querySelector(s); }
+function qsa(s) { return document.querySelectorAll(s); }
+
+function toast(msg, ok) {
+  var el = document.getElementById('toast');
+  el.textContent = (ok ? '✓ ' : '✗ ') + msg;
+  el.style.borderColor = ok ? '#059669' : '#dc2626';
+  el.classList.add('show');
+  setTimeout(function(){ el.classList.remove('show'); }, 3000);
+}
+
+// ---- AUTH ----
+function getToken() {
+  var t = localStorage.getItem('abm_token');
+  if (t) { STATE.token = t; document.getElementById('user-display').textContent = localStorage.getItem('abm_user') || ''; }
+  return t;
+}
+
+function setSession(token, user) {
+  STATE.token = token;
+  localStorage.setItem('abm_token', token);
+  localStorage.setItem('abm_user', user);
+  document.getElementById('user-display').textContent = user;
+  render();
+}
+
+function logout() {
+  localStorage.removeItem('abm_token');
+  localStorage.removeItem('abm_user');
+  STATE.token = null;
+  render();
+}
+
+function api(path, opts) {
+  opts = opts || {};
+  var headers = { 'Authorization': 'Bearer ' + STATE.token };
+  if (opts.body) headers['Content-Type'] = 'application/json';
+  Object.assign(headers, opts.headers || {});
+  return fetch(path, {
+    method: opts.method || 'GET',
+    headers: headers,
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  }).then(function(r){ return r.json(); });
+}
+
+// ---- LOGIN SCREEN ----
+function renderLogin() {
+  document.getElementById('app').innerHTML =
+    '<div style="max-width:380px;margin:80px auto;background:#1e293b;border-radius:16px;border:1px solid #334155;padding:32px">' +
+    '<div style="text-align:center;margin-bottom:24px"><div style="width:48px;height:48px;background:#059669;border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:22px">🤖</div>' +
+    '<h2 style="font-size:18px;color:#f1f5f9">RODAS AI</h2><p style="font-size:13px;color:#64748b">Panel de Administración</p></div>' +
+    '<div class="form-group"><label>Usuario</label><input type="text" id="login-user" placeholder="admin" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:14px;outline:none"></div>' +
+    '<div class="form-group"><label>Contraseña</label><input type="password" id="login-pass" placeholder="••••••" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:14px;outline:none" onkeydown="if(event.key===\'Enter\')doLogin()"></div>' +
+    '<button onclick="doLogin()" style="width:100%;padding:10px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">Ingresar</button>' +
+    '<div id="login-error" style="color:#fca5a5;font-size:13px;margin-top:8px;display:none"></div></div>';
+}
+
+function doLogin() {
+  var u = document.getElementById('login-user').value.trim();
+  var p = document.getElementById('login-pass').value;
+  if (!u || !p) { document.getElementById('login-error').textContent = 'Completá ambos campos'; document.getElementById('login-error').style.display = 'block'; return; }
+  document.getElementById('login-error').style.display = 'none';
+  api('/api/abm/login', { method:'POST', body:{ user: u, password: p } }).then(function(d){
+    if (d.success) { setSession(d.token, d.user || u); }
+    else { document.getElementById('login-error').textContent = d.error || 'Credenciales inválidas'; document.getElementById('login-error').style.display = 'block'; }
+  });
+}
+
+// ---- CLIENTS ----
+function loadClients() {
+  api('/api/abm/clients').then(function(d){
+    if (d.success) { STATE.clients = d.clients || {}; renderClients(); }
+    else { toast('Error al cargar clientes', false); }
+  });
+}
+
+function renderClients() {
+  var app = document.getElementById('app');
+  var keys = Object.keys(STATE.clients);
+  var html =
+    '<div class="toolbar"><h2>Clientes</h2><button class="btn btn-primary" onclick="showAdd()">+ Nuevo Cliente</button></div>' +
+    '<div class="table-wrap">';
+  if (keys.length === 0) {
+    html += '<div class="empty-state"><div class="icon">📋</div><p>No hay clientes registrados</p><p class="text-muted">Creá el primer cliente para empezar</p></div>';
+  } else {
+    html += '<table><thead><tr><th>Nombre</th><th>URL</th><th>API Key</th><th>License Key</th><th>Límites</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>';
+    for (var k in STATE.clients) {
+      var c = STATE.clients[k];
+      var rl = c.rate_limits || {};
+      var limits = 'C:' + (rl.chat || 60) + ' T:' + (rl.transcribe || 6);
+      var badge = (c.enabled === true || c.enabled === '1' || c.enabled === 1) ? '<span class="badge badge-on">● Activo</span>' : '<span class="badge badge-off">● Inactivo</span>';
+      html += '<tr>' +
+        '<td><strong>' + esc(c.name) + '</strong></td>' +
+        '<td class="text-muted font-mono">' + esc(c.client_url || '-') + '</td>' +
+        '<td class="font-mono" style="color:#34d399">' + esc(k) + '</td>' +
+        '<td class="font-mono" style="color:#fbbf24">' + esc(c.license_key || '-') + '</td>' +
+        '<td class="text-muted" style="font-size:11px">' + limits + '</td>' +
+        '<td>' + badge + '</td>' +
+        '<td class="actions">' +
+        '<button class="btn btn-sm btn-edit" onclick="showEdit(\'' + k + '\')">✎ Editar</button>' +
+        '<button class="btn btn-sm ' + (c.enabled ? 'btn-delete' : 'btn-primary') + '" onclick="toggleClient(\'' + k + '\')">' + (c.enabled ? 'Desactivar' : 'Activar') + '</button>' +
+        '<button class="btn btn-sm btn-delete" onclick="deleteClient(\'' + k + '\')">✕</button>' +
+        '</td></tr>';
+    }
+    html += '</tbody></table>';
+  }
+  html += '</div>';
+  app.innerHTML = html;
+}
+
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showAdd() {
+  STATE.editing = null;
+  document.getElementById('modal-title').textContent = 'Nuevo Cliente';
+  document.getElementById('modal-body').innerHTML =
+    '<div class="form-group"><label>Nombre *</label><input type="text" id="f-name" placeholder="Ej: Peluquería Martínez"></div>' +
+    '<div class="form-group"><label>URL del Cliente *</label><input type="url" id="f-url" placeholder="https://mipelu.com/wabot"><div class="hint">URL base donde está instalado el Wabot PHP del cliente</div></div>' +
+    '<div class="form-group"><div class="toggle-wrap"><div class="toggle active" id="f-enabled" onclick="this.classList.toggle(\'active\')"></div><span class="toggle-label">Activo</span></div></div>' +
+    '<div style="font-size:12px;color:#64748b;margin-top:8px;padding:8px;background:#0f172a;border-radius:6px">Al guardar se generarán automáticamente la API Key y la License Key.</div>';
+  document.getElementById('modal-footer').innerHTML =
+    '<button class="btn" style="background:#475569;color:#e2e8f0" onclick="closeModal()">Cancelar</button>' +
+    '<button class="btn btn-primary" onclick="saveClient()">Guardar Cliente</button>';
+  document.getElementById('modal').classList.add('active');
+  setTimeout(function(){ var el = document.getElementById('f-name'); if(el) el.focus(); }, 100);
+}
+
+function showEdit(key) {
+  STATE.editing = key;
+  var c = STATE.clients[key];
+  var rl = c.rate_limits || {};
+  document.getElementById('modal-title').textContent = 'Editar Cliente';
+  var active = (c.enabled === true || c.enabled === '1' || c.enabled === 1);
+  document.getElementById('modal-body').innerHTML =
+    '<div class="form-group"><label>Nombre *</label><input type="text" id="f-name" value="' + esc(c.name) + '"></div>' +
+    '<div class="form-group"><label>URL del Cliente *</label><input type="url" id="f-url" value="' + esc(c.client_url || '') + '"><div class="hint">URL base donde está instalado el Wabot PHP del cliente</div></div>' +
+    '<div class="form-group"><div class="toggle-wrap"><div class="toggle' + (active ? ' active' : '') + '" id="f-enabled" onclick="this.classList.toggle(\'active\')"></div><span class="toggle-label">Activo</span></div></div>' +
+    '<div class="grid grid-cols-2 gap-4" style="margin-top:12px">' +
+    '<div class="form-group"><label>Límite Chat (req/min)</label><input type="number" id="f-rl-chat" value="' + (rl.chat || 60) + '" min="1" max="600" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:14px;outline:none"><div class="hint">Default: 60. Máx: 600</div></div>' +
+    '<div class="form-group"><label>Límite Transcripción (req/min)</label><input type="number" id="f-rl-transcribe" value="' + (rl.transcribe || 6) + '" min="1" max="60" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:14px;outline:none"><div class="hint">Default: 6. Máx: 60</div></div>' +
+    '</div>' +
+    '<div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:12px;margin-top:12px">' +
+    '<div style="font-size:12px;color:#94a3b8">API Key</div><div class="font-mono" style="font-size:13px;color:#34d399;margin-top:2px">' + esc(key) + '</div>' +
+    '<div style="font-size:12px;color:#94a3b8;margin-top:8px">License Key</div><div class="font-mono" style="font-size:13px;color:#fbbf24;margin-top:2px">' + esc(c.license_key || '-') + '</div></div>';
+  document.getElementById('modal-footer').innerHTML =
+    '<button class="btn" style="background:#475569;color:#e2e8f0" onclick="closeModal()">Cancelar</button>' +
+    '<button class="btn btn-primary" onclick="saveClient()">Guardar Cambios</button>';
+  document.getElementById('modal').classList.add('active');
+}
+
+function saveClient() {
+  var name = document.getElementById('f-name').value.trim();
+  var url = document.getElementById('f-url').value.trim();
+  var enabled = document.getElementById('f-enabled').classList.contains('active');
+
+  if (!name || !url) { toast('Nombre y URL son requeridos', false); return; }
+
+  if (!url.startsWith('http://') && !url.startsWith('https://')) { toast('La URL debe comenzar con http:// o https://', false); return; }
+
+  var body = { name: name, client_url: url, enabled: enabled };
+  if (STATE.editing) {
+    body.api_key = STATE.editing;
+    var elChat = document.getElementById('f-rl-chat');
+    var elTrans = document.getElementById('f-rl-transcribe');
+    if (elChat) body.rate_limits = { chat: parseInt(elChat.value) || 60, transcribe: parseInt(elTrans ? elTrans.value : 6) || 6 };
+  }
+
+  api('/api/abm/clients', { method: 'POST', body: body }).then(function(d){
+    if (d.success) {
+      closeModal();
+      if (d.api_key) {
+        // New client: show result with keys
+        showCreated(d);
+      } else {
+        toast('Cliente actualizado', true);
+        loadClients();
+      }
+    } else {
+      toast(d.error || 'Error al guardar', false);
+    }
+  });
+}
+
+function showCreated(d) {
+  var apiBase = 'https://wabot-cdn.vercel.app';
+  var embed = '<script src="' + apiBase + '/widget.js" data-api-key="' + d.api_key + '" data-api-base="' + apiBase + '"><\/script>';
+  document.getElementById('modal-title').textContent = '✓ Cliente Creado';
+  document.getElementById('modal-body').innerHTML =
+    '<div class="result-box">' +
+    '<div class="key-row"><span class="label">API Key</span><div><span class="value" id="result-api-key">' + d.api_key + '</span><button class="btn btn-sm btn-copy" onclick="copyText(\'' + d.api_key + '\')">Copiar</button></div></div>' +
+    '<div class="key-row" style="margin-top:8px"><span class="label">License Key</span><div><span class="value" id="result-license-key">' + d.license_key + '</span><button class="btn btn-sm btn-copy" onclick="copyText(\'' + d.license_key + '\')">Copiar</button></div></div>' +
+    '</div>' +
+    '<div style="font-size:13px;color:#94a3b8;margin-bottom:8px">Código para incrustar el widget:</div>' +
+    '<div class="embed-box"><code id="result-embed">' + esc(embed) + '</code></div>' +
+    '<button class="btn btn-sm btn-copy" onclick="copyText(document.getElementById(\'result-embed\').textContent)">Copiar embed code</button>' +
+    '<div style="margin-top:16px;padding:12px;background:#0f172a;border:1px solid #334155;border-radius:8px;font-size:12px;color:#64748b">' +
+    '<strong style="color:#f1f5f9">Próximo paso:</strong> Configurá la License Key en el servidor del cliente como variable de entorno <code style="color:#6ee7b7">LICENSE_KEY</code> en el archivo <code style="color:#6ee7b7">.env</code>.</div>';
+  document.getElementById('modal-footer').innerHTML =
+    '<button class="btn btn-primary" onclick="closeModal();loadClients()">Listo</button>';
+  loadClients(); // Reload in background
+}
+
+function copyText(text) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(function(){ toast('Copiado', true); });
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed'; ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    toast('Copiado', true);
+  }
+}
+
+function toggleClient(key) {
+  var c = STATE.clients[key];
+  var newEnabled = !(c.enabled === true || c.enabled === '1' || c.enabled === 1);
+  api('/api/abm/clients', { method: 'POST', body: { api_key: key, enabled: newEnabled } }).then(function(d){
+    if (d.success) { toast(newEnabled ? 'Cliente activado' : 'Cliente desactivado', true); loadClients(); }
+    else { toast('Error al cambiar estado', false); }
+  });
+}
+
+function deleteClient(key) {
+  if (!confirm('¿Eliminar cliente ' + STATE.clients[key].name + '? Esta acción no se puede deshacer.')) return;
+  api('/api/abm/clients', { method: 'DELETE', body: { api_key: key } }).then(function(d){
+    if (d.success) { toast('Cliente eliminado', true); loadClients(); }
+    else { toast('Error al eliminar', false); }
+  });
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('active');
+}
+
+// ---- RENDER ----
+function render() {
+  if (!getToken()) { renderLogin(); return; }
+  loadClients();
+}
+
+render();
+</script>
+</body>
+</html>
+
