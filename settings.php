@@ -4,11 +4,27 @@ require_once __DIR__ . '/includes/EnvWriter.php';
 require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/KnowledgeManager.php';
 requireLogin();
-requireSuperAdmin();
 $user = getUsuarioActual();
+$userRol = $user['rol'] ?? '';
+if (!in_array($userRol, ['super_admin', 'admin'])) {
+    header('Location: index.php');
+    exit;
+}
+$isSuperAdmin = $userRol === 'super_admin';
 
 $db = Database::getConnection();
 $knowledge = new KnowledgeManager();
+
+$availTabs = [
+    'permisos' => ['label' => 'Permisos', 'super' => true, 'admin' => false],
+    'whatsapp' => ['label' => 'WhatsApp', 'super' => true, 'admin' => false],
+    'chatbot' => ['label' => 'Chatbot', 'super' => true, 'admin' => true],
+    'knowledge' => ['label' => 'Conocimiento', 'super' => true, 'admin' => true],
+    'smtp' => ['label' => 'SMTP', 'super' => true, 'admin' => false],
+];
+$visibleTabs = array_filter($availTabs, fn($t) => $isSuperAdmin ? $t['super'] : $t['admin']);
+$visibleKeys = array_keys($visibleTabs);
+$firstTab = $visibleKeys[0] ?? 'permisos';
 
 $db->exec("CREATE TABLE IF NOT EXISTS widget_config (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -195,19 +211,18 @@ ob_start();
   <?php endif; ?>
 
   <div class="flex gap-1 border-b border-slate-200 mb-6 overflow-x-auto">
-    <div class="tab-btn active" onclick="switchTab('license')" data-tab="license">Licencia</div>
-    <div class="tab-btn" onclick="switchTab('whatsapp')" data-tab="whatsapp">WhatsApp</div>
-    <div class="tab-btn" onclick="switchTab('smtp')" data-tab="smtp">SMTP</div>
-    <div class="tab-btn" onclick="switchTab('widget')" data-tab="widget">Widget</div>
-    <div class="tab-btn" onclick="switchTab('knowledge')" data-tab="knowledge">Conocimiento</div>
+    <?php $first = true; foreach ($visibleTabs as $key => $tab): ?>
+    <div class="tab-btn <?= $first ? 'active' : '' ?>" onclick="switchTab('<?= $key ?>')" data-tab="<?= $key ?>"><?= $tab['label'] ?></div>
+    <?php $first = false; endforeach; ?>
   </div>
 
-  <!-- TAB: Licencia -->
-  <div id="tab-license" class="tab-content active">
+  <?php if ($isSuperAdmin): ?>
+  <!-- TAB: Permisos -->
+  <div id="tab-permisos" class="tab-content <?= $visibleKeys[0] === 'permisos' ? 'active' : '' ?>">
     <div class="bg-white border border-slate-100 rounded-2xl p-6">
-      <h2 class="text-lg font-bold text-slate-700 mb-1">Licencia</h2>
-      <p class="text-sm text-slate-500 mb-5">License Key del sistema. Sin esto, el webhook no procesa mensajes.</p>
-      <form method="POST" class="space-y-4">
+      <h2 class="text-lg font-bold text-slate-700 mb-1">Permisos</h2>
+      <p class="text-sm text-slate-500 mb-5">License Key del sistema y API Key del widget.</p>
+      <form method="POST" class="space-y-4 mb-6">
         <input type="hidden" name="section" value="license">
         <div>
           <label class="block text-sm font-medium text-slate-700 mb-1">License Key</label>
@@ -215,9 +230,19 @@ ob_start();
         </div>
         <div class="flex justify-end"><button type="submit" class="px-5 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 transition shadow-lg">Guardar License Key</button></div>
       </form>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">API Key del widget</label>
+        <div class="flex gap-2">
+          <input type="text" readonly value="<?= htmlspecialchars($config['api_key'] ?? '') ?>" class="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none bg-slate-50 font-mono text-xs">
+          <button onclick="navigator.clipboard.writeText('<?= htmlspecialchars($config['api_key'] ?? '') ?>'); this.textContent='Copiado!'; setTimeout(()=>this.textContent='Copiar',1500)" class="px-4 py-2.5 bg-slate-100 text-slate-700 text-sm rounded-xl hover:bg-slate-200 transition shrink-0">Copiar</button>
+        </div>
+        <p class="text-xs text-slate-400 mt-1">Se genera automáticamente al crear el widget.</p>
+      </div>
     </div>
   </div>
+  <?php endif; ?>
 
+  <?php if ($isSuperAdmin): ?>
   <!-- TAB: WhatsApp -->
   <div id="tab-whatsapp" class="tab-content">
     <div class="bg-white border border-slate-100 rounded-2xl p-6">
@@ -305,7 +330,9 @@ ob_start();
       </form>
     </div>
   </div>
+  <?php endif; ?>
 
+  <?php if ($isSuperAdmin): ?>
   <!-- TAB: SMTP -->
   <div id="tab-smtp" class="tab-content">
     <div class="bg-white border border-slate-100 rounded-2xl p-6">
@@ -329,12 +356,13 @@ ob_start();
       </form>
     </div>
   </div>
+  <?php endif; ?>
 
-  <!-- TAB: Widget -->
-  <div id="tab-widget" class="tab-content">
+  <!-- TAB: Chatbot -->
+  <div id="tab-chatbot" class="tab-content <?= $visibleKeys[0] === 'chatbot' ? 'active' : '' ?>">
     <div class="bg-white border border-slate-100 rounded-2xl p-6 mb-5">
       <h2 class="text-lg font-bold text-slate-700 mb-1">Widget Web</h2>
-      <p class="text-sm text-slate-500 mb-5">Configuración del widget para incrustar en sitios web.</p>
+      <p class="text-sm text-slate-500 mb-5">Configuración del chatbot para incrustar en sitios web.</p>
       <form method="POST" class="space-y-4">
         <input type="hidden" name="section" value="widget">
         <div class="grid grid-cols-2 gap-4">
@@ -344,10 +372,6 @@ ob_start();
               <input type="color" name="primary_color" value="<?= htmlspecialchars($config['primary_color'] ?? '#2F63E9') ?>" class="w-10 h-10 rounded cursor-pointer border border-slate-200">
               <input type="text" name="primary_color_text" value="<?= htmlspecialchars($config['primary_color'] ?? '#2F63E9') ?>" class="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-xs" oninput="this.previousElementSibling.value=this.value">
             </div>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-slate-700 mb-1">License Key</label>
-            <input type="text" name="license_key" value="<?= htmlspecialchars($config['license_key'] ?? '') ?>" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-xs" placeholder="Ingresá la License Key">
           </div>
         </div>
         <div class="grid grid-cols-2 gap-4">
@@ -360,7 +384,7 @@ ob_start();
             <input type="text" name="welcome_subtitle" value="<?= htmlspecialchars($config['welcome_subtitle'] ?? 'Online') ?>" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500">
           </div>
         </div>
-        <div class="flex justify-start pt-2"><button type="submit" class="px-5 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 transition shadow-lg">Guardar widget</button></div>
+        <div class="flex justify-start pt-2"><button type="submit" class="px-5 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 transition shadow-lg">Guardar chatbot</button></div>
       </form>
     </div>
 
@@ -371,12 +395,12 @@ ob_start();
   data-api-key="<?= htmlspecialchars($config['api_key'] ?? '') ?>"
   data-api-base="<?= $apiBase ?>"&gt;&lt;/script&gt;</pre>
       </div>
-      <button onclick="navigator.clipboard.writeText(document.getElementById('embed-code').textContent); this.textContent='Copiado!'; setTimeout(()=>this.textContent='Copiar c\u00f3digo',1500)" class="mt-3 px-5 py-2.5 bg-slate-800 text-white text-sm font-medium rounded-xl hover:bg-slate-900 transition">Copiar c\u00f3digo</button>
+      <button onclick="navigator.clipboard.writeText(document.getElementById('embed-code').textContent); this.textContent='Copiado!'; setTimeout(()=>this.textContent='Copiar c\u00f3digo',1500)" class="mt-3 px-5 py-2.5 bg-slate-800 text-white text-sm font-medium rounded-xl hover:bg-slate-900 transition">Copiar código</button>
     </div>
   </div>
 
   <!-- TAB: Conocimiento -->
-  <div id="tab-knowledge" class="tab-content">
+  <div id="tab-knowledge" class="tab-content <?= $visibleKeys[0] === 'knowledge' ? 'active' : '' ?>">
     <div class="flex items-center justify-between mb-5">
       <h2 class="text-lg font-bold text-slate-700">Base de conocimiento</h2>
       <span class="text-sm font-medium <?= $knowledgeCount >= 5 ? 'text-amber-600' : 'text-slate-500' ?>"><?= $knowledgeCount ?>/5 fuentes</span>
