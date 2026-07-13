@@ -16,6 +16,7 @@ jobs:
           ARGS: "-rlgoDzvc --delete"
           SOURCE: "."
           REMOTE_HOST: ${{ secrets.SSH_HOST }}
+          REMOTE_PORT: ${{ secrets.SSH_PORT }}
           REMOTE_USER: ${{ secrets.SSH_USER }}
           TARGET: ${{ secrets.DEPLOY_PATH }}
           EXCLUDE: ".git*, .env, NO SUBIR/, uploads/*"
