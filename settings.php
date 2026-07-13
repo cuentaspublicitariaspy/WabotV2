@@ -1,9 +1,36 @@
 <?php
 require_once __DIR__ . '/includes/Auth.php';
 require_once __DIR__ . '/includes/EnvWriter.php';
+require_once __DIR__ . '/includes/Database.php';
+require_once __DIR__ . '/includes/KnowledgeManager.php';
 requireLogin();
 requireSuperAdmin();
 $user = getUsuarioActual();
+
+$db = Database::getConnection();
+$knowledge = new KnowledgeManager();
+
+$db->exec("CREATE TABLE IF NOT EXISTS widget_config (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  api_key VARCHAR(64) NOT NULL UNIQUE,
+  enabled TINYINT(1) DEFAULT 1,
+  position VARCHAR(10) DEFAULT 'right',
+  primary_color VARCHAR(7) DEFAULT '#2F63E9',
+  secondary_color VARCHAR(7) DEFAULT '#F3F4F6',
+  welcome_title VARCHAR(255) DEFAULT 'Asistente',
+  welcome_subtitle VARCHAR(255) DEFAULT 'Online',
+  license_key VARCHAR(64) DEFAULT '',
+  response_mode ENUM('ai','human') DEFAULT 'ai',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+$config = $db->query("SELECT * FROM widget_config ORDER BY id DESC LIMIT 1")->fetch();
+if (!$config) {
+    $apiKey = 'wgt_' . bin2hex(random_bytes(16));
+    $db->prepare("INSERT INTO widget_config (api_key) VALUES (?)")->execute([$apiKey]);
+    $config = $db->query("SELECT * FROM widget_config ORDER BY id DESC LIMIT 1")->fetch();
+}
 
 $activePage = 'settings';
 $pageTitle = 'Configuración del sistema';
@@ -11,7 +38,6 @@ $pageTitle = 'Configuración del sistema';
 $msg = '';
 $msgType = '';
 
-// Handle POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $section = $_POST['section'] ?? '';
 
@@ -59,13 +85,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $licenseKey = trim($_POST['license_key'] ?? '');
         if ($licenseKey) {
             EnvWriter::set('LICENSE_KEY', $licenseKey);
+            $db->prepare("UPDATE widget_config SET license_key=? WHERE id=?")->execute([$licenseKey, $config['id']]);
             $msg = 'License Key guardada';
             $msgType = 'success';
         }
     }
+
+    if ($section === 'widget') {
+        $licenseKey = trim($_POST['license_key'] ?? '');
+        $primaryColor = trim($_POST['primary_color'] ?? '#2F63E9');
+        $welcomeTitle = trim($_POST['welcome_title'] ?? 'Asistente');
+        $welcomeSubtitle = trim($_POST['welcome_subtitle'] ?? 'Online');
+        $stmt = $db->prepare("UPDATE widget_config SET primary_color=?, welcome_title=?, welcome_subtitle=? WHERE id=?");
+        $stmt->execute([$primaryColor, $welcomeTitle, $welcomeSubtitle, $config['id']]);
+        if ($licenseKey) {
+            EnvWriter::set('LICENSE_KEY', $licenseKey);
+            $db->prepare("UPDATE widget_config SET license_key=? WHERE id=?")->execute([$licenseKey, $config['id']]);
+        }
+        $config = $db->query("SELECT * FROM widget_config ORDER BY id DESC LIMIT 1")->fetch();
+        $msg = 'Widget guardado';
+        $msgType = 'success';
+    }
+
+    if ($section === 'knowledge') {
+        $content = $_POST['content'] ?? '';
+        if ($knowledge->save($content)) {
+            $msg = 'Conocimiento guardado';
+            $msgType = 'success';
+        } else {
+            $msg = 'Error al guardar';
+            $msgType = 'error';
+        }
+    }
 }
 
-// Load current values
 $smtpHost = EnvWriter::get('SMTP_HOST');
 $smtpPort = EnvWriter::get('SMTP_PORT') ?: '587';
 $smtpUser = EnvWriter::get('SMTP_USER');
@@ -86,7 +139,11 @@ $waConnected = $waToken !== '' && $waPhoneId !== '';
 $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 $callbackUrl = "$scheme://{$_SERVER['HTTP_HOST']}/webhook.php";
 
-$licenseDisplay = EnvWriter::get('LICENSE_KEY');
+$licenseDisplay = EnvWriter::get('LICENSE_KEY') ?: ($config['license_key'] ?? '');
+$apiBase = 'https://wabot-cdn.vercel.app';
+
+$knowledgeContent = $knowledge->getContent();
+$knowledgeStats = $knowledge->getStats();
 
 ob_start();
 ?>
@@ -105,11 +162,12 @@ ob_start();
   <div class="mb-4 px-4 py-3 rounded-xl text-sm font-medium <?= $msgType === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200' ?>"><?= htmlspecialchars($msg) ?></div>
   <?php endif; ?>
 
-  <!-- Tabs -->
-  <div class="flex gap-1 border-b border-slate-200 mb-6">
+  <div class="flex gap-1 border-b border-slate-200 mb-6 overflow-x-auto">
     <div class="tab-btn active" onclick="switchTab('license')" data-tab="license">Licencia</div>
     <div class="tab-btn" onclick="switchTab('whatsapp')" data-tab="whatsapp">WhatsApp</div>
     <div class="tab-btn" onclick="switchTab('smtp')" data-tab="smtp">SMTP</div>
+    <div class="tab-btn" onclick="switchTab('widget')" data-tab="widget">Widget</div>
+    <div class="tab-btn" onclick="switchTab('knowledge')" data-tab="knowledge">Conocimiento</div>
   </div>
 
   <!-- TAB: Licencia -->
@@ -153,7 +211,6 @@ ob_start();
       <p class="text-xs text-slate-400 mb-5">Seguí los pasos de abajo para conectar WhatsApp.</p>
       <?php endif; ?>
 
-      <!-- Step 1: Webhook -->
       <div class="flex items-center gap-3 mb-4">
         <span class="w-7 h-7 rounded-full bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center">1</span>
         <h5 class="text-sm font-semibold text-slate-700">Configurar Webhook en Meta Developers</h5>
@@ -189,7 +246,6 @@ ob_start();
         <p class="text-xs text-amber-600">Meta va a verificar el webhook automáticamente. Si ves "Conectado", pasá al Paso 2.</p>
       </div>
 
-      <!-- Step 2: Connection data -->
       <div class="flex items-center gap-3 mb-4">
         <span class="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold flex items-center justify-center">2</span>
         <h5 class="text-sm font-semibold text-slate-700">Ingresar datos de la app de Meta</h5>
@@ -241,6 +297,74 @@ ob_start();
       </form>
     </div>
   </div>
+
+  <!-- TAB: Widget -->
+  <div id="tab-widget" class="tab-content">
+    <div class="bg-white border border-slate-100 rounded-2xl p-6 mb-5">
+      <h2 class="text-lg font-bold text-slate-700 mb-1">Widget Web</h2>
+      <p class="text-sm text-slate-500 mb-5">Configuración del widget para incrustar en sitios web.</p>
+      <form method="POST" class="space-y-4">
+        <input type="hidden" name="section" value="widget">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Color primario</label>
+            <div class="flex gap-2 max-w-xs">
+              <input type="color" name="primary_color" value="<?= htmlspecialchars($config['primary_color'] ?? '#2F63E9') ?>" class="w-10 h-10 rounded cursor-pointer border border-slate-200">
+              <input type="text" name="primary_color_text" value="<?= htmlspecialchars($config['primary_color'] ?? '#2F63E9') ?>" class="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-xs" oninput="this.previousElementSibling.value=this.value">
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">License Key</label>
+            <input type="text" name="license_key" value="<?= htmlspecialchars($config['license_key'] ?? '') ?>" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-xs" placeholder="Ingresá la License Key">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Título de bienvenida</label>
+            <input type="text" name="welcome_title" value="<?= htmlspecialchars($config['welcome_title'] ?? 'Asistente') ?>" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Subtítulo</label>
+            <input type="text" name="welcome_subtitle" value="<?= htmlspecialchars($config['welcome_subtitle'] ?? 'Online') ?>" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500">
+          </div>
+        </div>
+        <div class="flex justify-start pt-2"><button type="submit" class="px-5 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 transition shadow-lg">Guardar widget</button></div>
+      </form>
+    </div>
+
+    <div class="bg-white border border-slate-100 rounded-2xl p-6">
+      <h5 class="text-sm font-semibold text-slate-700 mb-3">Código para incrustar</h5>
+      <div class="bg-slate-900 rounded-xl overflow-hidden">
+        <pre class="text-green-400 text-xs leading-relaxed px-4 py-3 m-0 overflow-x-auto" id="embed-code">&lt;script src="<?= $apiBase ?>/widget.js"
+  data-api-key="<?= htmlspecialchars($config['api_key'] ?? '') ?>"
+  data-api-base="<?= $apiBase ?>"&gt;&lt;/script&gt;</pre>
+      </div>
+      <button onclick="navigator.clipboard.writeText(document.getElementById('embed-code').textContent); this.textContent='Copiado!'; setTimeout(()=>this.textContent='Copiar c\u00f3digo',1500)" class="mt-3 px-5 py-2.5 bg-slate-800 text-white text-sm font-medium rounded-xl hover:bg-slate-900 transition">Copiar c\u00f3digo</button>
+    </div>
+  </div>
+
+  <!-- TAB: Conocimiento -->
+  <div id="tab-knowledge" class="tab-content">
+    <div class="flex items-center justify-between mb-4">
+      <h5 class="text-sm font-semibold text-slate-700">Base de conocimiento</h5>
+      <div class="flex items-center gap-3 text-xs text-slate-400">
+        <span><?= $knowledgeStats['lines'] ?> l\u00edneas</span>
+        <span><?= number_format($knowledgeStats['size']) ?> bytes</span>
+      </div>
+    </div>
+    <form method="POST">
+      <input type="hidden" name="section" value="knowledge">
+      <div class="bg-white border border-slate-100 rounded-2xl overflow-hidden">
+        <textarea name="content" class="w-full border-0 p-5 font-mono text-sm outline-none resize-y" style="min-height:400px;" rows="25" placeholder="Escrib\u00ed ac\u00e1 la base de conocimiento de la IA..."><?= htmlspecialchars($knowledgeContent) ?></textarea>
+        <div class="px-5 py-3 border-t border-slate-100 flex justify-end">
+          <button type="submit" class="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 transition shadow-lg">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+            Guardar conocimiento
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
 </div>
 
 <script>
@@ -250,6 +374,20 @@ function switchTab(name) {
   document.getElementById('tab-' + name).classList.add('active');
   document.querySelector('[data-tab="' + name + '"]').classList.add('active');
 }
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('input[type="color"]').forEach(function(c) {
+    c.addEventListener('input', function() {
+      var textInput = this.parentElement.nextElementSibling;
+      if (textInput) textInput.value = this.value;
+    });
+  });
+  document.querySelectorAll('input[name="primary_color_text"]').forEach(function(t) {
+    t.addEventListener('input', function() {
+      var colorInput = this.parentElement.previousElementSibling.querySelector('input[type="color"]');
+      if (colorInput) colorInput.value = this.value;
+    });
+  });
+});
 </script>
 
 <?php
