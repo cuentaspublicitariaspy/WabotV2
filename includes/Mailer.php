@@ -32,18 +32,24 @@ class Mailer
     {
         $errno = 0;
         $errstr = '';
+        $timeout = 10;
 
-        $socket = @stream_socket_client(
-            $cfg['host'] . ':' . $cfg['port'],
-            $errno,
-            $errstr,
-            15
-        );
+        $remote = $cfg['host'] . ':' . $cfg['port'];
+
+        if ($cfg['port'] == 465) {
+            $remote = 'ssl://' . $remote;
+        }
+
+        $socket = @stream_socket_client($remote, $errno, $errstr, $timeout);
         if (!$socket) return false;
+
+        stream_set_timeout($socket, $timeout);
 
         $read = function($socket) {
             $line = '';
+            $start = time();
             while ($line === '' || substr($line, 3, 1) === '-') {
+                if (time() - $start > 10) break;
                 $line = @fgets($socket, 512);
                 if ($line === false) break;
             }
@@ -55,19 +61,37 @@ class Mailer
             return $read($socket);
         };
 
-        $read($socket);
-        $cmd($socket, 'EHLO wabot');
-        $cmd($socket, 'STARTTLS');
+        $resp = $read($socket);
+        if (substr($resp, 0, 3) !== '220') return false;
 
-        @stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
+        $resp = $cmd($socket, 'EHLO wabot');
+        if (substr($resp, 0, 3) !== '250') return false;
 
-        $cmd($socket, 'EHLO wabot');
-        $cmd($socket, 'AUTH LOGIN');
-        $cmd($socket, base64_encode($cfg['user']));
-        $cmd($socket, base64_encode($cfg['pass']));
-        $cmd($socket, 'MAIL FROM:<' . $cfg['from_email'] . '>');
-        $cmd($socket, 'RCPT TO:<' . $to . '>');
-        $cmd($socket, 'DATA');
+        if ($cfg['port'] != 465 && stripos($resp, 'STARTTLS') !== false) {
+            $resp = $cmd($socket, 'STARTTLS');
+            if (substr($resp, 0, 3) !== '220') return false;
+            @stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
+            $resp = $cmd($socket, 'EHLO wabot');
+            if (substr($resp, 0, 3) !== '250') return false;
+        }
+
+        $resp = $cmd($socket, 'AUTH LOGIN');
+        if (substr($resp, 0, 3) !== '334') return false;
+
+        $resp = $cmd($socket, base64_encode($cfg['user']));
+        if (substr($resp, 0, 3) !== '334') return false;
+
+        $resp = $cmd($socket, base64_encode($cfg['pass']));
+        if (substr($resp, 0, 3) !== '235') return false;
+
+        $resp = $cmd($socket, 'MAIL FROM:<' . $cfg['from_email'] . '>');
+        if (substr($resp, 0, 3) !== '250') return false;
+
+        $resp = $cmd($socket, 'RCPT TO:<' . $to . '>');
+        if (substr($resp, 0, 3) !== '250') return false;
+
+        $resp = $cmd($socket, 'DATA');
+        if (substr($resp, 0, 3) !== '354') return false;
 
         $headers = "MIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n";
         $headers .= "From: " . $cfg['from_name'] . " <" . $cfg['from_email'] . ">\r\n";
