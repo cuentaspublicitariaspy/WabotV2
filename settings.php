@@ -108,13 +108,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($section === 'knowledge') {
-        $content = $_POST['content'] ?? '';
-        if ($knowledge->save($content)) {
-            $msg = 'Conocimiento guardado';
-            $msgType = 'success';
-        } else {
-            $msg = 'Error al guardar';
-            $msgType = 'error';
+        $action = $_POST['action'] ?? '';
+        if ($action === 'add_text') {
+            $title = trim($_POST['title'] ?? '');
+            $content = trim($_POST['content'] ?? '');
+            if ($title && $content) {
+                if ($knowledge->add($title, $content)) {
+                    $msg = 'Fuente agregada';
+                    $msgType = 'success';
+                } else {
+                    $msg = 'Límite de 5 fuentes alcanzado o datos incompletos';
+                    $msgType = 'error';
+                }
+            } else {
+                $msg = 'Completá título y contenido';
+                $msgType = 'error';
+            }
+        }
+        if ($action === 'add_file') {
+            $title = trim($_POST['title'] ?? '');
+            if ($title && isset($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
+                $content = file_get_contents($_FILES['file']['tmp_name']);
+                if ($knowledge->add($title, $content)) {
+                    $msg = 'Archivo subido como fuente';
+                    $msgType = 'success';
+                } else {
+                    $msg = 'Límite de 5 fuentes alcanzado';
+                    $msgType = 'error';
+                }
+            } else {
+                $msg = 'Completá título y seleccioná un archivo';
+                $msgType = 'error';
+            }
+        }
+        if ($action === 'delete') {
+            $id = (int) ($_POST['id'] ?? 0);
+            if ($id && $knowledge->delete($id)) {
+                $msg = 'Fuente eliminada';
+                $msgType = 'success';
+            }
         }
     }
 }
@@ -142,8 +174,8 @@ $callbackUrl = "$scheme://{$_SERVER['HTTP_HOST']}/webhook.php";
 $licenseDisplay = EnvWriter::get('LICENSE_KEY') ?: ($config['license_key'] ?? '');
 $apiBase = 'https://wabot-cdn.vercel.app';
 
-$knowledgeContent = $knowledge->getContent();
-$knowledgeStats = $knowledge->getStats();
+$knowledgeSources = $knowledge->getAll();
+$knowledgeCount = $knowledge->count();
 
 ob_start();
 ?>
@@ -345,25 +377,77 @@ ob_start();
 
   <!-- TAB: Conocimiento -->
   <div id="tab-knowledge" class="tab-content">
-    <div class="flex items-center justify-between mb-4">
-      <h5 class="text-sm font-semibold text-slate-700">Base de conocimiento</h5>
-      <div class="flex items-center gap-3 text-xs text-slate-400">
-        <span><?= $knowledgeStats['lines'] ?> l\u00edneas</span>
-        <span><?= number_format($knowledgeStats['size']) ?> bytes</span>
-      </div>
+    <div class="flex items-center justify-between mb-5">
+      <h2 class="text-lg font-bold text-slate-700">Base de conocimiento</h2>
+      <span class="text-sm font-medium <?= $knowledgeCount >= 5 ? 'text-amber-600' : 'text-slate-500' ?>"><?= $knowledgeCount ?>/5 fuentes</span>
     </div>
-    <form method="POST">
-      <input type="hidden" name="section" value="knowledge">
-      <div class="bg-white border border-slate-100 rounded-2xl overflow-hidden">
-        <textarea name="content" class="w-full border-0 p-5 font-mono text-sm outline-none resize-y" style="min-height:400px;" rows="25" placeholder="Escrib\u00ed ac\u00e1 la base de conocimiento de la IA..."><?= htmlspecialchars($knowledgeContent) ?></textarea>
-        <div class="px-5 py-3 border-t border-slate-100 flex justify-end">
-          <button type="submit" class="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 transition shadow-lg">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
-            Guardar conocimiento
-          </button>
-        </div>
+
+    <?php if ($knowledgeCount < 5): ?>
+    <div class="bg-white border border-slate-100 rounded-2xl p-5 mb-6">
+      <h5 class="text-sm font-semibold text-slate-700 mb-3">Agregar fuente</h5>
+      <div class="flex gap-2 mb-4">
+        <button type="button" onclick="toggleKnowledgeMode('text')" id="kbtn-text" class="px-4 py-1.5 text-sm rounded-lg font-medium transition bg-emerald-600 text-white">Pegar texto</button>
+        <button type="button" onclick="toggleKnowledgeMode('file')" id="kbtn-file" class="px-4 py-1.5 text-sm rounded-lg font-medium transition bg-slate-100 text-slate-600 hover:bg-slate-200">Subir archivo</button>
       </div>
-    </form>
+
+      <form method="POST" id="kform-text" class="space-y-3">
+        <input type="hidden" name="section" value="knowledge">
+        <input type="hidden" name="action" value="add_text">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Título</label>
+          <input type="text" name="title" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Ej: Productos, Envíos, Horarios..." required>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Contenido</label>
+          <textarea name="content" rows="6" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 resize-y" placeholder="Escribí acá el contenido de la fuente..." required></textarea>
+        </div>
+        <div class="flex justify-end"><button type="submit" class="px-5 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 transition">Agregar fuente</button></div>
+      </form>
+
+      <form method="POST" enctype="multipart/form-data" id="kform-file" class="space-y-3 hidden">
+        <input type="hidden" name="section" value="knowledge">
+        <input type="hidden" name="action" value="add_file">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Título</label>
+          <input type="text" name="title" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Ej: Política de devoluciones" required>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Archivo .txt</label>
+          <input type="file" name="file" accept=".txt" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100" required>
+        </div>
+        <div class="flex justify-end"><button type="submit" class="px-5 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 transition">Subir archivo</button></div>
+      </form>
+    </div>
+    <?php endif; ?>
+
+    <?php if (empty($knowledgeSources)): ?>
+    <div class="text-center py-12 text-slate-400">
+      <p class="text-sm">No hay fuentes de conocimiento. Agregá una usando el formulario de arriba.</p>
+    </div>
+    <?php else: ?>
+    <div class="space-y-3">
+      <?php foreach ($knowledgeSources as $i => $src): ?>
+      <div class="bg-white border border-slate-100 rounded-2xl p-5 flex items-start justify-between gap-4">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold flex items-center justify-center shrink-0"><?= $i + 1 ?></span>
+            <h5 class="text-sm font-semibold text-slate-800 truncate"><?= htmlspecialchars($src['title']) ?></h5>
+          </div>
+          <p class="text-xs text-slate-400 ml-8 truncate"><?= htmlspecialchars($src['preview']) ?></p>
+          <p class="text-xs text-slate-400 ml-8 mt-0.5"><?= number_format($src['size']) ?> caracteres</p>
+        </div>
+        <form method="POST" onsubmit="return confirm('Eliminar esta fuente?')">
+          <input type="hidden" name="section" value="knowledge">
+          <input type="hidden" name="action" value="delete">
+          <input type="hidden" name="id" value="<?= $src['id'] ?>">
+          <button type="submit" class="text-red-400 hover:text-red-600 transition p-1" title="Eliminar">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+          </button>
+        </form>
+      </div>
+      <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
   </div>
 </div>
 
@@ -388,6 +472,12 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 });
+function toggleKnowledgeMode(mode) {
+  document.getElementById('kform-text').classList.toggle('hidden', mode !== 'text');
+  document.getElementById('kform-file').classList.toggle('hidden', mode !== 'file');
+  document.getElementById('kbtn-text').className = 'px-4 py-1.5 text-sm rounded-lg font-medium transition ' + (mode === 'text' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200');
+  document.getElementById('kbtn-file').className = 'px-4 py-1.5 text-sm rounded-lg font-medium transition ' + (mode === 'file' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200');
+}
 </script>
 
 <?php

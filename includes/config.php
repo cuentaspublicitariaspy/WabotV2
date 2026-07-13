@@ -44,5 +44,3 @@ define('ADMIN_USER_ID_KEY', 'wabot_user_id');
 define('ADMIN_USER_NAME_KEY', 'wabot_user_name');
 define('ADMIN_USER_ROL_KEY', 'wabot_user_rol');
 define('ADMIN_CLIENTE_ID_KEY', 'wabot_cliente_id');
-
-define('KNOWLEDGE_FILE', __DIR__ . '/../conocimiento/conocimiento.txt');
