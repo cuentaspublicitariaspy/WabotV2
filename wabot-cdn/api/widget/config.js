@@ -32,7 +32,11 @@ module.exports = async (req, res) => {
     if (client.client_url) {
       const cached = await getCachedConfig(apiKey);
       if (cached) {
-        res.json({ success: true, config: cached });
+        // El Chatbot necesita esta dirección para restaurar y persistir el
+        // historial en WC. Sin ella, una respuesta cacheada deja la memoria
+        // desconectada aunque la configuración visual llegue correctamente.
+        const baseUrl = client.client_url.replace(/\/+$/, '');
+        res.json({ success: true, config: cached, storage_base: `${baseUrl}/wabot` });
         return;
       }
 
