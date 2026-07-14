@@ -1,332 +1,73 @@
-(function() {
+(function () {
   var script = document.currentScript;
   if (!script) return;
   var apiKey = script.getAttribute('data-api-key');
-  var apiBase = script.getAttribute('data-api-base') || window.location.origin;
-  if (!apiKey) return;
-
+  var apiBase = script.getAttribute('data-api-base') || 'https://wabot-cdn.vercel.app';
   var storeUrl = script.getAttribute('data-store') || '';
   var historyUrl = script.getAttribute('data-history') || '';
-  var sessionStorageKey = 'wabot_session_' + apiKey;
-  var visitorId = localStorage.getItem(sessionStorageKey);
-  if (!visitorId) {
-    // Es un token de sesión opaco, no un identificador adivinable. WC lo usa
-    // como llave de acceso a la conversación de este navegador.
-    if (window.crypto && window.crypto.getRandomValues) {
-      var randomBytes = new Uint8Array(32);
-      window.crypto.getRandomValues(randomBytes);
-      visitorId = Array.prototype.map.call(randomBytes, function(byte) {
-        return ('0' + byte.toString(16)).slice(-2);
-      }).join('');
-    } else {
-      visitorId = String(Date.now()) + '_' + Math.random().toString(36).slice(2) + '_' + Math.random().toString(36).slice(2);
-    }
-    try { localStorage.setItem(sessionStorageKey, visitorId); } catch(e) {}
+  if (!apiKey) return;
+
+  var storageKey = 'wabot_messages_' + apiKey;
+  var sessionKey = 'wabot_session_' + apiKey;
+  var sessionId = localStorage.getItem(sessionKey);
+  if (!sessionId) {
+    var bytes = new Uint8Array(32);
+    if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(bytes);
+    else for (var b = 0; b < bytes.length; b++) bytes[b] = Math.floor(Math.random() * 256);
+    sessionId = Array.prototype.map.call(bytes, function (byte) { return ('0' + byte.toString(16)).slice(-2); }).join('');
+    localStorage.setItem(sessionKey, sessionId);
   }
 
-  function storeMessage(role, content) {
+  var color = '#4f46e5';
+  var title = 'Asistente virtual';
+  var subtitle = 'En línea para ayudarte';
+  var rootId = 'wabot-chatbot-root';
+
+  function messages() { try { return JSON.parse(localStorage.getItem(storageKey)) || []; } catch (e) { return []; } }
+  function save(list) { try { localStorage.setItem(storageKey, JSON.stringify(list)); } catch (e) {} }
+  function now() { return new Date().toLocaleTimeString('es-PY', { hour: '2-digit', minute: '2-digit' }); }
+  function esc(value) { var el = document.createElement('div'); el.textContent = value || ''; return el.innerHTML; }
+  function endpoint(name) { return apiBase.replace(/\/+$/, '') + '/api/widget/' + name; }
+
+  function persist(role, content) {
     if (!storeUrl) return;
-    var payload = JSON.stringify({
-      api_key: apiKey,
-      session_id: visitorId,
-      role: role,
-      content: content
-    });
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', storeUrl, true);
-    xhr.setRequestHeader('Content-Type', 'application/json');
-    xhr.send(payload);
+    var request = new XMLHttpRequest();
+    request.open('POST', storeUrl, true);
+    request.setRequestHeader('Content-Type', 'application/json');
+    request.send(JSON.stringify({ api_key: apiKey, session_id: sessionId, role: role, content: content }));
   }
 
-  var STORAGE_KEY = 'wabot_messages_' + apiKey;
-  var primaryColor = '#2F63E9';
-  var welcomeTitle = 'Asistente';
-  var welcomeSubtitle = 'Online';
-
-  function apiUrl(endpoint) {
-    return apiBase.replace(/\/+$/, '') + '/api/widget/' + endpoint;
-  }
-
-  function getMessages() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch(e) { return []; }
-  }
-
-  function saveMessages(msgs) {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(msgs)); } catch(e) {}
-  }
-
-  function loadPersistedMessages() {
-    if (!historyUrl) return;
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', historyUrl + '?key=' + encodeURIComponent(apiKey) + '&session_id=' + encodeURIComponent(visitorId), true);
-    xhr.onreadystatechange = function() {
-      if (xhr.readyState !== 4 || xhr.status !== 200) return;
-      try {
-        var data = JSON.parse(xhr.responseText || '{}');
-        if (!data.success || !Array.isArray(data.messages)) return;
-        var messages = data.messages.map(function(m) {
-          return { role: m.role === 'visitor' ? 'visitor' : 'assistant', content: m.content, time: m.created_at ? m.created_at.slice(11,16) : timeStr() };
-        });
-        saveMessages(messages);
-        renderMessages(messages);
-      } catch(e) {}
-    };
-    xhr.send();
-  }
-
-  function escapeHtml(text) {
-    var d = document.createElement('div');
-    d.textContent = text;
-    return d.innerHTML;
-  }
-
-  function timeStr() {
-    var d = new Date();
-    return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
-  }
-
-  var panelW = 420;
-  var panelH = 590;
-  var rootId = 'wabot-widget-root';
-  var html =
+  var html = '' +
     '<div id="' + rootId + '">' +
     '<style>' +
-    '#' + rootId + ' { all:initial; font-family:Inter,Roboto,Arial,sans-serif; line-height:normal; text-align:left; isolation:isolate; }' +
-    '#' + rootId + ',#' + rootId + ' * { box-sizing:border-box; margin:0; padding:0; font-family:inherit; }' +
-    '#' + rootId + ' button,#' + rootId + ' input { font:inherit; }' +
-    '.ww-launcher { position:fixed; bottom:20px; right:20px; z-index:2147483646; width:62px; height:62px; border-radius:50%; background:' + primaryColor + '; color:#fff; border:2px solid rgba(255,255,255,.75); cursor:pointer; box-shadow:0 12px 34px rgba(2,6,23,.48),0 0 0 5px color-mix(in srgb,' + primaryColor + ' 18%,transparent); display:flex; align-items:center; justify-content:center; transition:transform .15s; }' +
-    '.ww-launcher:hover { transform:scale(1.05); }' +
-    '.ww-launcher svg { transition:transform .2s; }' +
-    '.ww-launcher.open svg { transform:rotate(45deg); }' +
-    '.ww-panel { position:fixed; bottom:100px; right:20px; z-index:2147483646; width:' + panelW + 'px; max-width:calc(100vw - 32px); height:' + panelH + 'px; max-height:calc(100vh - 124px); background:#09131f !important; border:1px solid rgba(148,163,184,.28); border-radius:24px; box-shadow:0 26px 70px rgba(2,6,23,.56); display:none; flex-direction:column; overflow:hidden; }' +
-    '.ww-panel.open { display:flex; }' +
-    '.ww-header { background:linear-gradient(135deg,#0f1b28,#09131f 72%); min-height:88px; padding:16px 18px; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; color:#fff; border-bottom:1px solid rgba(148,163,184,.2); }' +
-    '.ww-header-info { display:flex; align-items:center; gap:10px; min-width:0; }' +
-    '.ww-header-avatar { width:44px; height:44px; border-radius:50%; border:1px solid ' + primaryColor + '; color:' + primaryColor + '; background:rgba(255,255,255,.04); display:flex; align-items:center; justify-content:center; font-size:22px; flex:0 0 auto; }' +
-    '.ww-header-copy { display:flex; flex-direction:column; min-width:0; }' +
-    '.ww-header-title { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:16px; font-weight:700; color:#f8fafc !important; line-height:1.25; }' +
-    '.ww-header-status { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; color:#cbd5e1 !important; margin-top:4px; }' +
-    '.ww-header-status:before { content:""; display:inline-block; width:7px; height:7px; background:#22c55e; border-radius:50%; margin:0 6px 1px 0; }' +
-    '.ww-header-close { width:34px; height:34px; border-radius:50%; background:transparent; border:1px solid rgba(148,163,184,.28); color:#cbd5e1; font-size:24px; cursor:pointer; padding:0; line-height:1; opacity:0.9; flex:0 0 auto; }' +
-    '.ww-header-close:hover { opacity:1; }' +
-    '.ww-body { flex:1; overflow-y:auto; padding:18px; background:radial-gradient(circle at top right,rgba(255,255,255,.035),transparent 34%),#09131f; }' +
-    '.ww-body::-webkit-scrollbar { width:4px; }' +
-    '.ww-body::-webkit-scrollbar-thumb { background:#334155; border-radius:4px; }' +
-    '.ww-msg { margin-bottom:12px; display:flex; flex-direction:column; }' +
-    '.ww-msg.visitor { align-items:flex-end; }' +
-    '.ww-msg.assistant { align-items:flex-start; }' +
-    '.ww-msg-bubble { max-width:84%; padding:12px 14px; border-radius:18px; font-size:14px; line-height:1.55; word-wrap:break-word; white-space:pre-wrap; }' +
-    '.ww-msg.visitor .ww-msg-bubble { background:linear-gradient(135deg,' + primaryColor + ',color-mix(in srgb,' + primaryColor + ' 72%,#020617)); color:#fff; border-bottom-right-radius:5px; box-shadow:0 5px 15px rgba(0,0,0,.15); }' +
-    '.ww-msg.assistant .ww-msg-bubble { background:rgba(255,255,255,.07); color:#f1f5f9; border:1px solid rgba(148,163,184,.16); border-bottom-left-radius:5px; }' +
-    '.ww-msg-time { font-size:10px; color:#94a3b8; margin-top:5px; padding:0 5px; }' +
-    '.ww-empty { text-align:center; color:#94a3b8; font-size:13px; line-height:1.5; padding:64px 28px; }' +
-    '.ww-domain-error { text-align:center; padding:34px 22px; color:#334155; }' +
-    '.ww-domain-error-icon { width:48px; height:48px; margin:0 auto 14px; border-radius:50%; background:#fff7ed; color:#ea580c; display:flex; align-items:center; justify-content:center; font-size:24px; }' +
-    '.ww-domain-error h3 { font-size:16px; margin-bottom:8px; color:#1e293b; }' +
-    '.ww-domain-error p { font-size:13px; line-height:1.5; color:#64748b; }' +
-    '.ww-typing { display:flex; align-items:center; gap:6px; padding:12px 16px; background:rgba(255,255,255,.07); border:1px solid rgba(148,163,184,.16); border-radius:14px; margin-bottom:12px; width:fit-content; }' +
-    '.ww-typing span { width:8px; height:8px; border-radius:50%; background:#9aa5b1; animation:ww-pulse 1.2s infinite; }' +
-    '.ww-typing span:nth-child(2) { animation-delay:.2s; }' +
-    '.ww-typing span:nth-child(3) { animation-delay:.4s; }' +
-    '@keyframes ww-pulse { 0%,100% { opacity:.3; } 50% { opacity:1; } }' +
-    '.ww-footer { border-top:1px solid rgba(148,163,184,.16); padding:14px 16px; background:#09131f; display:flex; gap:10px; align-items:center; flex-shrink:0; }' +
-    '.ww-input { flex:1; height:46px; border:1px solid rgba(148,163,184,.3); background:#0d1b29; color:#f8fafc; border-radius:14px; padding:0 14px; font-size:14px; outline:none; }' +
-    '.ww-input:focus { border-color:' + primaryColor + '; }' +
-    '.ww-input::placeholder { color:#94a3b8; }' +
-    '.ww-send { width:46px; height:46px; border-radius:14px; background:' + primaryColor + '; color:#fff; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:opacity .15s,transform .15s; }' +
-    '.ww-send:disabled { opacity:0.4; cursor:not-allowed; }' +
-    '.ww-branding { text-align:center; font-size:11px; color:#64748b; padding:8px 0; background:#09131f; border-top:1px solid rgba(148,163,184,.12); flex-shrink:0; }' +
-    '@media(max-width:480px){.ww-launcher{bottom:14px;right:14px}.ww-panel{right:12px;bottom:86px;max-width:calc(100vw - 24px);height:min(590px,calc(100vh - 104px));border-radius:20px}}' +
+    '#' + rootId + '{all:initial;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;isolation:isolate}' +
+    '#' + rootId + ' *,#' + rootId + ' *:before,#' + rootId + ' *:after{box-sizing:border-box;font-family:inherit}' +
+    '.wc-shell{position:fixed;right:24px;bottom:24px;z-index:2147483646;display:flex;flex-direction:column;align-items:flex-end;pointer-events:none}' +
+    '.wc-panel{width:380px;max-width:calc(100vw - 28px);height:550px;max-height:calc(100vh - 116px);margin-bottom:18px;display:none;flex-direction:column;background:#fff;border:1px solid #e8edf5;border-radius:24px;overflow:hidden;box-shadow:0 22px 55px rgba(15,23,42,.28);transform:translateY(18px) scale(.96);opacity:0;transition:transform .22s ease,opacity .22s ease;pointer-events:auto}' +
+    '.wc-panel.open{display:flex;transform:translateY(0) scale(1);opacity:1}' +
+    '.wc-head{min-height:82px;padding:15px 16px;color:#fff;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(105deg,var(--wc-color),color-mix(in srgb,var(--wc-color) 78%,#111827));box-shadow:0 2px 8px rgba(15,23,42,.12)}' +
+    '.wc-agent{display:flex;align-items:center;gap:12px;min-width:0}.wc-avatar{width:43px;height:43px;display:grid;place-items:center;border-radius:50%;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);position:relative;flex:0 0 auto}.wc-avatar:after{content:"";position:absolute;right:-1px;bottom:-1px;width:11px;height:11px;border-radius:50%;background:#4ade80;border:2px solid #fff}.wc-avatar svg{width:20px;height:20px}.wc-name{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:750;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wc-bot{font-size:9px;letter-spacing:.07em;font-weight:800;text-transform:uppercase;background:rgba(255,255,255,.22);padding:3px 5px;border-radius:5px}.wc-sub{margin-top:4px;font-size:11px;color:rgba(255,255,255,.86);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wc-controls{display:flex;gap:4px}.wc-icon{width:32px;height:32px;padding:0;border:0;border-radius:50%;background:transparent;color:#fff;cursor:pointer;display:grid;place-items:center;opacity:.84}.wc-icon:hover{background:rgba(255,255,255,.14);opacity:1}.wc-icon svg{width:18px;height:18px}' +
+    '.wc-content{flex:1;min-height:0;display:flex;flex-direction:column;background:#f8fafc}.wc-messages{flex:1;overflow-y:auto;padding:17px 16px;scroll-behavior:smooth}.wc-messages::-webkit-scrollbar{width:5px}.wc-messages::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:99px}.wc-day{text-align:center;margin:1px 0 15px}.wc-day span{display:inline-block;padding:4px 10px;border-radius:99px;background:#e2e8f0;color:#64748b;font-size:9px;font-weight:750;letter-spacing:.09em;text-transform:uppercase}.wc-row{display:flex;align-items:flex-start;gap:10px;margin:0 0 15px}.wc-row.visitor{justify-content:flex-end}.wc-mini-avatar{width:29px;height:29px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--wc-color) 12%,#fff);color:var(--wc-color);border:1px solid color-mix(in srgb,var(--wc-color) 22%,#fff);flex:0 0 auto;margin-top:2px}.wc-mini-avatar svg{width:14px;height:14px}.wc-message{max-width:78%;min-width:0}.wc-bubble{padding:12px 13px;border-radius:17px;border-top-left-radius:4px;background:#fff;border:1px solid #edf1f6;box-shadow:0 2px 5px rgba(15,23,42,.05);color:#1e293b;font-size:13px;line-height:1.5;word-break:break-word;white-space:pre-wrap}.visitor .wc-bubble{background:var(--wc-color);color:#fff;border-color:transparent;border-radius:17px;border-bottom-right-radius:4px;box-shadow:0 5px 13px color-mix(in srgb,var(--wc-color) 24%,transparent)}.wc-time{display:block;margin:4px 3px 0;color:#94a3b8;font-size:9px}.visitor .wc-time{text-align:right}.wc-typing{display:none}.wc-typing.show{display:flex}.wc-dots{padding:13px 15px;display:flex;gap:4px}.wc-dots i{display:block;width:6px;height:6px;border-radius:50%;background:#94a3b8;animation:wc-bounce 1.1s infinite}.wc-dots i:nth-child(2){animation-delay:.15s}.wc-dots i:nth-child(3){animation-delay:.3s}@keyframes wc-bounce{0%,80%,100%{transform:translateY(0);opacity:.45}40%{transform:translateY(-4px);opacity:1}}' +
+    '.wc-suggestions{display:flex;gap:7px;overflow-x:auto;white-space:nowrap;padding:10px 12px;background:#fff;border-top:1px solid #eef2f6}.wc-suggestions::-webkit-scrollbar{display:none}.wc-chip{border:1px solid #e2e8f0;background:#f8fafc;color:#475569;padding:7px 10px;border-radius:99px;font-size:11px;font-weight:600;cursor:pointer;flex:0 0 auto;transition:.15s}.wc-chip:hover{border-color:var(--wc-color);color:var(--wc-color);background:color-mix(in srgb,var(--wc-color) 7%,#fff)}' +
+    '.wc-inputbar{padding:12px;background:#fff;border-top:1px solid #eef2f6;display:flex;gap:9px;align-items:center}.wc-inputwrap{height:42px;flex:1;display:flex;align-items:center;gap:6px;padding:0 11px 0 14px;border:1px solid transparent;background:#f1f5f9;border-radius:99px;transition:.15s}.wc-inputwrap:focus-within{background:#fff;border-color:var(--wc-color);box-shadow:0 0 0 3px color-mix(in srgb,var(--wc-color) 14%,transparent)}.wc-input{width:100%;border:0;outline:0;background:transparent;color:#1e293b;font-size:13px}.wc-input::placeholder{color:#94a3b8}.wc-send{width:42px;height:42px;border:0;border-radius:50%;background:var(--wc-color);color:#fff;display:grid;place-items:center;cursor:pointer;box-shadow:0 6px 15px color-mix(in srgb,var(--wc-color) 28%,transparent);transition:.15s;flex:0 0 auto}.wc-send:hover{filter:brightness(.92);transform:translateY(-1px)}.wc-send:disabled{opacity:.42;cursor:not-allowed;transform:none}.wc-send svg{width:17px;height:17px;margin-left:2px;margin-top:-1px}.wc-footer{text-align:center;padding:8px;background:#fff;border-top:1px solid #f1f5f9;color:#94a3b8;font-size:10px}.wc-footer strong{color:var(--wc-color);font-weight:750}.wc-launch{width:62px;height:62px;border:0;border-radius:50%;background:var(--wc-color);color:#fff;box-shadow:0 12px 30px color-mix(in srgb,var(--wc-color) 38%,transparent);display:grid;place-items:center;cursor:pointer;pointer-events:auto;position:relative;transition:.18s}.wc-launch:hover{transform:scale(1.06)}.wc-launch:before{content:"";position:absolute;inset:-5px;border:2px solid color-mix(in srgb,var(--wc-color) 50%,transparent);border-radius:50%;animation:wc-ring 2s infinite}@keyframes wc-ring{0%{transform:scale(.9);opacity:.7}100%{transform:scale(1.22);opacity:0}}.wc-launch svg{width:27px;height:27px}.wc-launch .close{display:none}.wc-launch.open .chat{display:none}.wc-launch.open .close{display:block}@media(max-width:480px){.wc-shell{right:14px;bottom:14px}.wc-panel{max-width:calc(100vw - 28px);height:min(550px,calc(100vh - 104px));margin-bottom:14px}}' +
     '</style>' +
-    '<button class="ww-launcher" id="ww-launcher">' +
-    '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="26" height="26"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>' +
-    '</button>' +
-    '<div class="ww-panel" id="ww-panel">' +
-      '<div class="ww-header">' +
-        '<div class="ww-header-info">' +
-          '<span class="ww-header-avatar" aria-hidden="true">◌</span>' +
-          '<span class="ww-header-copy">' +
-            '<span class="ww-header-title" id="ww-title">' + welcomeTitle + '</span>' +
-            '<span class="ww-header-status" id="ww-status">' + welcomeSubtitle + '</span>' +
-          '</span>' +
-        '</div>' +
-        '<button class="ww-header-close" id="ww-close">&times;</button>' +
+    '<div class="wc-shell" style="--wc-color:' + color + '">' +
+      '<div class="wc-panel" id="wc-panel">' +
+        '<div class="wc-head"><div class="wc-agent"><div class="wc-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><path d="M18 19c0 1-1 2-2 2h-3"/><path d="M4 14h3v5H5a1 1 0 0 1-1-1zM20 14h-3v5h2a1 1 0 0 0 1-1z"/></svg></div><div style="min-width:0"><div class="wc-name" id="wc-title">' + esc(title) + '<span class="wc-bot">IA</span></div><div class="wc-sub" id="wc-sub">' + esc(subtitle) + '</div></div></div><div class="wc-controls"><button class="wc-icon" id="wc-close" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 6-12 12M6 6l12 12"/></svg></button></div></div>' +
+        '<div class="wc-content"><div class="wc-messages" id="wc-messages"><div class="wc-day"><span>Hoy</span></div><div id="wc-list"></div><div class="wc-row wc-typing" id="wc-typing"><div class="wc-mini-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="6" width="16" height="12" rx="4"/><path d="M9 11h.01M15 11h.01M9 15h6"/></svg></div><div class="wc-dots"><i></i><i></i><i></i></div></div></div><div class="wc-suggestions"><button class="wc-chip">¿Cómo puedo ayudarte?</button><button class="wc-chip">Quiero más información</button><button class="wc-chip">Hablar con una persona</button></div></div>' +
+        '<div class="wc-inputbar"><div class="wc-inputwrap"><input class="wc-input" id="wc-input" placeholder="Escribe tu mensaje..." autocomplete="off"></div><button class="wc-send" id="wc-send" disabled aria-label="Enviar"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3.7 21.2 12 3 20.3V14l12-2-12-2z"/></svg></button></div><div class="wc-footer">⚡ Desarrollado por <strong>Rodas AI</strong></div>' +
       '</div>' +
-      '<div class="ww-body" id="ww-body">' +
-        '<div class="ww-empty" id="ww-empty">Escribí tu consulta y te responderemos al instante</div>' +
-        '<div id="ww-msgs"></div>' +
-        '<div class="ww-typing" id="ww-typing" style="display:none"><span></span><span></span><span></span></div>' +
-      '</div>' +
-      '<div class="ww-footer">' +
-        '<input type="text" class="ww-input" id="ww-input" placeholder="Escribe tu mensaje..." autocomplete="off">' +
-        '<button class="ww-send" id="ww-send" disabled>' +
-          '<svg fill="currentColor" viewBox="0 0 24 24" width="18" height="18"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>' +
-        '</button>' +
-      '</div>' +
-      '<div class="ww-branding">Asistente IA</div>' +
-    '</div>' +
-    '</div>';
-
+      '<button class="wc-launch" id="wc-launch" aria-label="Abrir Chatbot"><svg class="chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.4-4 8-9 8-1.5 0-3-.3-4.3-.9L3 20l1.4-3.7A8 8 0 0 1 3 12c0-4.4 4-8 9-8s9 3.6 9 8Z"/></svg><svg class="close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 6-12 12M6 6l12 12"/></svg></button>' +
+    '</div></div>';
   document.body.insertAdjacentHTML('beforeend', html);
 
-  var rootEl = document.getElementById(rootId);
-  var launcher = document.getElementById('ww-launcher');
-  var panel = document.getElementById('ww-panel');
-  var closeBtn = document.getElementById('ww-close');
-  var body = document.getElementById('ww-body');
-  var msgContainer = document.getElementById('ww-msgs');
-  var emptyMsg = document.getElementById('ww-empty');
-  var typingEl = document.getElementById('ww-typing');
-  var inputEl = document.getElementById('ww-input');
-  var sendBtn = document.getElementById('ww-send');
-  var titleEl = document.getElementById('ww-title');
-  var statusEl = document.getElementById('ww-status');
-  var domainAuthorized = true;
-
-  function showDomainError() {
-    if (!domainAuthorized) return;
-    domainAuthorized = false;
-    titleEl.textContent = 'Chatbot no autorizado';
-    statusEl.textContent = 'Dominio no habilitado';
-    msgContainer.innerHTML = '<div class="ww-domain-error"><div class="ww-domain-error-icon">!</div><h3>Chatbot no autorizado</h3><p>Este Chatbot no está autorizado para funcionar en este dominio.</p></div>';
-    emptyMsg.style.display = 'none';
-    inputEl.disabled = true;
-    inputEl.placeholder = 'Chatbot no disponible en este dominio';
-    sendBtn.disabled = true;
-  }
-
-  function applyColor(color) {
-    if (!color) return;
-    primaryColor = color;
-    var els = rootEl.querySelectorAll('.ww-launcher,.ww-send');
-    for (var i = 0; i < els.length; i++) { els[i].style.background = color; }
-    var visitorBubbles = rootEl.querySelectorAll('.ww-msg.visitor .ww-msg-bubble');
-    for (var i = 0; i < visitorBubbles.length; i++) { visitorBubbles[i].style.background = color; }
-    var inputFocus = rootEl.querySelector('.ww-input');
-    if (inputFocus) inputFocus.style.setProperty('--focus-color', color);
-    var style = rootEl.querySelector('style');
-    if (style) {
-      style.textContent = style.textContent.replace(/\.ww-input:focus\s*\{[^}]*\}/g, '.ww-input:focus{border-color:' + color + '}');
-    }
-    var avatar = rootEl.querySelector('.ww-header-avatar');
-    if (avatar) { avatar.style.borderColor = color; avatar.style.color = color; }
-  }
-
-  function fetchConfig() {
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', apiUrl('config') + '?key=' + encodeURIComponent(apiKey) + '&origin=' + encodeURIComponent(window.location.origin), true);
-    xhr.onreadystatechange = function() {
-      if (xhr.readyState === 4) {
-        try {
-          var data = JSON.parse(xhr.responseText || '{}');
-          if (xhr.status === 403 && data.code === 'DOMAIN_NOT_AUTHORIZED') {
-            showDomainError();
-            return;
-          }
-          if (xhr.status === 200) {
-          if (data.success && data.config) {
-            var cfg = data.config;
-            if (cfg.welcome_title) titleEl.textContent = cfg.welcome_title;
-            if (cfg.welcome_subtitle) statusEl.textContent = cfg.welcome_subtitle;
-            if (cfg.primary_color) applyColor(cfg.primary_color);
-          }
-          }
-        } catch(e) {}
-      }
-    };
-    xhr.send();
-  }
-
-  var isOpen = false;
-  launcher.addEventListener('click', function() {
-    isOpen = !isOpen;
-    panel.classList.toggle('open', isOpen);
-    launcher.classList.toggle('open', isOpen);
-    if (isOpen) {
-      renderMessages(getMessages());
-      loadPersistedMessages();
-      fetchConfig();
-    }
-  });
-  closeBtn.addEventListener('click', function() {
-    isOpen = false;
-    panel.classList.remove('open');
-    launcher.classList.remove('open');
-  });
-
-  function renderMessages(messages) {
-    if (!messages || messages.length === 0) {
-      emptyMsg.style.display = 'block';
-      msgContainer.innerHTML = '';
-      return;
-    }
-    emptyMsg.style.display = 'none';
-    var h = '';
-    for (var i = 0; i < messages.length; i++) {
-      var m = messages[i];
-      h += '<div class="ww-msg ' + m.role + '">' +
-        '<div class="ww-msg-bubble">' + escapeHtml(m.content) + '</div>' +
-        '<div class="ww-msg-time">' + (m.time || timeStr()) + '</div>' +
-        '</div>';
-    }
-    msgContainer.innerHTML = h;
-    body.scrollTop = body.scrollHeight;
-  }
-
-  inputEl.addEventListener('input', function() {
-    sendBtn.disabled = !this.value.trim();
-  });
-
-  inputEl.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-  });
-
-  sendBtn.addEventListener('click', sendMessage);
-
-  function sendMessage() {
-    if (!domainAuthorized) return;
-    var msg = inputEl.value.trim();
-    if (!msg) return;
-    inputEl.value = '';
-    sendBtn.disabled = true;
-
-    var messages = getMessages();
-    messages.push({ role: 'visitor', content: msg, time: timeStr() });
-    saveMessages(messages);
-    renderMessages(messages);
-    typingEl.style.display = 'flex';
-    emptyMsg.style.display = 'none';
-    storeMessage('visitor', msg);
-
-    var historyForApi = messages.map(function(m) { return { role: m.role === 'visitor' ? 'user' : 'assistant', content: m.content }; });
-    historyForApi.pop();
-
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', apiUrl('send'), true);
-    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-    xhr.onreadystatechange = function() {
-      if (xhr.readyState === 4) {
-        typingEl.style.display = 'none';
-        sendBtn.disabled = false;
-        if (xhr.status === 200) {
-          try {
-            var data = JSON.parse(xhr.responseText);
-            if (data.success && data.message) {
-              var msgs = getMessages();
-              msgs.push({ role: 'assistant', content: data.message.content, time: timeStr() });
-              saveMessages(msgs);
-              renderMessages(msgs);
-              storeMessage('assistant', data.message.content);
-            }
-          } catch(e) {}
-        } else if (xhr.status === 403) {
-          try {
-            var errorData = JSON.parse(xhr.responseText || '{}');
-            if (errorData.code === 'DOMAIN_NOT_AUTHORIZED') showDomainError();
-          } catch(e) {}
-        }
-      }
-    };
-    xhr.send('key=' + encodeURIComponent(apiKey) + '&message=' + encodeURIComponent(msg) + '&history=' + encodeURIComponent(JSON.stringify(historyForApi)));
-  }
+  var root = document.getElementById(rootId), panel = root.querySelector('#wc-panel'), launch = root.querySelector('#wc-launch'), close = root.querySelector('#wc-close'), list = root.querySelector('#wc-list'), box = root.querySelector('#wc-messages'), input = root.querySelector('#wc-input'), send = root.querySelector('#wc-send'), typing = root.querySelector('#wc-typing'), shell = root.querySelector('.wc-shell');
+  function render(listData) { var output = ''; listData.forEach(function (item) { var visitor = item.role === 'visitor'; output += '<div class="wc-row ' + (visitor ? 'visitor' : 'assistant') + '">' + (visitor ? '' : '<div class="wc-mini-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="6" width="16" height="12" rx="4"/><path d="M9 11h.01M15 11h.01M9 15h6"/></svg></div>') + '<div class="wc-message"><div class="wc-bubble">' + esc(item.content) + '</div><span class="wc-time">' + esc(item.time || now()) + '</span></div></div>'; }); list.innerHTML = output; box.scrollTop = box.scrollHeight; }
+  function setOpen(state) { panel.classList.toggle('open', state); launch.classList.toggle('open', state); if (state) { input.focus(); render(messages()); loadHistory(); fetchConfig(); } }
+  launch.addEventListener('click', function () { setOpen(!panel.classList.contains('open')); }); close.addEventListener('click', function () { setOpen(false); });
+  input.addEventListener('input', function () { send.disabled = !input.value.trim(); }); input.addEventListener('keydown', function (event) { if (event.key === 'Enter') { event.preventDefault(); submit(input.value); } }); send.addEventListener('click', function () { submit(input.value); });
+  root.querySelectorAll('.wc-chip').forEach(function (chip) { chip.addEventListener('click', function () { submit(chip.textContent); }); });
+  function submit(text) { text = (text || '').trim(); if (!text) return; input.value = ''; send.disabled = true; var all = messages(); all.push({ role: 'visitor', content: text, time: now() }); save(all); render(all); persist('visitor', text); typing.classList.add('show'); box.scrollTop = box.scrollHeight; var history = all.slice(0, -1).map(function (item) { return { role: item.role === 'visitor' ? 'user' : 'assistant', content: item.content }; }); var request = new XMLHttpRequest(); request.open('POST', endpoint('send'), true); request.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded'); request.onreadystatechange = function () { if (request.readyState !== 4) return; typing.classList.remove('show'); send.disabled = false; if (request.status === 200) { try { var response = JSON.parse(request.responseText); if (response.success && response.message && response.message.content) { var updated = messages(); updated.push({ role: 'assistant', content: response.message.content, time: now() }); save(updated); render(updated); persist('assistant', response.message.content); } } catch (e) {} } }; request.send('key=' + encodeURIComponent(apiKey) + '&message=' + encodeURIComponent(text) + '&history=' + encodeURIComponent(JSON.stringify(history))); }
+  function loadHistory() { if (!historyUrl) return; var request = new XMLHttpRequest(); request.open('GET', historyUrl + '?key=' + encodeURIComponent(apiKey) + '&session_id=' + encodeURIComponent(sessionId), true); request.onreadystatechange = function () { if (request.readyState !== 4 || request.status !== 200) return; try { var data = JSON.parse(request.responseText); if (!data.success || !Array.isArray(data.messages)) return; var restored = data.messages.map(function (item) { return { role: item.role === 'visitor' ? 'visitor' : 'assistant', content: item.content, time: item.created_at ? item.created_at.slice(11, 16) : now() }; }); save(restored); render(restored); } catch (e) {} }; request.send(); }
+  function fetchConfig() { var request = new XMLHttpRequest(); request.open('GET', endpoint('config') + '?key=' + encodeURIComponent(apiKey) + '&origin=' + encodeURIComponent(window.location.origin), true); request.onreadystatechange = function () { if (request.readyState !== 4 || request.status !== 200) return; try { var data = JSON.parse(request.responseText); if (!data.success || !data.config) return; var config = data.config; if (config.primary_color) { color = config.primary_color; shell.style.setProperty('--wc-color', color); } if (config.welcome_title) root.querySelector('#wc-title').childNodes[0].nodeValue = config.welcome_title; if (config.welcome_subtitle) root.querySelector('#wc-sub').textContent = config.welcome_subtitle; } catch (e) {} }; request.send(); }
 })();
