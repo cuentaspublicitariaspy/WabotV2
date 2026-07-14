@@ -318,11 +318,11 @@ function saveClient() {
 
   api('/api/abm/clients', { method: 'POST', body: body }).then(function(d){
     if (d.success) {
-      closeModal();
       if (d.api_key) {
-        // New client: show result with keys
+        // New client: keep the modal open to display the credentials once.
         showCreated(d);
       } else {
+        closeModal();
         toast('Cliente actualizado', true);
         loadClients();
       }
@@ -348,6 +348,7 @@ function showCreated(d) {
     '<strong style="color:#f1f5f9">Próximo paso:</strong> Configurá la License Key en el servidor del cliente como variable de entorno <code style="color:#6ee7b7">LICENSE_KEY</code> en el archivo <code style="color:#6ee7b7">.env</code>.</div>';
   document.getElementById('modal-footer').innerHTML =
     '<button class="btn btn-primary" onclick="closeModal();loadClients()">Listo</button>';
+  document.getElementById('modal').classList.add('active');
   loadClients(); // Reload in background
 }
 
