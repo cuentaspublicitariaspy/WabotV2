@@ -9,6 +9,8 @@
 
   var storageKey = 'wabot_messages_' + apiKey;
   var sessionKey = 'wabot_session_' + apiKey;
+  var outboxKey = 'wabot_outbox_' + apiKey;
+  var flushingOutbox = false;
   var sessionId = localStorage.getItem(sessionKey);
   if (!sessionId) {
     var bytes = new Uint8Array(32);
@@ -29,12 +31,39 @@
   function esc(value) { var el = document.createElement('div'); el.textContent = value || ''; return el.innerHTML; }
   function endpoint(name) { return apiBase.replace(/\/+$/, '') + '/api/widget/' + name; }
 
+  function outbox() { try { return JSON.parse(localStorage.getItem(outboxKey)) || []; } catch (e) { return []; } }
+  function saveOutbox(items) { try { localStorage.setItem(outboxKey, JSON.stringify(items)); } catch (e) {} }
   function persist(role, content) {
-    if (!storeUrl) return;
+    var id = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+    var items = outbox();
+    items.push({ id: id, role: role, content: content });
+    saveOutbox(items);
+    flushOutbox();
+  }
+  function flushOutbox() {
+    if (flushingOutbox || !storeUrl) return;
+    var items = outbox();
+    if (!items.length) return;
+    flushingOutbox = true;
+    var item = items[0];
     var request = new XMLHttpRequest();
     request.open('POST', storeUrl, true);
     request.setRequestHeader('Content-Type', 'application/json');
-    request.send(JSON.stringify({ api_key: apiKey, session_id: sessionId, role: role, content: content }));
+    request.onreadystatechange = function () {
+      if (request.readyState !== 4) return;
+      flushingOutbox = false;
+      if (request.status >= 200 && request.status < 300) {
+        var pending = outbox();
+        if (pending.length && pending[0].id === item.id) pending.shift();
+        else pending = pending.filter(function (entry) { return entry.id !== item.id; });
+        saveOutbox(pending);
+        flushOutbox();
+      } else {
+        window.setTimeout(flushOutbox, 2000);
+      }
+    };
+    request.onerror = function () { flushingOutbox = false; window.setTimeout(flushOutbox, 2000); };
+    request.send(JSON.stringify({ api_key: apiKey, session_id: sessionId, role: item.role, content: item.content, client_message_id: item.id }));
   }
 
   var html = '' +
@@ -81,5 +110,7 @@
   root.querySelectorAll('.wc-chip').forEach(function (chip) { chip.addEventListener('click', function () { submit(chip.textContent); }); });
   function submit(text) { text = (text || '').trim(); if (!text) return; input.value = ''; send.disabled = true; var all = messages(); all.push({ role: 'visitor', content: text, time: now() }); save(all); render(all); persist('visitor', text); typing.classList.add('show'); box.scrollTop = box.scrollHeight; var history = all.slice(0, -1).map(function (item) { return { role: item.role === 'visitor' ? 'user' : 'assistant', content: item.content }; }); var request = new XMLHttpRequest(); request.open('POST', endpoint('send'), true); request.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded'); request.onreadystatechange = function () { if (request.readyState !== 4) return; typing.classList.remove('show'); send.disabled = false; if (request.status === 200) { try { var response = JSON.parse(request.responseText); if (response.success && response.message && response.message.content) { var updated = messages(); updated.push({ role: 'assistant', content: response.message.content, time: now() }); save(updated); render(updated); persist('assistant', response.message.content); } } catch (e) {} } }; request.send('key=' + encodeURIComponent(apiKey) + '&message=' + encodeURIComponent(text) + '&history=' + encodeURIComponent(JSON.stringify(history))); }
   function loadHistory() { if (!historyUrl) return; var request = new XMLHttpRequest(); request.open('GET', historyUrl + '?key=' + encodeURIComponent(apiKey) + '&session_id=' + encodeURIComponent(sessionId), true); request.onreadystatechange = function () { if (request.readyState !== 4 || request.status !== 200) return; try { var data = JSON.parse(request.responseText); if (!data.success || !Array.isArray(data.messages)) return; var restored = data.messages.map(function (item) { return { role: item.role === 'visitor' ? 'visitor' : 'assistant', content: item.content, time: item.created_at ? item.created_at.slice(11, 16) : now() }; }); save(restored); render(restored); } catch (e) {} }; request.send(); }
-  function fetchConfig() { var request = new XMLHttpRequest(); request.open('GET', endpoint('config') + '?key=' + encodeURIComponent(apiKey) + '&origin=' + encodeURIComponent(window.location.origin), true); request.onreadystatechange = function () { if (request.readyState !== 4 || request.status !== 200) return; try { var data = JSON.parse(request.responseText); if (!data.success || !data.config) return; var config = data.config; if (data.storage_base) { storeUrl = storeUrl || data.storage_base + '/api/widget/store.php'; historyUrl = historyUrl || data.storage_base + '/api/widget/messages.php'; } if (config.primary_color) { color = config.primary_color; shell.style.setProperty('--wc-color', color); } if (config.welcome_title) root.querySelector('#wc-title').childNodes[0].nodeValue = config.welcome_title; if (config.welcome_subtitle) root.querySelector('#wc-sub').textContent = config.welcome_subtitle; } catch (e) {} }; request.send(); }
+  function fetchConfig() { var request = new XMLHttpRequest(); request.open('GET', endpoint('config') + '?key=' + encodeURIComponent(apiKey) + '&origin=' + encodeURIComponent(window.location.origin), true); request.onreadystatechange = function () { if (request.readyState !== 4 || request.status !== 200) return; try { var data = JSON.parse(request.responseText); if (!data.success || !data.config) return; var config = data.config; if (data.storage_base) { storeUrl = storeUrl || data.storage_base + '/api/widget/store.php'; historyUrl = historyUrl || data.storage_base + '/api/widget/messages.php'; } if (config.primary_color) { color = config.primary_color; shell.style.setProperty('--wc-color', color); } if (config.welcome_title) root.querySelector('#wc-title').childNodes[0].nodeValue = config.welcome_title; if (config.welcome_subtitle) root.querySelector('#wc-sub').textContent = config.welcome_subtitle; flushOutbox(); } catch (e) {} }; request.send(); }
+  window.addEventListener('online', flushOutbox);
+  flushOutbox();
 })();
