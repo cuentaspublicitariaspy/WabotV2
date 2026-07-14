@@ -76,7 +76,71 @@ class ChatManager
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
-        return $stmt->fetchAll();
+        $conversaciones = $stmt->fetchAll();
+        foreach ($conversaciones as &$conversacion) {
+            $conversacion['canal'] = 'whatsapp';
+        }
+        unset($conversacion);
+        return $conversaciones;
+    }
+
+    /** Conversaciones iniciadas desde el Chatbot instalado en el sitio. */
+    public function getWidgetConversaciones(string $search = '', string $estadoFiltro = ''): array
+    {
+        $sql = "SELECT wc.*,\n"
+            . " COALESCE((SELECT wm.content FROM widget_messages wm WHERE wm.chat_id = wc.id ORDER BY wm.id DESC LIMIT 1), '') AS ultimo_mensaje,\n"
+            . " CASE WHEN wc.unread = 1 THEN 'pendiente' ELSE 'respondido' END AS estado\n"
+            . " FROM widget_chats wc WHERE 1=1";
+        $params = [];
+        if ($search !== '') {
+            $sql .= " AND (wc.visitor_name LIKE ? OR wc.visitor_email LIKE ? OR wc.visitor_phone LIKE ? OR EXISTS (SELECT 1 FROM widget_messages wm WHERE wm.chat_id = wc.id AND wm.content LIKE ?))";
+            $term = '%' . $search . '%';
+            $params = [$term, $term, $term, $term];
+        }
+        if ($estadoFiltro !== '') {
+            $sql .= $estadoFiltro === 'pendiente' ? ' AND wc.unread = 1' : ' AND wc.unread = 0';
+        }
+        $sql .= ' ORDER BY wc.updated_at DESC LIMIT 100';
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $chats = $stmt->fetchAll();
+        foreach ($chats as &$chat) {
+            $chat['canal'] = 'chatbot';
+            $chat['wa_name'] = $chat['visitor_name'] ?: 'Visitante web';
+            $chat['wa_phone'] = $chat['visitor_phone'] ?: ($chat['visitor_email'] ?: 'Chatbot');
+            $chat['ultimo_tiempo'] = $chat['updated_at'];
+            $chat['departamento'] = null;
+            $chat['asignado_a'] = null;
+            $chat['asignado_a_nombre'] = null;
+        }
+        unset($chat);
+        return $chats;
+    }
+
+    public function getWidgetConversacion(int $chatId): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM widget_chats WHERE id = ?');
+        $stmt->execute([$chatId]);
+        $chat = $stmt->fetch();
+        if (!$chat) return null;
+        $chat['canal'] = 'chatbot';
+        $chat['wa_name'] = $chat['visitor_name'] ?: 'Visitante web';
+        $chat['wa_phone'] = $chat['visitor_phone'] ?: ($chat['visitor_email'] ?: 'Chatbot');
+        return $chat;
+    }
+
+    public function getWidgetMensajes(int $chatId): array
+    {
+        $stmt = $this->db->prepare('SELECT id, role, content AS contenido, created_at FROM widget_messages WHERE chat_id = ? ORDER BY id ASC');
+        $stmt->execute([$chatId]);
+        $messages = $stmt->fetchAll();
+        foreach ($messages as &$message) {
+            $message['direccion'] = $message['role'] === 'visitor' ? 'in' : 'out';
+            $message['respondido_por_nombre'] = $message['role'] === 'assistant' ? 'IA' : null;
+        }
+        unset($message);
+        $this->db->prepare('UPDATE widget_chats SET unread = 0 WHERE id = ?')->execute([$chatId]);
+        return $messages;
     }
 
     public function getMensajes(int $conversacionId): array
