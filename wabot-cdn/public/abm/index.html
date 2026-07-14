@@ -7,36 +7,44 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🤖</text></svg>">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
-.header{background:#1e293b;border-bottom:1px solid #334155;padding:16px 24px;display:flex;align-items:center;justify-content:space-between}
-.header h1{font-size:20px;font-weight:700;color:#f1f5f9}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:radial-gradient(circle at top right,#172554 0,#0f172a 42%,#0b1120 100%);color:#e2e8f0;min-height:100vh}
+.header{background:rgba(30,41,59,.92);border-bottom:1px solid #334155;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 8px 24px rgba(2,6,23,.18)}
+.header h1{font-size:20px;font-weight:750;letter-spacing:-.3px;color:#f8fafc}
 .header h1 span{color:#34d399}
 .header-right{display:flex;align-items:center;gap:12px}
 .logout-btn{background:transparent;border:1px solid #475569;color:#94a3b8;padding:6px 14px;border-radius:8px;font-size:13px;cursor:pointer;transition:all .2s}
 .logout-btn:hover{border-color:#ef4444;color:#ef4444}
-.container{max-width:1200px;margin:0 auto;padding:24px}
+.container{max-width:1280px;margin:0 auto;padding:30px 24px}
 .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
-.toolbar h2{font-size:18px;font-weight:600;color:#f1f5f9}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;border:none;cursor:pointer;transition:all .2s}
-.btn-primary{background:#059669;color:#fff}
-.btn-primary:hover{background:#047857}
-.btn-sm{padding:4px 10px;font-size:12px}
-.btn-edit{background:#1d4ed8;color:#fff}
-.btn-edit:hover{background:#1e40af}
-.btn-delete{background:#dc2626;color:#fff}
-.btn-delete:hover{background:#b91c1c}
+.toolbar h2{font-size:20px;font-weight:700;letter-spacing:-.3px;color:#f8fafc}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 16px;border-radius:9px;font-size:13px;font-weight:650;border:none;cursor:pointer;transition:transform .18s,background .18s,box-shadow .18s}
+.btn:hover{transform:translateY(-1px)}
+.btn:focus-visible{outline:2px solid #6ee7b7;outline-offset:2px}
+.btn-primary{background:linear-gradient(135deg,#10b981,#059669);color:#fff;box-shadow:0 5px 14px rgba(5,150,105,.24)}
+.btn-primary:hover{background:linear-gradient(135deg,#34d399,#059669)}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-icon{width:34px;height:34px;padding:0;border-radius:9px;line-height:1}
+.btn-icon svg{width:16px;height:16px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.btn-edit{background:#1d4ed8;color:#fff;box-shadow:0 4px 10px rgba(29,78,216,.18)}
+.btn-edit:hover{background:#2563eb}
+.btn-delete{background:#dc2626;color:#fff;box-shadow:0 4px 10px rgba(220,38,38,.16)}
+.btn-delete:hover{background:#ef4444}
 .btn-copy{background:#475569;color:#fff}
-.btn-copy:hover{background:#334155}
-.table-wrap{background:#1e293b;border-radius:12px;border:1px solid #334155;overflow:hidden}
+.btn-copy:hover{background:#64748b}
+.btn-power{background:#9a3412;color:#ffedd5;box-shadow:0 4px 10px rgba(154,52,18,.16)}
+.btn-power:hover{background:#c2410c}
+.btn-enable{background:#047857;color:#ecfdf5;box-shadow:0 4px 10px rgba(4,120,87,.16)}
+.btn-enable:hover{background:#059669}
+.table-wrap{background:rgba(30,41,59,.92);border-radius:14px;border:1px solid #334155;overflow-x:auto;box-shadow:0 18px 35px rgba(2,6,23,.18)}
 table{width:100%;border-collapse:collapse}
-th{text-align:left;padding:12px 16px;font-size:12px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;background:#0f172a;border-bottom:1px solid #334155}
-td{padding:12px 16px;font-size:14px;border-bottom:1px solid #2d3a4e}
+th{text-align:left;padding:13px 16px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px;background:rgba(15,23,42,.82);border-bottom:1px solid #334155;white-space:nowrap}
+td{padding:12px 16px;font-size:14px;border-bottom:1px solid #2d3a4e;vertical-align:middle}
 tr:last-child td{border-bottom:none}
 tr:hover td{background:#1a2744}
 .badge{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:3px 8px;border-radius:6px}
 .badge-on{background:#065f46;color:#6ee7b7}
 .badge-off{background:#7f1d1d;color:#fca5a5}
-.actions{display:flex;gap:6px}
+.actions{display:flex;gap:7px;min-width:122px}
 .text-muted{color:#64748b;font-size:13px}
 .font-mono{font-family:'SF Mono','Fira Code','Cascadia Code',monospace;font-size:12px}
 .modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:1000;padding:16px}
@@ -71,6 +79,7 @@ tr:hover td{background:#1a2744}
 .toast{position:fixed;bottom:24px;right:24px;background:#1e293b;border:1px solid #334155;border-radius:10px;padding:12px 20px;font-size:13px;color:#e2e8f0;box-shadow:0 10px 30px rgba(0,0,0,.5);display:none;z-index:2000;animation:slideIn .3s ease}
 .toast.show{display:block}
 @keyframes slideIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@media (max-width:760px){.header{padding:14px 16px}.container{padding:22px 16px}.header h1{font-size:17px}.toolbar h2{font-size:18px}table{min-width:980px}}
 </style>
 </head>
 <body>
@@ -191,7 +200,8 @@ function renderClients() {
       var c = STATE.clients[k];
       var rl = c.rate_limits || {};
       var limits = 'C:' + (rl.chat || 60) + ' T:' + (rl.transcribe || 6);
-      var badge = (c.enabled === true || c.enabled === '1' || c.enabled === 1) ? '<span class="badge badge-on">● Activo</span>' : '<span class="badge badge-off">● Inactivo</span>';
+      var isEnabled = (c.enabled === true || c.enabled === '1' || c.enabled === 1);
+      var badge = isEnabled ? '<span class="badge badge-on">● Activo</span>' : '<span class="badge badge-off">● Inactivo</span>';
       html += '<tr>' +
         '<td><strong>' + esc(c.name) + '</strong></td>' +
         '<td class="text-muted font-mono">' + esc(c.client_url || '-') + '</td>' +
@@ -201,9 +211,9 @@ function renderClients() {
         '<td class="text-muted" style="font-size:11px">' + limits + '</td>' +
         '<td>' + badge + '</td>' +
         '<td class="actions">' +
-        '<button class="btn btn-sm btn-edit" onclick="showEdit(\'' + k + '\')">✎ Editar</button>' +
-        '<button class="btn btn-sm ' + (c.enabled ? 'btn-delete' : 'btn-primary') + '" onclick="toggleClient(\'' + k + '\')">' + (c.enabled ? 'Desactivar' : 'Activar') + '</button>' +
-        '<button class="btn btn-sm btn-delete" onclick="deleteClient(\'' + k + '\')">✕</button>' +
+        '<button class="btn btn-icon btn-edit" title="Editar cliente" aria-label="Editar cliente" onclick="showEdit(\'' + k + '\')"><svg viewBox="0 0 24 24"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg></button>' +
+        '<button class="btn btn-icon ' + (isEnabled ? 'btn-power' : 'btn-enable') + '" title="' + (isEnabled ? 'Desactivar cliente' : 'Activar cliente') + '" aria-label="' + (isEnabled ? 'Desactivar cliente' : 'Activar cliente') + '" onclick="toggleClient(\'' + k + '\')"><svg viewBox="0 0 24 24"><path d="M12 2v10"></path><path d="M18.4 6.6a9 9 0 1 1-12.8 0"></path></svg></button>' +
+        '<button class="btn btn-icon btn-delete" title="Eliminar cliente" aria-label="Eliminar cliente" onclick="deleteClient(\'' + k + '\')"><svg viewBox="0 0 24 24"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v5M14 11v5"></path></svg></button>' +
         '</td></tr>';
     }
     html += '</tbody></table>';
