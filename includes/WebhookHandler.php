@@ -7,6 +7,7 @@ require_once __DIR__ . '/License.php';
 require_once __DIR__ . '/KnowledgeManager.php';
 require_once __DIR__ . '/AgentRouter.php';
 require_once __DIR__ . '/MetricsCollector.php';
+require_once __DIR__ . '/ProspectManager.php';
 
 class WebhookHandler
 {
@@ -223,6 +224,9 @@ class WebhookHandler
         $this->markAsRead($waPhone, $messageId, $phoneNumberId);
 
         $conversacionId = $this->chatManager->getOrCreateConversacion($waPhone, $waName);
+        // El nombre y teléfono entregados por WhatsApp pasan a formar parte del
+        // perfil comercial local, sin enviar estos datos a WS.
+        (new ProspectManager())->vincular('whatsapp', $waPhone, ['nombre' => $waName, 'whatsapp' => $waPhone]);
         $mensajeInId = $this->chatManager->guardarMensaje($conversacionId, $text, 'in', $messageId);
         $this->chatManager->actualizarConversacion($conversacionId, $text, 'pendiente');
 
