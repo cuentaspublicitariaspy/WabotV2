@@ -41,8 +41,12 @@ $router->asignarConversacion($conversacionId, $user['id']);
 $chatManager->marcarLeido($conversacionId, $user['id']);
 $mensajeInId = $chatManager->getUltimoMensajeInId($conversacionId);
 $handler = new WebhookHandler();
-$mensajeOutId = $handler->sendMessage($conversacion['wa_phone'], $mensaje, WHATSAPP_PHONE_NUMBER_ID);
-if ($mensajeOutId !== null) {
+$waMessageId = $handler->sendMessage($conversacion['wa_phone'], $mensaje, WHATSAPP_PHONE_NUMBER_ID);
+if ($waMessageId !== null) {
+    // Meta devuelve un identificador externo (wamid...). Guardamos primero el
+    // mensaje en WC y usamos su ID interno para métricas; de lo contrario el
+    // envío se completaba pero el panel terminaba devolviendo un error.
+    $mensajeOutId = $chatManager->guardarMensaje($conversacionId, $mensaje, 'out', $waMessageId, (int) $user['id']);
     if ($mensajeInId) {
         $metrics = new MetricsCollector();
         $metrics->registrarRespuesta($conversacionId, $mensajeInId, $mensajeOutId, $user['id']);
