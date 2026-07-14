@@ -195,8 +195,8 @@ function renderClients() {
       html += '<tr>' +
         '<td><strong>' + esc(c.name) + '</strong></td>' +
         '<td class="text-muted font-mono">' + esc(c.client_url || '-') + '</td>' +
-        '<td class="font-mono" style="color:#34d399">' + esc(k) + '</td>' +
-        '<td class="font-mono" style="color:#fbbf24">' + esc(c.license_key || '-') + '</td>' +
+        '<td class="font-mono" style="color:#34d399" title="Clave oculta por seguridad">' + esc(maskKey(k)) + '</td>' +
+        '<td class="font-mono" style="color:#fbbf24" title="Clave oculta por seguridad">' + esc(maskKey(c.license_key || '-')) + '</td>' +
         '<td class="text-muted" style="font-size:11px">' + limits + '</td>' +
         '<td>' + badge + '</td>' +
         '<td class="actions">' +
@@ -214,6 +214,13 @@ function renderClients() {
 function esc(s) {
   if (!s) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function maskKey(value) {
+  value = String(value || '');
+  if (!value || value === '-') return '-';
+  if (value.length <= 12) return '••••••••';
+  return value.slice(0, 4) + '••••••••••' + value.slice(-4);
 }
 
 function showAdd() {
@@ -246,8 +253,9 @@ function showEdit(key) {
     '<div class="form-group"><label>Límite Transcripción (req/min)</label><input type="number" id="f-rl-transcribe" value="' + (rl.transcribe || 6) + '" min="1" max="60" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:14px;outline:none"><div class="hint">Default: 6. Máx: 60</div></div>' +
     '</div>' +
     '<div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:12px;margin-top:12px">' +
-    '<div style="font-size:12px;color:#94a3b8">API Key</div><div class="font-mono" style="font-size:13px;color:#34d399;margin-top:2px">' + esc(key) + '</div>' +
-    '<div style="font-size:12px;color:#94a3b8;margin-top:8px">License Key</div><div class="font-mono" style="font-size:13px;color:#fbbf24;margin-top:2px">' + esc(c.license_key || '-') + '</div></div>';
+    '<div style="font-size:12px;color:#94a3b8">API Key</div><div class="font-mono" style="font-size:13px;color:#34d399;margin-top:2px">' + esc(maskKey(key)) + '</div>' +
+    '<div style="font-size:12px;color:#94a3b8;margin-top:8px">License Key</div><div class="font-mono" style="font-size:13px;color:#fbbf24;margin-top:2px">' + esc(maskKey(c.license_key || '-')) + '</div>' +
+    '<div class="hint" style="margin-top:8px">Las claves completas solo se muestran al crear un cliente.</div></div>';
   document.getElementById('modal-footer').innerHTML =
     '<button class="btn" style="background:#475569;color:#e2e8f0" onclick="closeModal()">Cancelar</button>' +
     '<button class="btn btn-primary" onclick="saveClient()">Guardar Cambios</button>';
