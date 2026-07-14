@@ -118,10 +118,16 @@ class ChatManager
         return $stmt->fetch() !== false;
     }
 
-    public function markProcessed(string $waMessageId): void
+    /**
+     * Reserva un mensaje entrante una sola vez. INSERT IGNORE usa el índice
+     * UNIQUE de processed_ids, por lo que protege también ante webhooks
+     * simultáneos o reintentos de Meta.
+     */
+    public function claimIncomingMessage(string $waMessageId): bool
     {
         $stmt = $this->db->prepare("INSERT IGNORE INTO processed_ids (wa_message_id) VALUES (?)");
         $stmt->execute([$waMessageId]);
+        return $stmt->rowCount() === 1;
     }
 
     public function getHistorial(int $conversacionId, int $limit = 10): array
