@@ -15,6 +15,7 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 - Deben existir dos opciones de entrega: paquete de instalación mediante File Manager/SFTP, o despliegue Git de una sola vez seguido de desconexión y eliminación de `.git`.
 - Nunca dejar el hosting de un cliente actualizado automáticamente desde el repositorio.
 - El instalador conecta a una base de datos que el equipo crea previamente. Al finalizar el alta inicial, `setup.php`, `setup_admin.php` e `init.sql` se eliminan automáticamente.
+- El paquete de instalación WC debe incluir únicamente el código PHP necesario y la carpeta vacía `uploads/`; debe excluir WS (`wabot-cdn/`), Git, `.env`, datos de clientes, documentación interna y herramientas de construcción.
 
 ## Seguridad y dominios en WS
 
