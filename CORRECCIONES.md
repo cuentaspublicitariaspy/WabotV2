@@ -16,6 +16,7 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 - Nunca dejar el hosting de un cliente actualizado automáticamente desde el repositorio.
 - **Excepción de pruebas:** el hosting de laboratorio puede conectarse temporalmente a la rama `master` para iterar y corregir rápido. Al aprobar la prueba A–Z, se desconecta Git; los WC reales se entregan como copias independientes.
 - El instalador conecta a una base de datos que el equipo crea previamente. Al finalizar el alta inicial, `setup.php`, `setup_admin.php` e `init.sql` se eliminan automáticamente.
+- Si WC encuentra un `.env` anterior cuya base ya fue eliminada, el instalador debe volver a mostrar el formulario de base de datos, sin bucles de redirección ni pasos manuales sobre archivos ocultos.
 - El paquete de instalación WC debe incluir únicamente el código PHP necesario y la carpeta vacía `uploads/`; debe excluir WS (`wabot-cdn/`), Git, `.env`, datos de clientes, documentación interna y herramientas de construcción.
 - La verificación GET del webhook de Meta debe responder el `hub.challenge` en texto plano antes de cargar base de datos o procesadores de mensajes.
 
