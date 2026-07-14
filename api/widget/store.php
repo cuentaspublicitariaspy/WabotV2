@@ -83,7 +83,7 @@ if ($role === 'visitor') {
     $historialStmt = $db->prepare('SELECT role, content FROM widget_messages WHERE chat_id = ? ORDER BY id DESC LIMIT 16');
     $historialStmt->execute([$chatId]);
     $contexto = array_reverse($historialStmt->fetchAll());
-    $datosDeclarados = $prospecto->registrarDatosDeclarados($prospectoId, $content, $contexto);
+    $datosDeclarados = $prospecto->registrarDatosDeclarados($prospectoId, $content, $contexto, $key);
     $nombreDeclarado = trim((string) ($datosDeclarados['nombre'] ?? ''));
     $emailDeclarado = trim((string) ($datosDeclarados['email'] ?? ''));
     $telefonoDeclarado = preg_replace('/\D+/', '', (string) ($datosDeclarados['whatsapp'] ?? ''));
