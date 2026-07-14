@@ -226,7 +226,9 @@ class WebhookHandler
         $conversacionId = $this->chatManager->getOrCreateConversacion($waPhone, $waName);
         // El nombre y teléfono entregados por WhatsApp pasan a formar parte del
         // perfil comercial local, sin enviar estos datos a WS.
-        (new ProspectManager())->vincular('whatsapp', $waPhone, ['nombre' => $waName, 'whatsapp' => $waPhone]);
+        $prospecto = new ProspectManager();
+        $prospectoId = $prospecto->vincular('whatsapp', $waPhone, ['nombre' => $waName, 'whatsapp' => $waPhone]);
+        $prospecto->registrarDatosDeclarados($prospectoId, $text);
         $mensajeInId = $this->chatManager->guardarMensaje($conversacionId, $text, 'in', $messageId);
         $this->chatManager->actualizarConversacion($conversacionId, $text, 'pendiente');
 
