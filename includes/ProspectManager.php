@@ -180,17 +180,42 @@ class ProspectManager
                 break;
             }
         }
-        // Respuesta habitual a “¿Cómo te llamás?”: la persona manda solo su
-        // nombre, sin ningún prefijo. Se acepta únicamente texto breve con
-        // formato de nombre y se excluyen respuestas conversacionales.
-        if (empty($datos['nombre'])) {
-            $candidato = trim(preg_replace('/[.,;:!?]+$/u', '', $mensaje));
-            $esSaludo = preg_match('/^(?:hola|buenas|gracias|ok|okay|si|sí|no|dale|perfecto|genial|bien)$/iu', $candidato);
-            if (!$esSaludo && preg_match('/^[\p{Lu}][\p{L}\'’.-]*(?:\s+[\p{Lu}][\p{L}\'’.-]*){0,3}$/u', $candidato)) {
-                $datos['nombre'] = $candidato;
-            }
-        }
+        // No se acepta una palabra aislada solo porque comienza en mayúscula.
+        // "Sabes?" es un ejemplo real de por qué esa heurística es peligrosa:
+        // puede cambiar el nombre de una persona por una palabra común. Las
+        // respuestas breves se validan abajo, usando el contexto conversacional.
         return $datos;
+    }
+
+    /**
+     * Un nombre inferido por IA solo puede escribirse si está realmente
+     * declarado por el visitante. La IA ayuda a comprender el contexto, pero
+     * nunca tiene permiso de inventar una identidad ni de reemplazarla.
+     */
+    private function nombreDeclaradoEnContexto(string $nombre, string $mensaje, array $contexto): bool
+    {
+        $nombre = trim($nombre);
+        $mensaje = trim($mensaje);
+        if ($nombre === '' || $mensaje === '') return false;
+
+        $nombreEscapado = preg_quote($nombre, '/');
+        // Declaración espontánea: "soy Ana", "me llamo Ana", etc.
+        if (preg_match('/\b(?:me\s+llamo|mi\s+nombre\s+(?:es\s*)?|soy|me\s+dicen|pod[eé]s\s+llamarme)\s*(?:es\s*)?[:=,-]?\s*' . $nombreEscapado . '\b/iu', $mensaje)) {
+            return true;
+        }
+
+        // Respuesta corta ("Ana Pérez") solo es válida si el turno anterior
+        // del asistente preguntó expresamente por el nombre.
+        $limpio = trim(preg_replace('/[.,;:!?]+$/u', '', $mensaje));
+        if (strcasecmp($limpio, $nombre) !== 0) return false;
+        if (!preg_match('/^[\p{L}][\p{L}\'’.-]*(?:\s+[\p{L}][\p{L}\'’.-]*){0,3}$/u', $limpio)) return false;
+
+        for ($i = count($contexto) - 2; $i >= 0; $i--) {
+            if (($contexto[$i]['role'] ?? '') !== 'assistant') continue;
+            $anterior = (string) ($contexto[$i]['content'] ?? '');
+            return (bool) preg_match('/(?:c[oó]mo\s+te\s+llam[aá]s|cu[aá]l\s+es\s+tu\s+nombre|decime\s+tu\s+nombre|tu\s+nombre\s*(?:completo)?)/iu', $anterior);
+        }
+        return false;
     }
 
     /**
@@ -265,6 +290,11 @@ class ProspectManager
         $content = preg_replace('/^```(?:json)?\s*|\s*```$/', '', trim((string)$content));
         $data = json_decode($content, true);
         if ($status === 200 && is_array($data)) {
+            // WS interpreta, WC decide qué identidad se persiste localmente.
+            // Sin una evidencia textual inequívoca, se descarta el nombre.
+            if (!empty($data['nombre']) && !$this->nombreDeclaradoEnContexto((string) $data['nombre'], $mensaje, $contexto)) {
+                unset($data['nombre']);
+            }
             $this->guardarDatosDeclarados($id, $data);
             return array_merge($basicos, array_filter($data, static fn($value) => trim((string) $value) !== ''));
         }
