@@ -224,6 +224,13 @@ class WebhookHandler
         $this->markAsRead($waPhone, $messageId, $phoneNumberId);
 
         $conversacionId = $this->chatManager->getOrCreateConversacion($waPhone, $waName);
+        // El nombre de perfil que entrega Meta es la identidad conocida del
+        // contacto. Restáuralo en cada mensaje entrante y solo permití que una
+        // declaración validada del visitante lo reemplace más abajo.
+        if (trim($waName) !== '' && strcasecmp(trim($waName), 'unknown') !== 0) {
+            Database::getConnection()->prepare('UPDATE conversaciones SET wa_name = ? WHERE id = ?')
+                ->execute([trim($waName), $conversacionId]);
+        }
         // El nombre y teléfono entregados por WhatsApp pasan a formar parte del
         // perfil comercial local, sin enviar estos datos a WS.
         $prospecto = new ProspectManager();
