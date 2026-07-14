@@ -2,6 +2,8 @@
 // If .env already has DB_NAME, check if users exist
 $envFile = __DIR__ . '/.env';
 $dbConfigured = false;
+$previousConfigurationError = '';
+$resetPreviousEnvironment = false;
 if (file_exists($envFile)) {
     $envVars = [];
     foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
@@ -17,14 +19,19 @@ if (file_exists($envFile)) {
             $count = $pdo->query("SELECT COUNT(*) FROM usuarios")->fetchColumn();
             header('Location: ' . ((int)$count > 0 ? 'login.php' : 'setup_admin.php'));
             exit;
+        } catch (PDOException $e) {
+            // Si la base fue eliminada (caso normal al reiniciar una prueba), no generar un bucle.
+            // El instalador debe permitir configurar una base nueva sin intervención manual en .env.
+            $previousConfigurationError = 'Se detectó una configuración anterior cuya base de datos ya no está disponible. Completá los datos de la nueva base para reiniciar esta instalación.';
+            $mysqlErrorCode = (int) ($e->errorInfo[1] ?? 0);
+            $resetPreviousEnvironment = $mysqlErrorCode === 1049;
         } catch (Exception $e) {
-            header('Location: setup.php');
-            exit;
+            $previousConfigurationError = 'Se detectó una configuración anterior que no se pudo validar. Completá los datos de la base para continuar.';
         }
     }
 }
 
-$error = '';
+$error = $previousConfigurationError;
 $success = false;
 $testHost = '';
 $testName = '';
@@ -54,9 +61,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->exec($sql);
             }
 
-            // Preserve existing env values, only overwrite DB
+            // En una reinstalación cuyo esquema anterior fue eliminado, comenzar sin credenciales.
+            // En una actualización normal, se conservan los valores no relacionados con la base.
             $oldEnv = [];
-            if (file_exists($envFile)) {
+            if (!$resetPreviousEnvironment && file_exists($envFile)) {
                 foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
                     if (str_contains($line, '=')) {
                         [$k, $v] = explode('=', $line, 2);
