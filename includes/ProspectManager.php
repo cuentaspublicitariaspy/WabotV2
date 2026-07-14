@@ -137,6 +137,25 @@ class ProspectManager
         if ($sets) { $values[]=$id; $this->db->prepare('UPDATE prospectos SET ' . implode(', ', $sets) . ' WHERE id = ?')->execute($values); }
     }
 
+    /** Extrae datos personales declarados en un mensaje y actualiza WC. WS no conserva el contenido. */
+    public function registrarDatosDeclarados(int $id, string $mensaje): void
+    {
+        $mensaje = trim($mensaje);
+        if ($mensaje === '' || !preg_match('/(@|https?:|www\.|\+?\d[\d\s().-]{6,}|\b(mi nombre|me llamo|soy |correo|email|mail|direcci[oó]n|vivo|trabajo|me dedico|empresa|negocio|web|sitio)\b)/iu', $mensaje)) return;
+        if (!defined('LICENSE_KEY') || LICENSE_KEY === '') return;
+        $prompt = 'Extraé exclusivamente datos personales o comerciales que la persona declaró en este mensaje. Respondé SOLO JSON válido con: nombre,email,whatsapp,direccion,ciudad,pais,sitio_web,ocupacion,empresa. Para lo que no esté explícito devolvé cadena vacía. No inventes ni infieras.';
+        $payload = json_encode(['action'=>'chat','license_key'=>LICENSE_KEY,'messages'=>[
+            ['role'=>'system','content'=>$prompt], ['role'=>'user','content'=>$mensaje]
+        ]], JSON_UNESCAPED_UNICODE);
+        $ch = curl_init('https://wabot-cdn.vercel.app/api/proxy/openai');
+        curl_setopt_array($ch, [CURLOPT_POST=>true,CURLOPT_POSTFIELDS=>$payload,CURLOPT_HTTPHEADER=>['Content-Type: application/json'],CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>12]);
+        $response = curl_exec($ch); $status = curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
+        $content = json_decode((string)$response, true)['content'] ?? '';
+        $content = preg_replace('/^```(?:json)?\s*|\s*```$/', '', trim((string)$content));
+        $data = json_decode($content, true);
+        if ($status === 200 && is_array($data)) $this->actualizar($id, $data);
+    }
+
     public function metricas(): array
     {
         $row = $this->db->query("SELECT COUNT(*) total, SUM(temperatura IN ('caliente','muy_caliente')) calientes, SUM(temperatura='muy_caliente') muy_calientes, ROUND(AVG(puntaje)) puntaje_promedio FROM prospectos")->fetch() ?: [];
