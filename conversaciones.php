@@ -62,9 +62,13 @@ $extraScripts = <<<'EOS'
 #chat-messages .msg-out .msg-time { color:#a7f3d0; }
 #chat-messages .msg-responder { font-size:10px; color:#059669; font-weight:600; }
 #chat-messages .msg-out .msg-responder { color:#a7f3d0; }
+#prospect-card { background:#fffbeb; }
 #prospect-card .prospect-title { color:#92400e; font-weight:700; }
 #prospect-card .prospect-meta { color:#78350f; font-size:12px; margin-top:2px; }
-#prospect-card button { margin-left:auto; border:0; border-radius:8px; padding:6px 10px; background:#d97706; color:#fff; font-size:12px; font-weight:600; cursor:pointer; }
+#prospect-card .prospect-data { color:#a16207; font-size:12px; margin-top:4px; }
+#prospect-card .prospect-actions { margin-left:auto; display:flex; gap:6px; flex-shrink:0; }
+#prospect-card button, #prospect-card a { border:0; border-radius:8px; padding:6px 10px; background:#d97706; color:#fff; font-size:12px; font-weight:600; cursor:pointer; text-decoration:none; }
+#prospect-card a { background:#fff; color:#92400e; border:1px solid #fcd34d; }
 .conv-item { padding:12px 16px; cursor:pointer; border-bottom:1px solid #f1f5f9; display:flex; gap:12px; align-items:center; }
 .conv-item:hover { background:#f8fafc; }
 .conv-item-active { background:#f1f5f9; }
@@ -171,10 +175,10 @@ function loadProspect(canal, id) {
         var card=document.getElementById('prospect-card');
         if(!data.success || !data.prospecto){card.classList.add('d-none');return;}
         var p=data.prospecto, details=[];
-        if(p.email)details.push(p.email); if(p.whatsapp)details.push(p.whatsapp); if(p.empresa)details.push(p.empresa);
+        if(p.nombre)details.push(p.nombre); if(p.email)details.push(p.email); if(p.whatsapp)details.push(p.whatsapp); if(p.empresa)details.push(p.empresa); if(p.ocupacion)details.push(p.ocupacion); if(p.sitio_web)details.push(p.sitio_web);
         var heat=p.temperatura ? p.temperatura.replace('_',' ') : 'sin evaluar';
         card.classList.remove('d-none');
-        card.innerHTML='<div class="d-flex align-items-center gap-2"><div><div class="prospect-title">Prospecto · '+esc(heat)+' · '+esc(String(p.puntaje||0))+'/100</div><div class="prospect-meta">'+esc(p.resumen||details.join(' · ')||'Aún sin análisis comercial')+'</div></div><button onclick="analyzeProspect()">Analizar</button></div>';
+        card.innerHTML='<div class="d-flex align-items-center gap-2 w-full"><div><div class="prospect-title">Prospecto · '+esc(heat)+' · '+esc(String(p.puntaje||0))+'/100</div><div class="prospect-meta">'+esc(p.resumen||'Aún sin análisis comercial')+'</div>'+(details.length?'<div class="prospect-data">'+esc(details.join(' · '))+'</div>':'')+'</div><div class="prospect-actions"><a href="prospectos.php?id='+encodeURIComponent(p.id)+'">Ver ficha</a><button onclick="analyzeProspect()">Analizar</button></div></div>';
     }).catch(function(){document.getElementById('prospect-card').classList.add('d-none');});
 }
 function analyzeProspect(){
