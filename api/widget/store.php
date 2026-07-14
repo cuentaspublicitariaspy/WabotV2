@@ -78,7 +78,12 @@ if ($role === 'visitor') {
     // El enriquecimiento puede encontrar un nombre que no coincide con los
     // patrones locales. Aplicamos ese mismo resultado a widget_chats: la
     // lista de Conversaciones se alimenta de esta tabla, no de prospectos.
-    $datosDeclarados = $prospecto->registrarDatosDeclarados($prospectoId, $content);
+    // Se analiza el tramo reciente, no una frase aislada. Con ello el
+    // extractor entiende respuestas humanas cortas dentro del diálogo.
+    $historialStmt = $db->prepare('SELECT role, content FROM widget_messages WHERE chat_id = ? ORDER BY id DESC LIMIT 16');
+    $historialStmt->execute([$chatId]);
+    $contexto = array_reverse($historialStmt->fetchAll());
+    $datosDeclarados = $prospecto->registrarDatosDeclarados($prospectoId, $content, $contexto);
     $nombreDeclarado = trim((string) ($datosDeclarados['nombre'] ?? ''));
     $emailDeclarado = trim((string) ($datosDeclarados['email'] ?? ''));
     $telefonoDeclarado = preg_replace('/\D+/', '', (string) ($datosDeclarados['whatsapp'] ?? ''));
