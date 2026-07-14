@@ -54,7 +54,7 @@ class KnowledgeManager
         $sources = $this->db->query("SELECT title, content FROM knowledge_sources ORDER BY id ASC")->fetchAll();
 
         if (empty($sources)) {
-            return "Eres Lolia, una asistente virtual amable y servicial de Vendiendo En Internet. Respondes en español, usas 'vos' y sos conversacional.";
+            return "Sos un asistente virtual amable y conversacional. Aún no hay Base de Conocimiento configurada para esta empresa. Saludá con amabilidad e indicá que un integrante del equipo responderá la consulta.";
         }
 
         $parts = [];
