@@ -1,6 +1,7 @@
 const { kv } = require('@vercel/kv');
 
-const CACHE_TTL = 60;
+// Cambios de apariencia y Base de Conocimiento deben verse casi enseguida.
+const CACHE_TTL = 15;
 
 async function getClient(apiKey) {
   try {
