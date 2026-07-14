@@ -47,6 +47,7 @@ if ($waMessageId !== null) {
     // mensaje en WC y usamos su ID interno para métricas; de lo contrario el
     // envío se completaba pero el panel terminaba devolviendo un error.
     $mensajeOutId = $chatManager->guardarMensaje($conversacionId, $mensaje, 'out', $waMessageId, (int) $user['id']);
+    $chatManager->actualizarConversacion($conversacionId, $mensaje, 'respondido');
     if ($mensajeInId) {
         $metrics = new MetricsCollector();
         $metrics->registrarRespuesta($conversacionId, $mensajeInId, $mensajeOutId, $user['id']);
