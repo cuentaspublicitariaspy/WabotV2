@@ -228,18 +228,29 @@ class ProspectManager
         $this->actualizar($id, $limpios);
     }
 
-    /** Extrae datos personales declarados en un mensaje y actualiza WC. WS no conserva el contenido. */
-    public function registrarDatosDeclarados(int $id, string $mensaje): array
+    /**
+     * Extrae datos declarados usando el contexto inmediato de la conversación.
+     * WS procesa ese contexto en tránsito y no lo almacena. Así una respuesta
+     * breve como “Roberto” se interpreta correctamente si antes se preguntó
+     * “¿Cómo te llamás?”.
+     */
+    public function registrarDatosDeclarados(int $id, string $mensaje, array $contexto = []): array
     {
         $mensaje = trim($mensaje);
         $basicos = $this->detectarDatosBasicos($mensaje);
         $this->guardarDatosDeclarados($id, $basicos);
-        if ($mensaje === '' || !preg_match('/(@|https?:|www\.|\+?\d[\d\s().-]{6,}|\b(mi nombre|me llamo|soy |correo|email|mail|direcci[oó]n|vivo|trabajo|me dedico|empresa|negocio|web|sitio)\b)/iu', $mensaje)) return $basicos;
+        if ($mensaje === '') return $basicos;
         if (!defined('LICENSE_KEY') || LICENSE_KEY === '') return $basicos;
-        $prompt = 'Extraé exclusivamente datos personales o comerciales que la persona declaró en este mensaje. Respondé SOLO JSON válido con: nombre,email,whatsapp,direccion,ciudad,pais,sitio_web,ocupacion,empresa. Para lo que no esté explícito devolvé cadena vacía. No inventes ni infieras.';
-        $payload = json_encode(['action'=>'chat','license_key'=>LICENSE_KEY,'messages'=>[
-            ['role'=>'system','content'=>$prompt], ['role'=>'user','content'=>$mensaje]
-        ]], JSON_UNESCAPED_UNICODE);
+        $prompt = 'Extraé exclusivamente datos personales o comerciales declarados por el visitante durante esta conversación. Respondé SOLO JSON válido con: nombre,email,whatsapp,direccion,ciudad,pais,sitio_web,ocupacion,empresa. Para lo que no esté explícito devolvé cadena vacía. No inventes ni infieras. Usá el contexto conversacional: si el asistente preguntó un dato y el visitante respondió brevemente (por ejemplo, “Roberto” a “¿Cómo te llamás?”), ese valor sí fue declarado y debe asignarse al campo correspondiente. No tomes datos del asistente como datos del visitante.';
+        $mensajes = [['role'=>'system','content'=>$prompt]];
+        foreach ($contexto as $turno) {
+            $rol = ($turno['role'] ?? '') === 'assistant' ? 'assistant' : 'user';
+            $texto = trim((string) ($turno['content'] ?? ''));
+            if ($texto !== '') $mensajes[] = ['role'=>$rol, 'content'=>$texto];
+        }
+        // Compatibilidad con llamadas antiguas que todavía no entregan historial.
+        if (!$contexto) $mensajes[] = ['role'=>'user','content'=>$mensaje];
+        $payload = json_encode(['action'=>'chat','license_key'=>LICENSE_KEY,'messages'=>$mensajes], JSON_UNESCAPED_UNICODE);
         $ch = curl_init('https://wabot-cdn.vercel.app/api/proxy/openai');
         curl_setopt_array($ch, [CURLOPT_POST=>true,CURLOPT_POSTFIELDS=>$payload,CURLOPT_HTTPHEADER=>['Content-Type: application/json'],CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>12]);
         $response = curl_exec($ch); $status = curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
