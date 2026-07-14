@@ -9,23 +9,22 @@ if ($isLocal) {
     ini_set('display_errors', '0');
 }
 
-header('Content-Type: application/json');
-
 require_once __DIR__ . '/includes/config.php';
-require_once __DIR__ . '/includes/Database.php';
-require_once __DIR__ . '/includes/WebhookHandler.php';
-
-Database::initTables();
-Database::createFirstAdmin();
 
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
+    header('Content-Type: text/plain; charset=utf-8');
     handleVerification();
+    exit;
 } elseif ($method === 'POST') {
+    header('Content-Type: application/json');
+    require_once __DIR__ . '/includes/Database.php';
+    require_once __DIR__ . '/includes/WebhookHandler.php';
     $rawBody = file_get_contents('php://input');
     handleMessage($rawBody);
 } else {
+    header('Content-Type: application/json');
     http_response_code(405);
     echo json_encode(['error' => 'Method not allowed']);
 }
@@ -42,7 +41,7 @@ function handleVerification(): void
         return;
     }
 
-    if ($token === WHATSAPP_VERIFY_TOKEN) {
+    if (WHATSAPP_VERIFY_TOKEN !== '' && hash_equals(WHATSAPP_VERIFY_TOKEN, $token)) {
         echo $challenge;
         return;
     }
