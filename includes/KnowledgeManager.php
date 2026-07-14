@@ -57,7 +57,12 @@ class KnowledgeManager
             return "Sos un asistente virtual amable y conversacional. Aún no hay Base de Conocimiento configurada para esta empresa. Saludá con amabilidad e indicá que un integrante del equipo responderá la consulta.";
         }
 
-        $parts = [];
+        $parts = [
+            'Sos el asistente virtual de esta empresa. Respondé en español, de forma natural, breve y útil.',
+            'Usá la Base de Conocimiento que sigue como fuente principal. No inventes datos, precios, políticas ni servicios que no aparezcan en ella.',
+            'Si la respuesta no está en la Base de Conocimiento, indicá con honestidad que un integrante del equipo puede ampliarla y ofrecé derivar la consulta.',
+            'BASE DE CONOCIMIENTO:'
+        ];
         foreach ($sources as $s) {
             $parts[] = "=== " . $s['title'] . " ===";
             $parts[] = $s['content'];
