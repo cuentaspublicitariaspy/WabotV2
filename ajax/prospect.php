@@ -45,4 +45,15 @@ $contenido = preg_replace('/^```(?:json)?\s*|\s*```$/', '', trim((string)$conten
 $analisis = json_decode($contenido, true);
 if ($codigo !== 200 || !is_array($analisis)) { http_response_code(502); echo json_encode(['success'=>false,'error'=>'No se pudo generar un análisis válido']); exit; }
 $prospectos->guardarAnalisis($prospectoId, $analisis);
-echo json_encode(['success'=>true, 'prospecto'=>$prospectos->obtenerPorReferencia($canal, $referencia)]);
+$perfil = $prospectos->obtenerPorReferencia($canal, $referencia);
+// Un análisis completo puede encontrar un dato que estaba en mensajes
+// anteriores. Reflejamos la ficha también en la lista de conversaciones.
+if ($perfil) {
+    if ($canal === 'chatbot') {
+        $stmt = Database::getConnection()->prepare("UPDATE widget_chats SET visitor_name = COALESCE(NULLIF(?, ''), visitor_name), visitor_email = COALESCE(NULLIF(?, ''), visitor_email), visitor_phone = COALESCE(NULLIF(?, ''), visitor_phone) WHERE id = ?");
+        $stmt->execute([$perfil['nombre'] ?? '', $perfil['email'] ?? '', $perfil['whatsapp'] ?? '', $id]);
+    } elseif (!empty($perfil['nombre'])) {
+        Database::getConnection()->prepare('UPDATE conversaciones SET wa_name = ? WHERE id = ?')->execute([$perfil['nombre'], $id]);
+    }
+}
+echo json_encode(['success'=>true, 'prospecto'=>$perfil]);
