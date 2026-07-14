@@ -36,6 +36,7 @@ ob_start();
     </div>
     <div id="chat-view" class="d-none d-flex flex-column" style="flex:1 1 0;min-height:0">
       <div id="chat-header" class="px-4 py-3 border-b border-slate-100 d-flex align-items-center" style="min-height:50px;background:#fff;"></div>
+      <div id="prospect-card" class="d-none px-4 py-2 border-b border-slate-100 bg-amber-50 text-sm"></div>
       <div id="chat-messages" class="overflow-auto p-4" style="flex:1 1 0;min-height:0;background:#f8fafc" onscroll="maybeLoadMore(this)"></div>
       <div class="px-4 py-3 border-t border-slate-100 d-flex gap-2 align-items-center bg-white">
         <textarea id="reply-input" class="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500" rows="1" placeholder="Escribí tu respuesta..." style="resize:none;" onkeydown="handleKey(event)"></textarea>
@@ -61,6 +62,9 @@ $extraScripts = <<<'EOS'
 #chat-messages .msg-out .msg-time { color:#a7f3d0; }
 #chat-messages .msg-responder { font-size:10px; color:#059669; font-weight:600; }
 #chat-messages .msg-out .msg-responder { color:#a7f3d0; }
+#prospect-card .prospect-title { color:#92400e; font-weight:700; }
+#prospect-card .prospect-meta { color:#78350f; font-size:12px; margin-top:2px; }
+#prospect-card button { margin-left:auto; border:0; border-radius:8px; padding:6px 10px; background:#d97706; color:#fff; font-size:12px; font-weight:600; cursor:pointer; }
 .conv-item { padding:12px 16px; cursor:pointer; border-bottom:1px solid #f1f5f9; display:flex; gap:12px; align-items:center; }
 .conv-item:hover { background:#f8fafc; }
 .conv-item-active { background:#f1f5f9; }
@@ -145,6 +149,7 @@ function loadMessages(canal, id) {
         var depto = conv.departamento ? ' &middot; '+esc(conv.departamento) : '';
         var asig = conv.asignado_a_nombre ? ' &middot; Asignado: '+esc(conv.asignado_a_nombre) : '';
         h.innerHTML = '<div><strong>'+esc(conv.wa_name||conv.wa_phone)+'</strong><br><span class="small text-secondary">'+esc(conv.wa_phone)+depto+asig+' &middot; '+(canal === 'chatbot' ? 'Chatbot' : 'WhatsApp')+'</span></div>';
+        loadProspect(canal, id);
         var input = document.getElementById('reply-input');
         var send = input.nextElementSibling;
         input.disabled = canal === 'chatbot'; send.disabled = canal === 'chatbot';
@@ -160,6 +165,26 @@ function loadMessages(canal, id) {
             c.innerHTML=html;
             if (wasNearBottom) c.scrollTop=c.scrollHeight;
     });
+}
+function loadProspect(canal, id) {
+    fetch('ajax/prospect.php?canal='+encodeURIComponent(canal)+'&conversacion_id='+id).then(function(r){return r.json();}).then(function(data){
+        var card=document.getElementById('prospect-card');
+        if(!data.success || !data.prospecto){card.classList.add('d-none');return;}
+        var p=data.prospecto, details=[];
+        if(p.email)details.push(p.email); if(p.whatsapp)details.push(p.whatsapp); if(p.empresa)details.push(p.empresa);
+        var heat=p.temperatura ? p.temperatura.replace('_',' ') : 'sin evaluar';
+        card.classList.remove('d-none');
+        card.innerHTML='<div class="d-flex align-items-center gap-2"><div><div class="prospect-title">Prospecto · '+esc(heat)+' · '+esc(String(p.puntaje||0))+'/100</div><div class="prospect-meta">'+esc(p.resumen||details.join(' · ')||'Aún sin análisis comercial')+'</div></div><button onclick="analyzeProspect()">Analizar</button></div>';
+    }).catch(function(){document.getElementById('prospect-card').classList.add('d-none');});
+}
+function analyzeProspect(){
+    if(!currentConversacionId)return;
+    var card=document.getElementById('prospect-card'), button=card.querySelector('button'); if(button){button.disabled=true;button.textContent='Analizando...';}
+    var p=new URLSearchParams({action:'analizar',canal:currentCanal,conversacion_id:currentConversacionId});
+    fetch('ajax/prospect.php',{method:'POST',body:p}).then(function(r){return r.json();}).then(function(data){
+        if(!data.success){alert(data.error||'No se pudo analizar el prospecto');}
+        loadProspect(currentCanal,currentConversacionId);
+    }).catch(function(){alert('No se pudo analizar el prospecto');loadProspect(currentCanal,currentConversacionId);});
 }
 function selectConversacion(canal, id) { currentCanal=canal; currentConversacionId=id; loadMessages(canal,id); loadConversations(); if(canal==='whatsapp') document.getElementById('reply-input').focus(); }
 function sendReply() {
