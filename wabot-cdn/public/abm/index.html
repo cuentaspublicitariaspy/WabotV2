@@ -86,6 +86,9 @@ tr:hover td{background:#1a2744}
 .btn-copy-icon svg{width:14px;height:14px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
 .next-step{margin-top:4px;padding:12px;background:rgba(5,150,105,.08);border:1px solid rgba(52,211,153,.2);border-radius:9px;font-size:12px;color:#94a3b8;line-height:1.5}
 .next-step strong{color:#d1fae5}
+.download-installation{width:100%;margin-top:12px;background:#334155;color:#e2e8f0;border:1px solid #475569}
+.download-installation:hover{background:#475569}
+.download-installation svg{width:16px;height:16px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
 .embed-box{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:12px;margin-bottom:8px}
 .embed-box code{display:block;font-family:'SF Mono','Fira Code',monospace;font-size:11px;color:#6ee7b7;word-break:break-all;line-height:1.6;white-space:pre-wrap}
 .empty-state{text-align:center;padding:48px 16px;color:#64748b}
@@ -343,17 +346,48 @@ function saveClient() {
 }
 
 function showCreated(d) {
+  var client = d.client || {};
   document.getElementById('modal-title').textContent = '✓ Cliente Creado';
   document.getElementById('modal-body').innerHTML =
     '<div class="credential-grid">' +
     '<section class="credential-card"><div class="credential-label">API Key <button class="btn btn-copy btn-copy-icon" title="Copiar API Key" aria-label="Copiar API Key" onclick="copyText(\'' + d.api_key + '\')"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button></div><div class="credential-value">' + esc(d.api_key) + '</div></section>' +
     '<section class="credential-card license"><div class="credential-label">License Key <button class="btn btn-copy btn-copy-icon" title="Copiar License Key" aria-label="Copiar License Key" onclick="copyText(\'' + d.license_key + '\')"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2 2h9a2 2 0 0 1 2 2v1"></path></svg></button></div><div class="credential-value">' + esc(d.license_key) + '</div></section>' +
     '</div>' +
-    '<div class="next-step"><strong>Próximo paso:</strong> guardá estas claves. Durante la instalación, cargalas desde <strong>WC → Configuración</strong>. Allí también se genera el código para insertar el <strong>Chatbot</strong>.</div>';
+    '<div class="next-step"><strong>Próximo paso:</strong> guardá estas claves. Durante la instalación, cargalas desde <strong>WC → Configuración</strong>. Allí también se genera el código para insertar el <strong>Chatbot</strong>.</div>' +
+    '<button class="btn download-installation" onclick="downloadInstallationData(\'' + encodeURIComponent(JSON.stringify(client)) + '\',\'' + d.api_key + '\',\'' + d.license_key + '\')"><svg viewBox="0 0 24 24"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M5 21h14"></path></svg> Descargar datos de instalación</button>';
   document.getElementById('modal-footer').innerHTML =
     '<button class="btn btn-primary" onclick="closeModal();loadClients()">Listo</button>';
   document.getElementById('modal').classList.add('active');
   loadClients(); // Reload in background
+}
+
+function downloadInstallationData(encodedClient, apiKey, licenseKey) {
+  var client = JSON.parse(decodeURIComponent(encodedClient));
+  var createdAt = client.created_at ? new Date(client.created_at) : new Date();
+  var date = isNaN(createdAt.getTime()) ? new Date().toLocaleString('es-PY') : createdAt.toLocaleString('es-PY');
+  var instruction = 'Guardá estas claves. Durante la instalación, cargalas desde WC → Configuración. Allí también se genera el código para insertar el Chatbot.';
+  var report = [
+    'DATOS DE INSTALACIÓN — WABOT',
+    '',
+    'Fecha: ' + date,
+    'Cliente: ' + (client.name || ''),
+    'URL de WC: ' + (client.client_url || ''),
+    '',
+    'API Key: ' + apiKey,
+    'License Key: ' + licenseKey,
+    '',
+    'INSTRUCCIÓN',
+    instruction
+  ].join('\r\n');
+  var fileName = 'Datos de Instalación - ' + (client.name || 'Cliente').replace(/[\\\\/:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim() + '.txt';
+  var link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([report], { type: 'text/plain;charset=utf-8' }));
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(function(){ URL.revokeObjectURL(link.href); }, 0);
+  toast('Datos de instalación descargados', true);
 }
 
 function copyText(text) {
