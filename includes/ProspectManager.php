@@ -164,10 +164,21 @@ class ProspectManager
             $telefono = preg_replace('/\D+/', '', $m[0]);
             if (strlen($telefono) >= 7) $datos['whatsapp'] = $telefono;
         }
-        if (preg_match('/\b(?:me llamo|mi nombre es|soy)\s+([\p{L}][\p{L}\'’.-]*(?:\s+[\p{L}][\p{L}\'’.-]*){0,3})/iu', $mensaje, $m)) {
+        // El nombre se resuelve localmente, sin depender de una llamada a IA.
+        // Acepta los formatos reales que suele usar una persona en un chat.
+        $nombrePatrones = [
+            '/\b(?:me\s+llamo|mi\s+nombre\s+(?:es\s*)?|nombre|soy|me\s+dicen|pod[eé]s\s+llamarme)\s*(?:es\s*)?[:=,-]?\s*([\p{L}][\p{L}\'’.-]*(?:\s+[\p{L}][\p{L}\'’.-]*){0,3})/iu',
+        ];
+        foreach ($nombrePatrones as $patron) {
+            if (!preg_match($patron, $mensaje, $m)) continue;
             $nombre = rtrim(trim(preg_replace('/\s+/', ' ', $m[1])), ".,;:!?");
-            // Evita tomar frases como “soy de Asunción” por un nombre.
-            if (!preg_match('/^(?:de|un|una|el|la|cliente|parte)\b/iu', $nombre)) $datos['nombre'] = $nombre;
+            // Evita tomar frases como “soy de Asunción”, “soy un cliente” o
+            // conectores que no son un nombre.
+            $nombre = preg_split('/\s+\b(?:y|pero|para|porque|de|desde|con|que|tengo|quiero)\b/iu', $nombre)[0];
+            if ($nombre !== '' && !preg_match('/^(?:de|un|una|el|la|cliente|parte|interesado|interesada)\b/iu', $nombre)) {
+                $datos['nombre'] = $nombre;
+                break;
+            }
         }
         return $datos;
     }
