@@ -55,7 +55,23 @@ module.exports = async (req, res) => {
       clearTimeout(timeout);
 
       const data = await openaiRes.json();
-      res.json(data);
+      if (!openaiRes.ok) {
+        res.status(openaiRes.status).json({
+          success: false,
+          error: 'OpenAI no pudo generar una respuesta',
+          detail: data?.error?.message || null
+        });
+        return;
+      }
+
+      const content = data?.choices?.[0]?.message?.content?.trim();
+      if (!content) {
+        res.status(502).json({ success: false, error: 'OpenAI devolvió una respuesta vacía' });
+        return;
+      }
+
+      // Contrato estable para WC. No se filtra la respuesta completa de OpenAI.
+      res.json({ success: true, content });
       return;
     }
 
