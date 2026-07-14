@@ -42,6 +42,7 @@ $db->exec("CREATE TABLE IF NOT EXISTS widget_config (
   secondary_color VARCHAR(7) DEFAULT '#F3F4F6',
   welcome_title VARCHAR(255) DEFAULT 'Asistente',
   welcome_subtitle VARCHAR(255) DEFAULT 'Online',
+  whatsapp_number VARCHAR(30) DEFAULT '',
   license_key VARCHAR(64) DEFAULT '',
   response_mode ENUM('ai','human') DEFAULT 'ai',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -254,16 +255,8 @@ ob_start();
           <input type="text" name="chatbot_api_key" value="<?= htmlspecialchars(EnvWriter::get('CHATBOT_API_KEY') ?: ($config['api_key'] ?? '')) ?>" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-xs" placeholder="wak_...">
           <p class="text-xs text-slate-400 mt-1">Debe coincidir con la API Key generada para este cliente en WS.</p>
         </div>
-        <div class="flex justify-end"><button type="submit" class="px-5 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 transition shadow-lg">Guardar License Key</button></div>
+        <div class="flex justify-end"><button type="submit" class="px-5 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 transition shadow-lg">Guardar credenciales</button></div>
       </form>
-      <div>
-        <label class="block text-sm font-medium text-slate-700 mb-1">API Key del Chatbot</label>
-        <div class="flex gap-2">
-          <input type="text" readonly value="<?= htmlspecialchars($config['api_key'] ?? '') ?>" class="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none bg-slate-50 font-mono text-xs">
-          <button onclick="navigator.clipboard.writeText('<?= htmlspecialchars($config['api_key'] ?? '') ?>'); this.textContent='Copiado!'; setTimeout(()=>this.textContent='Copiar',1500)" class="px-4 py-2.5 bg-slate-100 text-slate-700 text-sm rounded-xl hover:bg-slate-200 transition shrink-0">Copiar</button>
-        </div>
-        <p class="text-xs text-slate-400 mt-1">Se genera automáticamente. Se usa en el CDN para autenticar el chatbot.</p>
-      </div>
     </div>
   </div>
   <?php endif; ?>
