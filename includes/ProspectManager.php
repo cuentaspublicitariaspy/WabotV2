@@ -234,13 +234,12 @@ class ProspectManager
      * breve como “Roberto” se interpreta correctamente si antes se preguntó
      * “¿Cómo te llamás?”.
      */
-    public function registrarDatosDeclarados(int $id, string $mensaje, array $contexto = []): array
+    public function registrarDatosDeclarados(int $id, string $mensaje, array $contexto = [], string $apiKey = ''): array
     {
         $mensaje = trim($mensaje);
         $basicos = $this->detectarDatosBasicos($mensaje);
         $this->guardarDatosDeclarados($id, $basicos);
         if ($mensaje === '') return $basicos;
-        if (!defined('LICENSE_KEY') || LICENSE_KEY === '') return $basicos;
         $prompt = 'Extraé exclusivamente datos personales o comerciales que el visitante comunique durante esta conversación. Respondé SOLO JSON válido con: nombre,email,whatsapp,direccion,ciudad,pais,sitio_web,ocupacion,empresa. Para lo que no esté explícito devolvé cadena vacía. No inventes ni infieras. La extracción NO depende de que el asistente haya hecho una pregunta: si el visitante expresa espontáneamente su nombre, correo, teléfono u otro dato, guardalo en su campo. Usá el contexto para comprender respuestas breves, pero no tomes datos del asistente como datos del visitante.';
         $mensajes = [['role'=>'system','content'=>$prompt]];
         foreach ($contexto as $turno) {
@@ -250,7 +249,15 @@ class ProspectManager
         }
         // Compatibilidad con llamadas antiguas que todavía no entregan historial.
         if (!$contexto) $mensajes[] = ['role'=>'user','content'=>$mensaje];
-        $payload = json_encode(['action'=>'chat','license_key'=>LICENSE_KEY,'messages'=>$mensajes], JSON_UNESCAPED_UNICODE);
+        // El Chatbot ya está vinculado a un cliente de WS por su API Key. La
+        // License Key sigue siendo la credencial preferida para WC/WhatsApp,
+        // pero su ausencia no puede anular silenciosamente la extracción.
+        $payload = json_encode([
+            'action'=>'chat',
+            'license_key'=>defined('LICENSE_KEY') ? LICENSE_KEY : '',
+            'api_key'=>$apiKey,
+            'messages'=>$mensajes
+        ], JSON_UNESCAPED_UNICODE);
         $ch = curl_init('https://wabot-cdn.vercel.app/api/proxy/openai');
         curl_setopt_array($ch, [CURLOPT_POST=>true,CURLOPT_POSTFIELDS=>$payload,CURLOPT_HTTPHEADER=>['Content-Type: application/json'],CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>12]);
         $response = curl_exec($ch); $status = curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
