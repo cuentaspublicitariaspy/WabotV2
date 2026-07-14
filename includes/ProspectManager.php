@@ -102,4 +102,44 @@ class ProspectManager
         $stmt = $this->db->prepare('UPDATE prospectos SET resumen=?, intencion=?, nivel_interes=?, temperatura=?, puntaje=?, analizado_en=NOW() WHERE id=?');
         $stmt->execute([trim((string)($analisis['resumen'] ?? '')), trim((string)($analisis['intencion'] ?? '')), $interes, $temperatura, $puntaje, $id]);
     }
+
+    public function listar(string $busqueda = '', string $temperatura = ''): array
+    {
+        $sql = 'SELECT p.*, GROUP_CONCAT(DISTINCT r.canal ORDER BY r.canal SEPARATOR ", ") AS canales FROM prospectos p LEFT JOIN prospecto_referencias r ON r.prospecto_id=p.id WHERE 1=1';
+        $params = [];
+        if ($busqueda !== '') {
+            $sql .= ' AND (p.nombre LIKE ? OR p.email LIKE ? OR p.whatsapp LIKE ? OR p.empresa LIKE ? OR p.resumen LIKE ?)';
+            $like = '%' . $busqueda . '%'; $params = [$like,$like,$like,$like,$like];
+        }
+        if (in_array($temperatura, ['frio','tibio','caliente','muy_caliente'], true)) { $sql .= ' AND p.temperatura = ?'; $params[] = $temperatura; }
+        $sql .= ' GROUP BY p.id ORDER BY p.puntaje DESC, p.updated_at DESC LIMIT 500';
+        $stmt = $this->db->prepare($sql); $stmt->execute($params); return $stmt->fetchAll();
+    }
+
+    public function obtener(int $id): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM prospectos WHERE id = ?'); $stmt->execute([$id]); return $stmt->fetch() ?: null;
+    }
+
+    public function actualizar(int $id, array $datos): void
+    {
+        $campos = ['nombre','email','whatsapp','direccion','ciudad','pais','sitio_web','ocupacion','empresa','notas','resumen','intencion','nivel_interes','temperatura','puntaje'];
+        $sets=[]; $values=[];
+        foreach ($campos as $campo) {
+            if (!array_key_exists($campo, $datos)) continue;
+            $valor = trim((string)$datos[$campo]);
+            if ($campo === 'whatsapp') $valor = preg_replace('/\D+/', '', $valor);
+            if ($campo === 'nivel_interes' && !in_array($valor, ['bajo','medio','alto'], true)) $valor='medio';
+            if ($campo === 'temperatura' && !in_array($valor, ['frio','tibio','caliente','muy_caliente'], true)) $valor='tibio';
+            if ($campo === 'puntaje') $valor=max(0,min(100,(int)$valor));
+            $sets[] = "$campo = ?"; $values[] = $valor;
+        }
+        if ($sets) { $values[]=$id; $this->db->prepare('UPDATE prospectos SET ' . implode(', ', $sets) . ' WHERE id = ?')->execute($values); }
+    }
+
+    public function metricas(): array
+    {
+        $row = $this->db->query("SELECT COUNT(*) total, SUM(temperatura IN ('caliente','muy_caliente')) calientes, SUM(temperatura='muy_caliente') muy_calientes, ROUND(AVG(puntaje)) puntaje_promedio FROM prospectos")->fetch() ?: [];
+        return ['total'=>(int)($row['total']??0), 'calientes'=>(int)($row['calientes']??0), 'muy_calientes'=>(int)($row['muy_calientes']??0), 'puntaje_promedio'=>(int)($row['puntaje_promedio']??0)];
+    }
 }
