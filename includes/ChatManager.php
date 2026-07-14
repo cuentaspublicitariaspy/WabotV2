@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/Database.php';
+require_once __DIR__ . '/ProspectManager.php';
 
 class ChatManager
 {
@@ -87,6 +88,7 @@ class ChatManager
     /** Conversaciones iniciadas desde el Chatbot instalado en el sitio. */
     public function getWidgetConversaciones(string $search = '', string $estadoFiltro = ''): array
     {
+        $this->reconciliarIdentidadesChatbot();
         $sql = "SELECT wc.*,\n"
             . " COALESCE((SELECT wm.content FROM widget_messages wm WHERE wm.chat_id = wc.id ORDER BY wm.id DESC LIMIT 1), '') AS ultimo_mensaje,\n"
             . " CASE WHEN wc.unread = 1 THEN 'pendiente' ELSE 'respondido' END AS estado\n"
@@ -119,6 +121,7 @@ class ChatManager
 
     public function getWidgetConversacion(int $chatId): ?array
     {
+        $this->reconciliarIdentidadesChatbot($chatId);
         $stmt = $this->db->prepare('SELECT * FROM widget_chats WHERE id = ?');
         $stmt->execute([$chatId]);
         $chat = $stmt->fetch();
@@ -141,6 +144,43 @@ class ChatManager
         unset($message);
         $this->db->prepare('UPDATE widget_chats SET unread = 0 WHERE id = ?')->execute([$chatId]);
         return $messages;
+    }
+
+    /**
+     * Repara datos de instalaciones anteriores: recorre únicamente mensajes
+     * escritos por el visitante y aplica nombres explícitos a la conversación
+     * y a su ficha. Nunca lee respuestas de IA como fuente de identidad.
+     */
+    private function reconciliarIdentidadesChatbot(?int $soloChatId = null): void
+    {
+        try {
+            $sql = "SELECT id FROM widget_chats WHERE (visitor_name IS NULL OR visitor_name = '' OR visitor_name IN ('Visitante web', 'Sin nombre', 'Unknown'))";
+            $params = [];
+            if ($soloChatId !== null) { $sql .= ' AND id = ?'; $params[] = $soloChatId; }
+            $sql .= ' LIMIT 100';
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+            $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            if (!$ids) return;
+
+            $prospectos = new ProspectManager();
+            $mensajes = $this->db->prepare("SELECT content FROM widget_messages WHERE chat_id = ? AND role = 'visitor' ORDER BY id ASC");
+            $actualizarChat = $this->db->prepare("UPDATE widget_chats SET visitor_name = ? WHERE id = ?");
+            foreach ($ids as $id) {
+                $mensajes->execute([(int) $id]);
+                $nombre = '';
+                foreach ($mensajes->fetchAll(PDO::FETCH_COLUMN) as $contenido) {
+                    $datos = $prospectos->detectarDatosBasicos((string) $contenido);
+                    if (!empty($datos['nombre'])) { $nombre = trim((string) $datos['nombre']); break; }
+                }
+                if ($nombre === '') continue;
+                $actualizarChat->execute([$nombre, (int) $id]);
+                $prospectoId = $prospectos->vincular('chatbot', (string) $id);
+                $prospectos->actualizar($prospectoId, ['nombre' => $nombre]);
+            }
+        } catch (Throwable $e) {
+            error_log('Wabot chatbot identity reconciliation failed: ' . $e->getMessage());
+        }
     }
 
     public function getMensajes(int $conversacionId): array
