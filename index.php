@@ -9,7 +9,6 @@ if ($user !== null) {
     require_once __DIR__ . '/includes/KnowledgeManager.php';
     require_once __DIR__ . '/includes/TemplateManager.php';
     require_once __DIR__ . '/includes/MetricsCollector.php';
-    require_once __DIR__ . '/includes/ProspectManager.php';
 
     $db = Database::getConnection();
     $chatManager = new ChatManager();
@@ -23,7 +22,6 @@ if ($user !== null) {
     $agentesOnline = count($agentesActivos);
     $respondidosHoy = (int)$db->query("SELECT COUNT(*) FROM metricas WHERE DATE(created_at) = CURDATE()")->fetchColumn();
     $iaRespondidos = (int)$db->query("SELECT COUNT(*) FROM metricas WHERE respondido_por_ia = 1 AND DATE(created_at) = CURDATE()")->fetchColumn();
-    $prospectMetrics = (new ProspectManager())->metricas();
 
     $activePage = 'dashboard';
     $pageTitle = 'Dashboard';
@@ -54,24 +52,19 @@ if ($user !== null) {
     </div>
 
     <!-- Cards Row -->
-    <div class="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 shrink-0">
+    <div class="px-6 py-5 grid grid-cols-1 lg:grid-cols-3 gap-5 shrink-0">
         <div class="bg-slate-50 rounded-2xl p-5 border border-slate-100">
-            <h4 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Conversaciones</h4>
+            <h4 class="text-sm font-semibold text-slate-500 mb-2">Conversaciones</h4>
             <p class="text-4xl font-bold text-slate-900"><?= $totalConversaciones ?></p>
             <p class="text-xs text-slate-400 mt-1"><?= $pendientes ?> pendientes de respuesta</p>
         </div>
-        <a href="prospectos.php" class="bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl p-5 border border-orange-100 hover:border-orange-200 transition">
-            <div class="flex justify-between gap-3"><h4 class="text-sm font-semibold text-orange-800 uppercase tracking-wider mb-2">Prospectos</h4><span class="text-xs rounded-full bg-white/70 px-2 py-1 text-orange-700 font-semibold"><?= $prospectMetrics['calientes'] ?> calientes</span></div>
-            <p class="text-4xl font-bold text-orange-950"><?= $prospectMetrics['total'] ?></p>
-            <p class="text-xs text-orange-700 mt-1">Puntaje promedio: <?= $prospectMetrics['puntaje_promedio'] ?>/100</p>
-        </a>
         <div class="bg-slate-50 rounded-2xl p-5 border border-slate-100">
-            <h4 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Respondidos Hoy</h4>
+            <h4 class="text-sm font-semibold text-slate-500 mb-2">Respondidos hoy</h4>
             <p class="text-4xl font-bold text-slate-900"><?= $respondidosHoy ?></p>
             <p class="text-xs text-slate-400 mt-1"><?= $iaRespondidos ?> por IA · <?= $respondidosHoy - $iaRespondidos ?> por humanos</p>
         </div>
         <div class="bg-slate-50 rounded-2xl p-5 border border-slate-100">
-            <h4 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Agentes en Línea</h4>
+            <h4 class="text-sm font-semibold text-slate-500 mb-2">Agentes en línea</h4>
             <p class="text-4xl font-bold text-slate-900"><?= $agentesOnline ?></p>
             <p class="text-xs text-slate-400 mt-1"><?= $agentesOnline > 0 ? implode(', ', array_column($agentesActivos, 'nombre')) : 'Solo IA disponible' ?></p>
         </div>
@@ -85,7 +78,7 @@ if ($user !== null) {
         </div>
         <div class="flex-1 overflow-auto border border-slate-100 rounded-2xl bg-white">
             <table class="w-full text-sm">
-                <thead class="bg-slate-50 text-left text-xs text-slate-500 uppercase tracking-wider">
+                <thead class="bg-slate-50 text-left text-xs text-slate-500">
                     <tr>
                         <th class="px-4 py-3 font-medium">Cliente</th>
                         <th class="px-4 py-3 font-medium">Último mensaje</th>
