@@ -1,4 +1,4 @@
-const { getClient, getCachedConfig, setCachedConfig, isAuthorizedDomain } = require('../_lib/kv');
+const { getClient, isAuthorizedDomain } = require('../_lib/kv');
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 const OPENAI_MODEL = 'gpt-4o-mini';
@@ -47,31 +47,31 @@ module.exports = async (req, res) => {
     let systemPrompt = process.env.WIDGET_SYSTEM_PROMPT || '';
 
     if (client.client_url) {
-      const cached = await getCachedConfig(key);
-      if (cached && cached._system_prompt) {
-        systemPrompt = cached._system_prompt;
-      } else {
-        try {
-          const phpUrl = `${client.client_url.replace(/\/+$/, '')}/api/widget-config.php?key=${encodeURIComponent(key)}`;
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 5000);
-          const response = await fetch(phpUrl, { signal: controller.signal });
-          clearTimeout(timeout);
+      try {
+          const baseUrl = client.client_url.replace(/\/+$/, '');
+          const candidateUrls = [
+            `${baseUrl}/api/widget-config.php?key=${encodeURIComponent(key)}`,
+            `${baseUrl}/wabot/api/widget-config.php?key=${encodeURIComponent(key)}`
+          ];
+          let response = null;
+          for (const phpUrl of candidateUrls) {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 5000);
+            const attempt = await fetch(phpUrl, { signal: controller.signal });
+            clearTimeout(timeout);
+            if (attempt.ok) { response = attempt; break; }
+          }
 
-          if (response.ok) {
+          if (response && response.ok) {
             const data = await response.json();
             const knowledgeBase = data.knowledge_base || '';
             const sysPrompt = data.config?.system_prompt || '';
 
             systemPrompt = sysPrompt || knowledgeBase || systemPrompt;
-
-            const configForCache = await getCachedConfig(key) || {};
-            await setCachedConfig(key, { ...configForCache, _system_prompt: systemPrompt });
           }
         } catch {
           // Fallback a systemPrompt actual
         }
-      }
     }
 
     let parsedHistory = [];
