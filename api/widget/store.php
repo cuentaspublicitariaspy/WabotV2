@@ -59,8 +59,14 @@ if ($role === 'visitor') {
     $email = trim((string) ($datosBasicos['email'] ?? ''));
     $telefono = preg_replace('/\D+/', '', (string) ($datosBasicos['whatsapp'] ?? ''));
     if ($nombre !== '' || $email !== '' || $telefono !== '') {
-        $stmt = $db->prepare("UPDATE widget_chats SET visitor_name = COALESCE(NULLIF(?, ''), visitor_name), visitor_email = COALESCE(NULLIF(?, ''), visitor_email), visitor_phone = COALESCE(NULLIF(?, ''), visitor_phone) WHERE id = ?");
-        $stmt->execute([$nombre, $email, $telefono, $chatId]);
+        // "Visitante web" es solo el texto de reserva de la interfaz: nunca
+        // debe impedir que un nombre declarado reemplace el dato visible.
+        $stmt = $db->prepare("UPDATE widget_chats SET
+            visitor_name = CASE WHEN ? <> '' AND (visitor_name IS NULL OR visitor_name = '' OR visitor_name = 'Visitante web') THEN ? ELSE visitor_name END,
+            visitor_email = COALESCE(NULLIF(?, ''), visitor_email),
+            visitor_phone = COALESCE(NULLIF(?, ''), visitor_phone)
+            WHERE id = ?");
+        $stmt->execute([$nombre, $nombre, $email, $telefono, $chatId]);
     }
 }
 $stmt = $db->prepare('INSERT IGNORE INTO widget_messages (chat_id, role, content, client_message_id) VALUES (?, ?, ?, ?)');
