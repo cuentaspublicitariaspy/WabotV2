@@ -1,4 +1,4 @@
-const { getClient } = require('../_lib/kv');
+const { getClient, getAllClients } = require('../_lib/kv');
 
 const OPENAI_CHAT_URL = 'https://api.openai.com/v1/chat/completions';
 const OPENAI_TRANSCRIBE_URL = 'https://api.openai.com/v1/audio/transcriptions';
@@ -15,10 +15,30 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { action, license_key, messages, audio_base64, model } = req.body || {};
+    const { action, license_key, api_key, messages, audio_base64, model } = req.body || {};
 
     if (!action) {
       res.status(400).json({ success: false, error: 'action requerida (chat o transcribe)' });
+      return;
+    }
+
+    // Toda llamada de WC debe pertenecer a un cliente activo. En la parte
+    // pública del Chatbot usamos su API Key; en WhatsApp/administración se
+    // valida la License Key. Ningún mensaje se persiste en WS.
+    let client = null;
+    if (api_key) client = await getClient(api_key);
+    if (!client && license_key) {
+      const clients = await getAllClients();
+      for (const candidate of Object.keys(clients)) {
+        const possibleClient = await getClient(candidate);
+        if (possibleClient?.license_key === license_key) {
+          client = possibleClient;
+          break;
+        }
+      }
+    }
+    if (!client || (license_key && client.license_key !== license_key)) {
+      res.status(403).json({ success: false, error: 'Licencia o cliente no autorizado' });
       return;
     }
 
