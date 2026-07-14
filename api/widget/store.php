@@ -7,13 +7,15 @@ header('Content-Type: application/json');
 // cuando el origen coincide con este hosting; así no se abre el endpoint a
 // sitios de terceros que conozcan la API Key pública del Chatbot.
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+$requestHost = strtolower((string) preg_replace('/:\\d+$/', '', $_SERVER['HTTP_HOST'] ?? ''));
+$source = $origin !== '' ? $origin : ($_SERVER['HTTP_REFERER'] ?? '');
+$sourceHost = strtolower((string) parse_url($source, PHP_URL_HOST));
+if ($sourceHost === '' || !hash_equals($requestHost, $sourceHost)) {
+    http_response_code(403); header('Content-Type: application/json'); echo json_encode(['success'=>false, 'error'=>'Origen no autorizado']); exit;
+}
 if ($origin !== '') {
-    $originHost = strtolower((string) parse_url($origin, PHP_URL_HOST));
-    $requestHost = strtolower((string) preg_replace('/:\\d+$/', '', $_SERVER['HTTP_HOST'] ?? ''));
-    if ($originHost !== '' && hash_equals($requestHost, $originHost)) {
-        header('Access-Control-Allow-Origin: ' . $origin);
-        header('Vary: Origin');
-    }
+    header('Access-Control-Allow-Origin: ' . $origin);
+    header('Vary: Origin');
 }
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
@@ -39,8 +41,8 @@ $config = $stmt->fetch();
 if (!$config) { http_response_code(404); echo json_encode(['success'=>false]); exit; }
 
 $db->prepare('INSERT IGNORE INTO widget_chats (widget_config_id, session_id, unread) VALUES (?, ?, 0)')->execute([$config['id'], $sessionId]);
-$stmt = $db->prepare('SELECT id FROM widget_chats WHERE session_id = ?');
-$stmt->execute([$sessionId]);
+$stmt = $db->prepare('SELECT wc.id FROM widget_chats wc INNER JOIN widget_config cfg ON cfg.id = wc.widget_config_id WHERE wc.session_id = ? AND cfg.api_key = ?');
+$stmt->execute([$sessionId, $key]);
 $chatId = (int) $stmt->fetchColumn();
 $db->prepare('INSERT INTO widget_messages (chat_id, role, content) VALUES (?, ?, ?)')->execute([$chatId, $role, $content]);
 $db->prepare('UPDATE widget_chats SET unread = ?, memory_message_count = memory_message_count + 1, updated_at = NOW() WHERE id = ?')->execute([$role === 'visitor' ? 1 : 0, $chatId]);
