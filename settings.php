@@ -230,6 +230,7 @@ $waConnected = $waToken !== '' && $waPhoneId !== '';
 $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 $basePath = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
 $callbackUrl = "$scheme://{$_SERVER['HTTP_HOST']}" . ($basePath === '' || $basePath === '/' ? '' : $basePath) . '/webhook.php';
+$wcBaseUrl = "$scheme://{$_SERVER['HTTP_HOST']}" . ($basePath === '' || $basePath === '/' ? '' : $basePath);
 
 $licenseConfigured = (EnvWriter::get('LICENSE_KEY') ?: ($config['license_key'] ?? '')) !== '';
 $chatbotConfigured = EnvWriter::get('CHATBOT_API_KEY') !== '';
@@ -422,9 +423,11 @@ ob_start();
       <div class="bg-white border border-slate-100 rounded-2xl p-6">
         <h5 class="text-sm font-semibold text-slate-700 mb-3">Código para incrustar</h5>
         <div class="bg-slate-900 rounded-xl overflow-hidden">
-          <pre class="text-green-400 text-xs leading-relaxed px-4 py-3 m-0 overflow-x-auto" id="embed-code">&lt;script src="<?= $apiBase ?>/widget.js"
+          <pre class="text-green-400 text-xs leading-relaxed px-4 py-3 m-0 overflow-x-auto" id="embed-code">&lt;script src="<?= $apiBase ?>/widget.js?v=20260714-2"
   data-api-key="<?= htmlspecialchars($config['api_key'] ?? '') ?>"
-  data-api-base="<?= $apiBase ?>"&gt;&lt;/script&gt;</pre>
+  data-api-base="<?= $apiBase ?>"
+  data-store="<?= htmlspecialchars($wcBaseUrl) ?>/api/widget/store.php"
+  data-history="<?= htmlspecialchars($wcBaseUrl) ?>/api/widget/messages.php"&gt;&lt;/script&gt;</pre>
         </div>
         <button onclick="navigator.clipboard.writeText(document.getElementById('embed-code').textContent); this.textContent='Copiado!'; setTimeout(()=>this.textContent='Copiar c\u00f3digo',1500)" class="mt-3 px-5 py-2.5 bg-slate-800 text-white text-sm font-medium rounded-xl hover:bg-slate-900 transition">Copiar código</button>
       </div>
