@@ -228,14 +228,20 @@ class WebhookHandler
         // perfil comercial local, sin enviar estos datos a WS.
         $prospecto = new ProspectManager();
         $prospectoId = $prospecto->vincular('whatsapp', $waPhone, ['nombre' => $waName, 'whatsapp' => $waPhone]);
-        $datosProspecto = $prospecto->registrarDatosDeclarados($prospectoId, $text);
-        $nombreDeclarado = trim((string) ($datosProspecto['nombre'] ?? ''));
+        $datosBasicos = $prospecto->detectarDatosBasicos($text);
+        if ($datosBasicos) $prospecto->actualizar($prospectoId, $datosBasicos);
+        $nombreDeclarado = trim((string) ($datosBasicos['nombre'] ?? ''));
         if ($nombreDeclarado !== '') {
             Database::getConnection()->prepare('UPDATE conversaciones SET wa_name = ? WHERE id = ?')
                 ->execute([$nombreDeclarado, $conversacionId]);
         }
         $mensajeInId = $this->chatManager->guardarMensaje($conversacionId, $text, 'in', $messageId);
         $this->chatManager->actualizarConversacion($conversacionId, $text, 'pendiente');
+        $datosProspecto = $prospecto->registrarDatosDeclarados($prospectoId, $text);
+        if ($nombreDeclarado === '' && !empty($datosProspecto['nombre'])) {
+            Database::getConnection()->prepare('UPDATE conversaciones SET wa_name = ? WHERE id = ?')
+                ->execute([trim((string) $datosProspecto['nombre']), $conversacionId]);
+        }
 
         $comando = strtolower(trim($text));
         if (in_array($comando, ['/reset', '/limpiar', '/start'], true)) {
