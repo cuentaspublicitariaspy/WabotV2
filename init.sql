@@ -132,6 +132,40 @@ CREATE TABLE IF NOT EXISTS widget_messages (
     FOREIGN KEY (chat_id) REFERENCES widget_chats(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS prospectos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(150) NOT NULL DEFAULT '',
+    email VARCHAR(255) NOT NULL DEFAULT '',
+    whatsapp VARCHAR(40) NOT NULL DEFAULT '',
+    direccion VARCHAR(255) NOT NULL DEFAULT '',
+    ciudad VARCHAR(100) NOT NULL DEFAULT '',
+    pais VARCHAR(100) NOT NULL DEFAULT '',
+    sitio_web VARCHAR(255) NOT NULL DEFAULT '',
+    ocupacion VARCHAR(150) NOT NULL DEFAULT '',
+    empresa VARCHAR(150) NOT NULL DEFAULT '',
+    notas TEXT NULL,
+    resumen TEXT NULL,
+    intencion VARCHAR(255) NOT NULL DEFAULT '',
+    nivel_interes ENUM('bajo','medio','alto') NOT NULL DEFAULT 'medio',
+    temperatura ENUM('frio','tibio','caliente','muy_caliente') NOT NULL DEFAULT 'tibio',
+    puntaje TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    analizado_en DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_email (email), INDEX idx_whatsapp (whatsapp), INDEX idx_temperatura (temperatura)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS prospecto_referencias (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    prospecto_id INT NOT NULL,
+    canal ENUM('whatsapp','chatbot') NOT NULL,
+    referencia VARCHAR(140) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_referencia (canal, referencia),
+    INDEX idx_prospecto (prospecto_id),
+    FOREIGN KEY (prospecto_id) REFERENCES prospectos(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS plantillas (
     id INT AUTO_INCREMENT PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
