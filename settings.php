@@ -35,7 +35,7 @@ $firstSub = $visibleSubKeys[0] ?? 'whatsapp';
 
 $db->exec("CREATE TABLE IF NOT EXISTS widget_config (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  api_key VARCHAR(64) NOT NULL UNIQUE,
+  api_key VARCHAR(64) NULL UNIQUE,
   enabled TINYINT(1) DEFAULT 1,
   position VARCHAR(10) DEFAULT 'right',
   primary_color VARCHAR(7) DEFAULT '#2F63E9',
@@ -48,14 +48,23 @@ $db->exec("CREATE TABLE IF NOT EXISTS widget_config (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+try {
+    // Las versiones anteriores creaban una clave temporal wgt_. WC debe esperar la wak_ emitida por WS.
+    $db->exec("ALTER TABLE widget_config MODIFY api_key VARCHAR(64) NULL");
+} catch (PDOException $e) {
+    // La instalación nueva ya nace con la estructura correcta.
+}
 
 $config = $db->query("SELECT * FROM widget_config ORDER BY id DESC LIMIT 1")->fetch();
 if (!$config) {
-    $apiKey = 'wgt_' . bin2hex(random_bytes(16));
-    $db->prepare("INSERT INTO widget_config (api_key) VALUES (?)")->execute([$apiKey]);
+    $db->prepare("INSERT INTO widget_config (api_key) VALUES (NULL)")->execute();
     $config = $db->query("SELECT * FROM widget_config ORDER BY id DESC LIMIT 1")->fetch();
 }
 $chatbotApiKey = EnvWriter::get('CHATBOT_API_KEY');
+if ($chatbotApiKey === '' && !empty($config['api_key']) && str_starts_with($config['api_key'], 'wgt_')) {
+    $db->prepare("UPDATE widget_config SET api_key=NULL WHERE id=?")->execute([$config['id']]);
+    $config = $db->query("SELECT * FROM widget_config ORDER BY id DESC LIMIT 1")->fetch();
+}
 if ($chatbotApiKey !== '' && $chatbotApiKey !== $config['api_key']) {
     $db->prepare("UPDATE widget_config SET api_key=? WHERE id=?")->execute([$chatbotApiKey, $config['id']]);
     $config = $db->query("SELECT * FROM widget_config ORDER BY id DESC LIMIT 1")->fetch();
@@ -113,13 +122,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($section === 'license') {
         $licenseKey = trim($_POST['license_key'] ?? '');
         $chatbotApiKey = trim($_POST['chatbot_api_key'] ?? '');
-        if ($licenseKey) {
+        if ($licenseKey === '' && $chatbotApiKey === '') {
+            $msg = 'Ingresá al menos una clave para guardar';
+            $msgType = 'error';
+        }
+        if ($licenseKey !== '') {
             EnvWriter::set('LICENSE_KEY', $licenseKey);
             $db->prepare("UPDATE widget_config SET license_key=? WHERE id=?")->execute([$licenseKey, $config['id']]);
             $msg = 'License Key guardada';
             $msgType = 'success';
         }
-        if ($chatbotApiKey) {
+        if ($chatbotApiKey !== '') {
             EnvWriter::set('CHATBOT_API_KEY', $chatbotApiKey);
             $db->prepare("UPDATE widget_config SET api_key=? WHERE id=?")->execute([$chatbotApiKey, $config['id']]);
             $config = $db->query("SELECT * FROM widget_config ORDER BY id DESC LIMIT 1")->fetch();
@@ -209,7 +222,8 @@ $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' :
 $basePath = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
 $callbackUrl = "$scheme://{$_SERVER['HTTP_HOST']}" . ($basePath === '' || $basePath === '/' ? '' : $basePath) . '/webhook.php';
 
-$licenseDisplay = EnvWriter::get('LICENSE_KEY') ?: ($config['license_key'] ?? '');
+$licenseConfigured = (EnvWriter::get('LICENSE_KEY') ?: ($config['license_key'] ?? '')) !== '';
+$chatbotConfigured = EnvWriter::get('CHATBOT_API_KEY') !== '';
 $apiBase = 'https://wabot-cdn.vercel.app';
 
 $knowledgeSources = $knowledge->getAll();
@@ -229,7 +243,10 @@ ob_start();
   <h1 class="text-2xl font-bold text-slate-800 mb-6">Configuración del Sistema</h1>
 
   <?php if ($msg): ?>
-  <div class="mb-4 px-4 py-3 rounded-xl text-sm font-medium <?= $msgType === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200' ?>"><?= htmlspecialchars($msg) ?></div>
+  <div id="save-notice" role="status" class="mb-4 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2 shadow-sm <?= $msgType === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200' ?>">
+    <span class="w-5 h-5 rounded-full flex items-center justify-center <?= $msgType === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white' ?>"><?= $msgType === 'success' ? '✓' : '!' ?></span>
+    <?= htmlspecialchars($msg) ?>
+  </div>
   <?php endif; ?>
 
   <div class="flex gap-1 border-b border-slate-200 mb-6 overflow-x-auto">
@@ -248,12 +265,13 @@ ob_start();
         <input type="hidden" name="section" value="license">
         <div>
           <label class="block text-sm font-medium text-slate-700 mb-1">License Key</label>
-          <input type="text" name="license_key" value="<?= htmlspecialchars($licenseDisplay) ?>" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-xs" placeholder="Ingresá la License Key">
+          <input type="password" name="license_key" value="" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-xs" placeholder="<?= $licenseConfigured ? 'Guardada. Pegá una nueva clave para reemplazarla' : 'Ingresá la License Key' ?>" autocomplete="new-password">
+          <p class="text-xs mt-1 <?= $licenseConfigured ? 'text-emerald-600' : 'text-slate-400' ?>"><?= $licenseConfigured ? '✓ License Key configurada y oculta.' : 'Pendiente de configuración.' ?></p>
         </div>
         <div>
           <label class="block text-sm font-medium text-slate-700 mb-1">API Key del Chatbot</label>
-          <input type="text" name="chatbot_api_key" value="<?= htmlspecialchars(EnvWriter::get('CHATBOT_API_KEY') ?: ($config['api_key'] ?? '')) ?>" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-xs" placeholder="wak_...">
-          <p class="text-xs text-slate-400 mt-1">Debe coincidir con la API Key generada para este cliente en WS.</p>
+          <input type="password" name="chatbot_api_key" value="" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-xs" placeholder="<?= $chatbotConfigured ? 'Guardada. Pegá una nueva clave para reemplazarla' : 'wak_...' ?>" autocomplete="new-password">
+          <p class="text-xs mt-1 <?= $chatbotConfigured ? 'text-emerald-600' : 'text-slate-400' ?>"><?= $chatbotConfigured ? '✓ API Key del Chatbot configurada y oculta.' : 'Debe coincidir con la API Key generada para este cliente en WS.' ?></p>
         </div>
         <div class="flex justify-end"><button type="submit" class="px-5 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 transition shadow-lg">Guardar credenciales</button></div>
       </form>
@@ -344,7 +362,7 @@ ob_start();
           <input type="hidden" name="action" value="save_connection">
           <div>
             <label class="block text-sm font-medium text-slate-700 mb-1">WhatsApp Token</label>
-            <input type="text" name="whatsapp_token" value="" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-xs" placeholder="EAATuTokenDeAcceso..." autocomplete="off">
+            <input type="password" name="whatsapp_token" value="" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-xs" placeholder="EAATuTokenDeAcceso..." autocomplete="new-password">
             <p class="text-xs text-slate-400 mt-1">Token de acceso permanente del sistema o de la app.</p>
           </div>
           <div>
@@ -353,7 +371,7 @@ ob_start();
           </div>
           <div>
             <label class="block text-sm font-medium text-slate-700 mb-1">App Secret (opcional)</label>
-            <input type="text" name="whatsapp_app_secret" value="" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-xs" placeholder="App Secret de Meta Developers" autocomplete="off">
+            <input type="password" name="whatsapp_app_secret" value="" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-xs" placeholder="App Secret de Meta Developers" autocomplete="new-password">
             <p class="text-xs text-slate-400 mt-1">Para verificar firmas de webhook (recomendado).</p>
           </div>
           <div class="flex justify-end"><button type="submit" class="px-5 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 transition shadow-lg">Guardar conexión</button></div>
@@ -519,6 +537,11 @@ function switchSub(name) {
   document.querySelector('[data-sub="' + name + '"]').classList.add('active');
 }
 document.addEventListener('DOMContentLoaded', function() {
+  var saveNotice = document.getElementById('save-notice');
+  if (saveNotice) {
+    setTimeout(function() { saveNotice.style.transition = 'opacity .35s'; saveNotice.style.opacity = '0'; }, 5000);
+    setTimeout(function() { saveNotice.remove(); }, 5400);
+  }
   document.querySelectorAll('input[type="color"]').forEach(function(c) {
     c.addEventListener('input', function() {
       var textInput = this.parentElement.nextElementSibling;
