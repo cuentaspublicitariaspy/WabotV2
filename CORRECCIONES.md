@@ -19,6 +19,9 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 - Si WC encuentra un `.env` anterior cuya base ya fue eliminada, el instalador debe volver a mostrar el formulario de base de datos, sin bucles de redirección ni pasos manuales sobre archivos ocultos.
 - El paquete de instalación WC debe incluir únicamente el código PHP necesario y la carpeta vacía `uploads/`; debe excluir WS (`wabot-cdn/`), Git, `.env`, datos de clientes, documentación interna y herramientas de construcción.
 - La verificación GET del webhook de Meta debe responder el `hub.challenge` en texto plano antes de cargar base de datos o procesadores de mensajes.
+- Un envío manual de WhatsApp se considera exitoso ante cualquier respuesta HTTP 2xx de Meta; no debe mostrarse un error si el mensaje fue aceptado y entregado.
+- Para las respuestas automáticas de WhatsApp, WS debe entregar a WC un contrato estable con `content`; WC conserva compatibilidad con el formato original de OpenAI durante actualizaciones parciales.
+- La IA automática solo responde cuando no existen agentes humanos activos. Mientras un administrador/agente figura **Online**, la conversación se asigna a esa persona y la IA no interviene.
 
 ## Seguridad y dominios en WS
 
