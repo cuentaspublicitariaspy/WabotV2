@@ -74,5 +74,21 @@ $stmt->execute([$chatId, $role, $content, $clientMessageId !== '' ? $clientMessa
 if ($stmt->rowCount() === 1) {
     $db->prepare('UPDATE widget_chats SET unread = ?, memory_message_count = memory_message_count + 1, updated_at = NOW() WHERE id = ?')->execute([$role === 'visitor' ? 1 : 0, $chatId]);
 }
-if ($role === 'visitor') $prospecto->registrarDatosDeclarados($prospectoId, $content);
+if ($role === 'visitor') {
+    // El enriquecimiento puede encontrar un nombre que no coincide con los
+    // patrones locales. Aplicamos ese mismo resultado a widget_chats: la
+    // lista de Conversaciones se alimenta de esta tabla, no de prospectos.
+    $datosDeclarados = $prospecto->registrarDatosDeclarados($prospectoId, $content);
+    $nombreDeclarado = trim((string) ($datosDeclarados['nombre'] ?? ''));
+    $emailDeclarado = trim((string) ($datosDeclarados['email'] ?? ''));
+    $telefonoDeclarado = preg_replace('/\D+/', '', (string) ($datosDeclarados['whatsapp'] ?? ''));
+    if ($nombreDeclarado !== '' || $emailDeclarado !== '' || $telefonoDeclarado !== '') {
+        $stmt = $db->prepare("UPDATE widget_chats SET
+            visitor_name = CASE WHEN ? <> '' AND (visitor_name IS NULL OR visitor_name = '' OR visitor_name = 'Visitante web') THEN ? ELSE visitor_name END,
+            visitor_email = COALESCE(NULLIF(?, ''), visitor_email),
+            visitor_phone = COALESCE(NULLIF(?, ''), visitor_phone)
+            WHERE id = ?");
+        $stmt->execute([$nombreDeclarado, $nombreDeclarado, $emailDeclarado, $telefonoDeclarado, $chatId]);
+    }
+}
 echo json_encode(['success'=>true]);
