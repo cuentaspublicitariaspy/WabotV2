@@ -27,6 +27,8 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 - La Base de Conocimiento debe ser la fuente principal de las respuestas del Chatbot y de WhatsApp. Si falta información, la IA debe reconocerlo y ofrecer derivación; no inventar datos.
 - El Chatbot debe aislarse de los estilos del sitio que lo contiene, respetar su color configurado y conservar un encuadre legible tanto en escritorio como en móvil.
 - La Base de Conocimiento puede enviarse de forma transitoria desde WC a OpenAI para generar una respuesta, mediante la API Key central. WS no debe guardar ni poner en caché su contenido; al terminar la solicitud se descarta.
+- Los mensajes salientes de WhatsApp deben guardarse en WC antes de registrar métricas. El identificador externo de Meta nunca se usa como ID interno de base de datos; el envío aceptado no puede terminar mostrando un falso error en el panel.
+- La IA debe recibir el historial completo relevante, incluidas sus respuestas previas, y evitar volver a saludar o presentarse en una conversación ya iniciada.
 
 ## Seguridad y dominios en WS
 
