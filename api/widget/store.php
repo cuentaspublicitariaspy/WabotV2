@@ -28,6 +28,7 @@ $key = trim($input['api_key'] ?? '');
 $sessionId = trim($input['session_id'] ?? '');
 $role = $input['role'] ?? '';
 $content = trim($input['content'] ?? '');
+$clientMessageId = trim($input['client_message_id'] ?? '');
 if ($key === '' || $sessionId === '' || $content === '' || !in_array($role, ['visitor','assistant'], true)) {
     http_response_code(400); echo json_encode(['success'=>false, 'error'=>'Datos incompletos']); exit;
 }
@@ -36,6 +37,8 @@ $db = Database::getConnection();
 // Compatibilidad con instalaciones creadas antes de la memoria persistente.
 try { $db->exec('ALTER TABLE widget_chats ADD COLUMN memory_summary LONGTEXT NULL'); } catch (Throwable $e) {}
 try { $db->exec('ALTER TABLE widget_chats ADD COLUMN memory_message_count INT NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
+try { $db->exec('ALTER TABLE widget_messages ADD COLUMN client_message_id VARCHAR(80) NULL'); } catch (Throwable $e) {}
+try { $db->exec('ALTER TABLE widget_messages ADD UNIQUE KEY uq_widget_message_client (client_message_id)'); } catch (Throwable $e) {}
 $stmt = $db->prepare('SELECT id FROM widget_config WHERE api_key = ? AND enabled = 1');
 $stmt->execute([$key]);
 $config = $stmt->fetch();
@@ -60,7 +63,10 @@ if ($role === 'visitor') {
         $stmt->execute([$nombre, $email, $telefono, $chatId]);
     }
 }
-$db->prepare('INSERT INTO widget_messages (chat_id, role, content) VALUES (?, ?, ?)')->execute([$chatId, $role, $content]);
-$db->prepare('UPDATE widget_chats SET unread = ?, memory_message_count = memory_message_count + 1, updated_at = NOW() WHERE id = ?')->execute([$role === 'visitor' ? 1 : 0, $chatId]);
+$stmt = $db->prepare('INSERT IGNORE INTO widget_messages (chat_id, role, content, client_message_id) VALUES (?, ?, ?, ?)');
+$stmt->execute([$chatId, $role, $content, $clientMessageId !== '' ? $clientMessageId : null]);
+if ($stmt->rowCount() === 1) {
+    $db->prepare('UPDATE widget_chats SET unread = ?, memory_message_count = memory_message_count + 1, updated_at = NOW() WHERE id = ?')->execute([$role === 'visitor' ? 1 : 0, $chatId]);
+}
 if ($role === 'visitor') $prospecto->registrarDatosDeclarados($prospectoId, $content);
 echo json_encode(['success'=>true]);
