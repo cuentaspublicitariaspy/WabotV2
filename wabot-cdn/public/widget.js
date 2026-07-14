@@ -82,6 +82,10 @@
     '.ww-msg.assistant .ww-msg-bubble { background:#fff; color:#222; border:1px solid #e2e8f0; border-bottom-left-radius:4px; }' +
     '.ww-msg-time { font-size:10px; color:#9aa5b1; margin-top:4px; padding:0 4px; }' +
     '.ww-empty { text-align:center; color:#9aa5b1; font-size:13px; padding:40px 20px; }' +
+    '.ww-domain-error { text-align:center; padding:34px 22px; color:#334155; }' +
+    '.ww-domain-error-icon { width:48px; height:48px; margin:0 auto 14px; border-radius:50%; background:#fff7ed; color:#ea580c; display:flex; align-items:center; justify-content:center; font-size:24px; }' +
+    '.ww-domain-error h3 { font-size:16px; margin-bottom:8px; color:#1e293b; }' +
+    '.ww-domain-error p { font-size:13px; line-height:1.5; color:#64748b; }' +
     '.ww-typing { display:flex; align-items:center; gap:6px; padding:12px 16px; background:#fff; border:1px solid #e2e8f0; border-radius:14px; margin-bottom:12px; width:fit-content; }' +
     '.ww-typing span { width:8px; height:8px; border-radius:50%; background:#9aa5b1; animation:ww-pulse 1.2s infinite; }' +
     '.ww-typing span:nth-child(2) { animation-delay:.2s; }' +
@@ -135,6 +139,19 @@
   var sendBtn = document.getElementById('ww-send');
   var titleEl = document.getElementById('ww-title');
   var statusEl = document.getElementById('ww-status');
+  var domainAuthorized = true;
+
+  function showDomainError() {
+    if (!domainAuthorized) return;
+    domainAuthorized = false;
+    titleEl.textContent = 'Chatbot no autorizado';
+    statusEl.textContent = 'Dominio no habilitado';
+    msgContainer.innerHTML = '<div class="ww-domain-error"><div class="ww-domain-error-icon">!</div><h3>Chatbot no autorizado</h3><p>Este Chatbot no está autorizado para funcionar en este dominio.</p></div>';
+    emptyMsg.style.display = 'none';
+    inputEl.disabled = true;
+    inputEl.placeholder = 'Chatbot no disponible en este dominio';
+    sendBtn.disabled = true;
+  }
 
   function applyColor(color) {
     if (!color) return;
@@ -155,14 +172,20 @@
     var xhr = new XMLHttpRequest();
     xhr.open('GET', apiUrl('config') + '?key=' + encodeURIComponent(apiKey) + '&origin=' + encodeURIComponent(window.location.origin), true);
     xhr.onreadystatechange = function() {
-      if (xhr.readyState === 4 && xhr.status === 200) {
+      if (xhr.readyState === 4) {
         try {
-          var data = JSON.parse(xhr.responseText);
+          var data = JSON.parse(xhr.responseText || '{}');
+          if (xhr.status === 403 && data.code === 'DOMAIN_NOT_AUTHORIZED') {
+            showDomainError();
+            return;
+          }
+          if (xhr.status === 200) {
           if (data.success && data.config) {
             var cfg = data.config;
             if (cfg.welcome_title) titleEl.textContent = cfg.welcome_title;
             if (cfg.welcome_subtitle) statusEl.textContent = cfg.welcome_subtitle;
             if (cfg.primary_color) applyColor(cfg.primary_color);
+          }
           }
         } catch(e) {}
       }
@@ -216,6 +239,7 @@
   sendBtn.addEventListener('click', sendMessage);
 
   function sendMessage() {
+    if (!domainAuthorized) return;
     var msg = inputEl.value.trim();
     if (!msg) return;
     inputEl.value = '';
@@ -249,6 +273,11 @@
               renderMessages(msgs);
               storeMessage('assistant', data.message.content);
             }
+          } catch(e) {}
+        } else if (xhr.status === 403) {
+          try {
+            var errorData = JSON.parse(xhr.responseText || '{}');
+            if (errorData.code === 'DOMAIN_NOT_AUTHORIZED') showDomainError();
           } catch(e) {}
         }
       }
