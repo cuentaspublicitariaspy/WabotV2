@@ -313,6 +313,7 @@ class WebhookHandler
                 $waMessageId = $this->sendMessage($waPhone, $response, $phoneNumberId);
                 if ($waMessageId !== null) {
                     $mensajeOutId = $this->chatManager->guardarMensaje($conversacionId, $response, 'out', $waMessageId);
+                    $this->chatManager->actualizarConversacion($conversacionId, $response, 'respondido');
                     $metrics = new MetricsCollector();
                     $metrics->registrarRespuesta($conversacionId, $mensajeInId, $mensajeOutId, null, true);
                 }
