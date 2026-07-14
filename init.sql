@@ -113,6 +113,8 @@ CREATE TABLE IF NOT EXISTS widget_chats (
     visitor_name VARCHAR(100) DEFAULT '',
     visitor_email VARCHAR(255) DEFAULT '',
     visitor_phone VARCHAR(30) DEFAULT '',
+    memory_summary LONGTEXT NULL,
+    memory_message_count INT NOT NULL DEFAULT 0,
     unread TINYINT(1) NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
