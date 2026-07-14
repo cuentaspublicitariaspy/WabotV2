@@ -47,7 +47,18 @@ $stmt->execute([$sessionId, $key]);
 $chatId = (int) $stmt->fetchColumn();
 $prospecto = new ProspectManager();
 $prospectoId = $prospecto->vincular('chatbot', (string) $chatId);
-if ($role === 'visitor') $prospecto->registrarDatosDeclarados($prospectoId, $content);
+if ($role === 'visitor') {
+    $datosProspecto = $prospecto->registrarDatosDeclarados($prospectoId, $content);
+    // La misma identidad queda visible enseguida en Conversaciones, sin
+    // esperar una carga manual de la ficha de Prospectos.
+    $nombre = trim((string) ($datosProspecto['nombre'] ?? ''));
+    $email = trim((string) ($datosProspecto['email'] ?? ''));
+    $telefono = preg_replace('/\D+/', '', (string) ($datosProspecto['whatsapp'] ?? ''));
+    if ($nombre !== '' || $email !== '' || $telefono !== '') {
+        $stmt = $db->prepare("UPDATE widget_chats SET visitor_name = COALESCE(NULLIF(?, ''), visitor_name), visitor_email = COALESCE(NULLIF(?, ''), visitor_email), visitor_phone = COALESCE(NULLIF(?, ''), visitor_phone) WHERE id = ?");
+        $stmt->execute([$nombre, $email, $telefono, $chatId]);
+    }
+}
 $db->prepare('INSERT INTO widget_messages (chat_id, role, content) VALUES (?, ?, ?)')->execute([$chatId, $role, $content]);
 $db->prepare('UPDATE widget_chats SET unread = ?, memory_message_count = memory_message_count + 1, updated_at = NOW() WHERE id = ?')->execute([$role === 'visitor' ? 1 : 0, $chatId]);
 echo json_encode(['success'=>true]);
