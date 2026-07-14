@@ -16,6 +16,7 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 - Nunca dejar el hosting de un cliente actualizado automáticamente desde el repositorio.
 - El instalador conecta a una base de datos que el equipo crea previamente. Al finalizar el alta inicial, `setup.php`, `setup_admin.php` e `init.sql` se eliminan automáticamente.
 - El paquete de instalación WC debe incluir únicamente el código PHP necesario y la carpeta vacía `uploads/`; debe excluir WS (`wabot-cdn/`), Git, `.env`, datos de clientes, documentación interna y herramientas de construcción.
+- La verificación GET del webhook de Meta debe responder el `hub.challenge` en texto plano antes de cargar base de datos o procesadores de mensajes.
 
 ## Seguridad y dominios en WS
 
@@ -26,6 +27,8 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 - Al crear un cliente, WS debe mantener visible el modal de resultado hasta que el operador copie la API Key y la License Key.
 - El modal de alta de WS entrega únicamente API Key y License Key, en cuadros separados y con copia mediante icono. El código de inserción del **Chatbot** se genera y muestra exclusivamente en WC → Configuración.
 - La License Key y API Key se introducen desde WC → Configuración; no se debe indicar al operador que edite manualmente el archivo `.env`.
+- WC no debe crear ni mostrar una API temporal `wgt_...`. Debe permanecer sin API Key hasta que el operador cargue la `wak_...` entregada por WS.
+- Las credenciales guardadas en WC deben ocultarse en la interfaz. Cada guardado debe dar una confirmación visual clara; para reemplazar una clave se vuelve a pegar el valor completo.
 - La API Key que figura en el código de inserción del Chatbot es un identificador público por diseño. La protección real se aplica en WS mediante el dominio único autorizado, el estado del cliente, límites y la License Key validada por WC.
 - Al crear un cliente, WS debe permitir descargar un archivo de texto llamado `Datos de Instalación - [Nombre del cliente].txt` con fecha, cliente, URL de WC, API Key, License Key y la instrucción para cargar las claves desde WC → Configuración.
 - WC debe fallar de forma segura si no cuenta con License Key válida o WS no está disponible.
