@@ -75,6 +75,9 @@ $extraScripts = <<<'EOS'
 .badge-pendiente { background:#f59e0b; color:#fff; font-size:10px; padding:1px 6px; border-radius:10px; }
 .badge-asignado { background:#6366f1; color:#fff; font-size:10px; padding:1px 6px; border-radius:10px; }
 .badge-depto { background:#f1f5f9; color:#64748b; font-size:10px; padding:1px 6px; border-radius:10px; }
+.badge-canal { font-size:10px; padding:1px 6px; border-radius:10px; font-weight:600; }
+.badge-whatsapp { background:#dcfce7; color:#15803d; }
+.badge-chatbot { background:#ede9fe; color:#6d28d9; }
 .filter-btn.active { background:#10b981; border-color:#10b981; color:#fff; }
 .d-flex { display:flex; }
 .d-none { display:none; }
@@ -85,7 +88,7 @@ $extraScripts = <<<'EOS'
 .shrink-0 { flex-shrink:0; }
 </style>
 <script>
-var currentConversacionId = null, currentFilter = '', currentSearch = '', pollInterval = null, sessionInterval = null, currentUserId =
+var currentConversacionId = null, currentCanal = 'whatsapp', currentFilter = '', currentSearch = '', pollInterval = null, sessionInterval = null, currentUserId =
 EOS;
 $extraScripts .= $userIdJs;
 $extraScripts .= <<<'EOS'
@@ -99,26 +102,27 @@ function loadConversations() {
             else {
                 list.innerHTML = '';
                 data.conversaciones.forEach(function(c) {
-                    var active = c.id === currentConversacionId ? ' conv-item-active' : '';
+                    var active = c.id == currentConversacionId && c.canal === currentCanal ? ' conv-item-active' : '';
                     var estadoLabel = c.estado === 'pendiente' ? '<span class="badge-pendiente">Pendiente</span>' : '';
+                    var canal = c.canal === 'chatbot' ? '<span class="badge-canal badge-chatbot">Chatbot</span>' : '<span class="badge-canal badge-whatsapp">WhatsApp</span>';
                     var lastMsg = c.ultimo_mensaje ? c.ultimo_mensaje.substring(0,60)+(c.ultimo_mensaje.length>60?'...':'') : '';
                     var time = c.ultimo_tiempo ? formatTime(c.ultimo_tiempo) : '';
-                    var tuyo = c.asignado_a == currentUserId ? '<span class="badge-asignado" style="background:#00a884;">Tuyo</span>' : (c.asignado_a ? '' : '<span class="badge-asignado" style="background:#5b5ea6;">Disponible</span>');
+                    var tuyo = c.canal === 'chatbot' ? '' : (c.asignado_a == currentUserId ? '<span class="badge-asignado" style="background:#00a884;">Tuyo</span>' : (c.asignado_a ? '' : '<span class="badge-asignado" style="background:#5b5ea6;">Disponible</span>'));
                     var asignado = c.asignado_a_nombre ? '<span class="badge-asignado">'+esc(c.asignado_a_nombre)+'</span>' : '';
                     var depto = c.departamento ? '<span class="badge-depto">'+esc(c.departamento)+'</span>' : '';
                     var d = document.createElement('div');
                     d.className = 'conv-item'+active;
-                    d.onclick = function(){selectConversacion(c.id);};
+                    d.onclick = function(){selectConversacion(c.canal, c.id);};
                     d.innerHTML = '<div class="conv-avatar">'+getInitial(c.wa_name||c.wa_phone)+'</div>'
                         + '<div class="conv-info">'
                         + '<div class="conv-top"><span class="conv-name">'+esc(c.wa_name||c.wa_phone)+'</span><span class="conv-time">'+time+'</span></div>'
                         + '<div class="conv-bottom"><span class="conv-preview">'+esc(lastMsg)+'</span>'+estadoLabel+'</div>'
-                        + '<div class="conv-meta">'+tuyo+asignado+depto+'</div>'
+                        + '<div class="conv-meta">'+canal+tuyo+asignado+depto+'</div>'
                         + '</div>';
                     list.appendChild(d);
                 });
             }
-            if (data.nuevosMensajes && currentConversacionId) loadMessages(currentConversacionId);
+            if (data.nuevosMensajes && currentConversacionId) loadMessages(currentCanal, currentConversacionId);
             var sd = document.getElementById('agent-status');
             if (data.agentes_activos && data.agentes_activos.length > 0) {
                 var h = '<div class="d-flex gap-1 flex-wrap">';
@@ -130,16 +134,21 @@ function loadConversations() {
             list.innerHTML = '<div class="text-center text-red-400 p-4 text-sm">Error al cargar conversaciones. Reintentando...</div>';
         });
 }
-function loadMessages(id) {
-    fetch('ajax/poll.php?conversacion_id='+id).then(function(r){return r.json();}).then(function(data){
+function loadMessages(canal, id) {
+    fetch('ajax/poll.php?canal='+encodeURIComponent(canal)+'&conversacion_id='+id).then(function(r){return r.json();}).then(function(data){
         var c = document.getElementById('chat-messages'), h = document.getElementById('chat-header');
         document.getElementById('chat-placeholder').classList.remove('d-flex');
         document.getElementById('chat-placeholder').classList.add('d-none');
         document.getElementById('chat-view').classList.remove('d-none');
         var conv = data.conversacion;
+        if (!conv) return;
         var depto = conv.departamento ? ' &middot; '+esc(conv.departamento) : '';
         var asig = conv.asignado_a_nombre ? ' &middot; Asignado: '+esc(conv.asignado_a_nombre) : '';
-        h.innerHTML = '<div><strong>'+esc(conv.wa_name||conv.wa_phone)+'</strong><br><span class="small text-secondary">'+esc(conv.wa_phone)+depto+asig+'</span></div>';
+        h.innerHTML = '<div><strong>'+esc(conv.wa_name||conv.wa_phone)+'</strong><br><span class="small text-secondary">'+esc(conv.wa_phone)+depto+asig+' &middot; '+(canal === 'chatbot' ? 'Chatbot' : 'WhatsApp')+'</span></div>';
+        var input = document.getElementById('reply-input');
+        var send = input.nextElementSibling;
+        input.disabled = canal === 'chatbot'; send.disabled = canal === 'chatbot';
+        input.placeholder = canal === 'chatbot' ? 'Conversación de Chatbot — respuesta automática IA' : 'Escribí tu respuesta...';
         if (data.mensajes.length===0) { c.innerHTML='<div class="text-center text-secondary p-4 small">No hay mensajes</div>'; return; }
         var html='';
         data.mensajes.forEach(function(m){
@@ -152,10 +161,10 @@ function loadMessages(id) {
             if (wasNearBottom) c.scrollTop=c.scrollHeight;
     });
 }
-function selectConversacion(id) { currentConversacionId=id; loadMessages(id); loadConversations(); document.getElementById('reply-input').focus(); }
+function selectConversacion(canal, id) { currentCanal=canal; currentConversacionId=id; loadMessages(canal,id); loadConversations(); if(canal==='whatsapp') document.getElementById('reply-input').focus(); }
 function sendReply() {
     var i=document.getElementById('reply-input'), t=i.value.trim();
-    if(!t||!currentConversacionId) return;
+    if(!t||!currentConversacionId||currentCanal!=='whatsapp') return;
     i.value='';
     var p=new URLSearchParams({conversacion_id:currentConversacionId,mensaje:t});
     fetch('ajax/send.php',{method:'POST',body:p}).then(async function(r){
@@ -168,10 +177,10 @@ function sendReply() {
             } else {
                 alert('Error: '+(d.error||'Error al enviar'));
             }
-            loadMessages(currentConversacionId);loadConversations();return;
+            loadMessages(currentCanal,currentConversacionId);loadConversations();return;
         }
-        loadMessages(currentConversacionId);loadConversations();
-    }).catch(function(){alert('Error de conexi\u00f3n');loadMessages(currentConversacionId);loadConversations();});
+        loadMessages(currentCanal,currentConversacionId);loadConversations();
+    }).catch(function(){alert('Error de conexi\u00f3n');loadMessages(currentCanal,currentConversacionId);loadConversations();});
 }
 function handleKey(e) { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendReply();} }
 function setFilter(btn,f){ currentFilter=f; document.querySelectorAll('.filter-btn').forEach(function(b){b.classList.remove('active');}); btn.classList.add('active'); loadConversations(); }
