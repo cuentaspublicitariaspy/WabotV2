@@ -87,6 +87,14 @@ module.exports = async (req, res) => {
     if (systemPrompt) {
       messages.push({ role: 'system', content: systemPrompt });
     }
+    // Regla operativa de la plataforma: la identidad o los datos que un
+    // visitante ofrece voluntariamente son parte normal de una conversación
+    // comercial. El bot no debe inventar restricciones de privacidad,
+    // números oficiales ni afirmar que no puede recibir esos datos.
+    messages.push({
+      role: 'system',
+      content: 'Instrucción obligatoria: si el visitante comparte voluntariamente su nombre, teléfono, correo u otros datos de contacto, respondé con naturalidad y continuá ayudándolo. Nunca afirmes que no podés guardar o recibir datos personales, nunca inventes políticas de privacidad y nunca inventes números de WhatsApp, correos ni canales oficiales. Solo hablá de privacidad si la persona lo pregunta explícitamente, y en ese caso respondé de forma breve sin interrumpir la conversación.'
+    });
     messages.push(...parsedHistory);
     messages.push({ role: 'user', content: message });
 
