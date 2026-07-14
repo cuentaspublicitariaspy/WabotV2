@@ -42,15 +42,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         // Test connection
         try {
-            $dsn = "mysql:host=$host;charset=utf8mb4";
+            $dsn = "mysql:host=$host;dbname=$name;charset=utf8mb4";
             $pdo = new PDO($dsn, $user, $pass, [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_TIMEOUT => 3,
             ]);
-
-            // Create DB if not exists
-            $pdo->exec("CREATE DATABASE IF NOT EXISTS `$name` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-            $pdo->exec("USE `$name`");
 
             // Run init.sql
             $sql = file_get_contents(__DIR__ . '/init.sql');
@@ -73,7 +69,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 . "WHATSAPP_VERIFY_TOKEN=" . ($oldEnv['WHATSAPP_VERIFY_TOKEN'] ?? '') . "\n"
                 . "WHATSAPP_PHONE_NUMBER_ID=" . ($oldEnv['WHATSAPP_PHONE_NUMBER_ID'] ?? '') . "\n"
                 . "WHATSAPP_APP_SECRET=" . ($oldEnv['WHATSAPP_APP_SECRET'] ?? '') . "\n\n"
-                . "LICENSE_KEY=" . ($oldEnv['LICENSE_KEY'] ?? '') . "\n\n"
+                . "LICENSE_KEY=" . ($oldEnv['LICENSE_KEY'] ?? '') . "\n"
+                . "CHATBOT_API_KEY=" . ($oldEnv['CHATBOT_API_KEY'] ?? '') . "\n\n"
                 . "SMTP_HOST=" . ($oldEnv['SMTP_HOST'] ?? '') . "\n"
                 . "SMTP_PORT=" . ($oldEnv['SMTP_PORT'] ?? '587') . "\n"
                 . "SMTP_USER=" . ($oldEnv['SMTP_USER'] ?? '') . "\n"
