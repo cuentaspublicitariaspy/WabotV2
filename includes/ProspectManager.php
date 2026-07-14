@@ -137,6 +137,24 @@ class ProspectManager
         if ($sets) { $values[]=$id; $this->db->prepare('UPDATE prospectos SET ' . implode(', ', $sets) . ' WHERE id = ?')->execute($values); }
     }
 
+    /** Datos inequívocos que pueden actualizarse localmente, sin esperar IA. */
+    public function detectarDatosBasicos(string $mensaje): array
+    {
+        $datos = [];
+        if (preg_match('/\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b/i', $mensaje, $m)) $datos['email'] = $m[0];
+        if (preg_match('/\b(?:https?:\/\/|www\.)[^\s<>()]+/i', $mensaje, $m)) $datos['sitio_web'] = $m[0];
+        if (preg_match('/(?<!\w)(?:\+?\d[\d\s().-]{6,}\d)(?!\w)/', $mensaje, $m)) {
+            $telefono = preg_replace('/\D+/', '', $m[0]);
+            if (strlen($telefono) >= 7) $datos['whatsapp'] = $telefono;
+        }
+        if (preg_match('/\b(?:me llamo|mi nombre es|soy)\s+([\p{L}][\p{L}\'’.-]*(?:\s+[\p{L}][\p{L}\'’.-]*){0,3})/iu', $mensaje, $m)) {
+            $nombre = rtrim(trim(preg_replace('/\s+/', ' ', $m[1])), ".,;:!?");
+            // Evita tomar frases como “soy de Asunción” por un nombre.
+            if (!preg_match('/^(?:de|un|una|el|la|cliente|parte)\b/iu', $nombre)) $datos['nombre'] = $nombre;
+        }
+        return $datos;
+    }
+
     /**
      * Guarda únicamente valores realmente declarados. El modelo devuelve
      * campos vacíos para lo que desconoce: esos vacíos nunca deben borrar una
@@ -176,8 +194,10 @@ class ProspectManager
     public function registrarDatosDeclarados(int $id, string $mensaje): array
     {
         $mensaje = trim($mensaje);
-        if ($mensaje === '' || !preg_match('/(@|https?:|www\.|\+?\d[\d\s().-]{6,}|\b(mi nombre|me llamo|soy |correo|email|mail|direcci[oó]n|vivo|trabajo|me dedico|empresa|negocio|web|sitio)\b)/iu', $mensaje)) return [];
-        if (!defined('LICENSE_KEY') || LICENSE_KEY === '') return [];
+        $basicos = $this->detectarDatosBasicos($mensaje);
+        $this->guardarDatosDeclarados($id, $basicos);
+        if ($mensaje === '' || !preg_match('/(@|https?:|www\.|\+?\d[\d\s().-]{6,}|\b(mi nombre|me llamo|soy |correo|email|mail|direcci[oó]n|vivo|trabajo|me dedico|empresa|negocio|web|sitio)\b)/iu', $mensaje)) return $basicos;
+        if (!defined('LICENSE_KEY') || LICENSE_KEY === '') return $basicos;
         $prompt = 'Extraé exclusivamente datos personales o comerciales que la persona declaró en este mensaje. Respondé SOLO JSON válido con: nombre,email,whatsapp,direccion,ciudad,pais,sitio_web,ocupacion,empresa. Para lo que no esté explícito devolvé cadena vacía. No inventes ni infieras.';
         $payload = json_encode(['action'=>'chat','license_key'=>LICENSE_KEY,'messages'=>[
             ['role'=>'system','content'=>$prompt], ['role'=>'user','content'=>$mensaje]
@@ -190,9 +210,9 @@ class ProspectManager
         $data = json_decode($content, true);
         if ($status === 200 && is_array($data)) {
             $this->guardarDatosDeclarados($id, $data);
-            return $data;
+            return array_merge($basicos, array_filter($data, static fn($value) => trim((string) $value) !== ''));
         }
-        return [];
+        return $basicos;
     }
 
     public function metricas(): array
