@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS password_resets (
 
 CREATE TABLE IF NOT EXISTS widget_config (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    api_key VARCHAR(64) NOT NULL UNIQUE,
+    api_key VARCHAR(64) DEFAULT NULL UNIQUE,
     enabled TINYINT(1) DEFAULT 1,
     position VARCHAR(10) DEFAULT 'right',
     primary_color VARCHAR(7) DEFAULT '#2F63E9',
