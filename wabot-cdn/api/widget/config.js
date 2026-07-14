@@ -1,4 +1,4 @@
-const { getClient, getCachedConfig, setCachedConfig } = require('../_lib/kv');
+const { getClient, getCachedConfig, setCachedConfig, isAuthorizedDomain } = require('../_lib/kv');
 
 module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') {
@@ -21,6 +21,11 @@ module.exports = async (req, res) => {
     const client = await getClient(apiKey);
     if (!client) {
       res.status(404).json({ success: false, error: 'Configuración no encontrada' });
+      return;
+    }
+
+    if (!isAuthorizedDomain(req, client)) {
+      res.status(403).json({ success: false, code: 'DOMAIN_NOT_AUTHORIZED', error: 'Este Chatbot no está autorizado para funcionar en este dominio.' });
       return;
     }
 
