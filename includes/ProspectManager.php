@@ -180,6 +180,16 @@ class ProspectManager
                 break;
             }
         }
+        // Respuesta habitual a “¿Cómo te llamás?”: la persona manda solo su
+        // nombre, sin ningún prefijo. Se acepta únicamente texto breve con
+        // formato de nombre y se excluyen respuestas conversacionales.
+        if (empty($datos['nombre'])) {
+            $candidato = trim(preg_replace('/[.,;:!?]+$/u', '', $mensaje));
+            $esSaludo = preg_match('/^(?:hola|buenas|gracias|ok|okay|si|sí|no|dale|perfecto|genial|bien)$/iu', $candidato);
+            if (!$esSaludo && preg_match('/^[\p{Lu}][\p{L}\'’.-]*(?:\s+[\p{Lu}][\p{L}\'’.-]*){0,3}$/u', $candidato)) {
+                $datos['nombre'] = $candidato;
+            }
+        }
         return $datos;
     }
 
