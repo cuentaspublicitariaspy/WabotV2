@@ -39,7 +39,7 @@
 
   var html = '' +
     '<style>' +
-    ':host{all:initial;position:fixed!important;inset:0!important;z-index:2147483647!important;display:block!important;width:0!important;height:0!important;overflow:visible!important;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;isolation:isolate!important;contain:layout style paint}' +
+    ':host{all:initial;display:block!important;position:static!important;width:auto!important;height:auto!important;overflow:visible!important;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;isolation:isolate!important}' +
     '*,*:before,*:after{box-sizing:border-box;font-family:inherit}' +
     '.wc-shell{position:fixed;right:24px;bottom:24px;z-index:2147483646;display:flex;flex-direction:column;align-items:flex-end;pointer-events:none}' +
     '.wc-panel{width:380px;max-width:calc(100vw - 28px);height:550px;max-height:calc(100vh - 116px);margin-bottom:18px;display:none;flex-direction:column;background:#fff;border:1px solid #e8edf5;border-radius:24px;overflow:hidden;box-shadow:0 22px 55px rgba(15,23,42,.28);transform:translateY(18px) scale(.96);opacity:0;transition:transform .22s ease,opacity .22s ease;pointer-events:auto}' +
