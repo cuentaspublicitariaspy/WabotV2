@@ -310,8 +310,9 @@ class WebhookHandler
             $data = json_decode($resp, true);
             $response = $this->getProxyContent($data);
             if ($response !== null) {
-                $mensajeOutId = $this->sendMessage($waPhone, $response, $phoneNumberId);
-                if ($mensajeOutId !== null) {
+                $waMessageId = $this->sendMessage($waPhone, $response, $phoneNumberId);
+                if ($waMessageId !== null) {
+                    $mensajeOutId = $this->chatManager->guardarMensaje($conversacionId, $response, 'out', $waMessageId);
                     $metrics = new MetricsCollector();
                     $metrics->registrarRespuesta($conversacionId, $mensajeInId, $mensajeOutId, null, true);
                 }
