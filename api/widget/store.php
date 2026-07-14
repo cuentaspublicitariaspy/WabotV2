@@ -62,7 +62,7 @@ if ($role === 'visitor') {
         // "Visitante web" es solo el texto de reserva de la interfaz: nunca
         // debe impedir que un nombre declarado reemplace el dato visible.
         $stmt = $db->prepare("UPDATE widget_chats SET
-            visitor_name = CASE WHEN ? <> '' AND (visitor_name IS NULL OR visitor_name = '' OR visitor_name = 'Visitante web') THEN ? ELSE visitor_name END,
+            visitor_name = CASE WHEN ? <> '' AND (visitor_name IS NULL OR visitor_name = '' OR visitor_name IN ('Visitante web', 'Sin nombre', 'Unknown')) THEN ? ELSE visitor_name END,
             visitor_email = COALESCE(NULLIF(?, ''), visitor_email),
             visitor_phone = COALESCE(NULLIF(?, ''), visitor_phone)
             WHERE id = ?");
@@ -83,13 +83,21 @@ if ($role === 'visitor') {
     $historialStmt = $db->prepare('SELECT role, content FROM widget_messages WHERE chat_id = ? ORDER BY id DESC LIMIT 16');
     $historialStmt->execute([$chatId]);
     $contexto = array_reverse($historialStmt->fetchAll());
-    $datosDeclarados = $prospecto->registrarDatosDeclarados($prospectoId, $content, $contexto, $key);
+    // El enriquecimiento no puede impedir que se conserve el mensaje. Si WS
+    // o una extensión de PHP falla, los datos básicos ya detectados arriba
+    // siguen disponibles y el Chatbot recibe una respuesta JSON válida.
+    try {
+        $datosDeclarados = $prospecto->registrarDatosDeclarados($prospectoId, $content, $contexto, $key);
+    } catch (Throwable $e) {
+        error_log('Wabot prospect enrichment failed: ' . $e->getMessage());
+        $datosDeclarados = $datosBasicos ?? [];
+    }
     $nombreDeclarado = trim((string) ($datosDeclarados['nombre'] ?? ''));
     $emailDeclarado = trim((string) ($datosDeclarados['email'] ?? ''));
     $telefonoDeclarado = preg_replace('/\D+/', '', (string) ($datosDeclarados['whatsapp'] ?? ''));
     if ($nombreDeclarado !== '' || $emailDeclarado !== '' || $telefonoDeclarado !== '') {
         $stmt = $db->prepare("UPDATE widget_chats SET
-            visitor_name = CASE WHEN ? <> '' AND (visitor_name IS NULL OR visitor_name = '' OR visitor_name = 'Visitante web') THEN ? ELSE visitor_name END,
+            visitor_name = CASE WHEN ? <> '' AND (visitor_name IS NULL OR visitor_name = '' OR visitor_name IN ('Visitante web', 'Sin nombre', 'Unknown')) THEN ? ELSE visitor_name END,
             visitor_email = COALESCE(NULLIF(?, ''), visitor_email),
             visitor_phone = COALESCE(NULLIF(?, ''), visitor_phone)
             WHERE id = ?");
