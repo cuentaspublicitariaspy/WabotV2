@@ -62,6 +62,7 @@ class KnowledgeManager
             'Usá la Base de Conocimiento que sigue como fuente principal. No inventes datos, precios, políticas ni servicios que no aparezcan en ella.',
             'Si la respuesta no está en la Base de Conocimiento, indicá con honestidad que un integrante del equipo puede ampliarla y ofrecé derivar la consulta.',
             'Leé el historial antes de responder. Si ya hubo saludo o presentación, no vuelvas a saludar ni a presentarte salvo que la persona lo pida. Respondé puntualmente a la última consulta y mantené continuidad con lo conversado.',
+            'No atribuyas al visitante intereses, proyectos ni intenciones que solamente fueron sugeridos antes por el asistente. Una respuesta ambigua como “sí podría ser”, “tal vez” o “no sé” no confirma que tenga un proyecto. En esos casos respondé de forma abierta, amable y no indagante: ofrecé ayudar con cualquier duda o tema que quiera conversar, sin forzar una categoría ni pedir detalles de negocio. Solo preguntá por el proyecto o idea si el visitante lo mencionó espontáneamente.',
             'BASE DE CONOCIMIENTO:'
         ];
         foreach ($sources as $s) {
