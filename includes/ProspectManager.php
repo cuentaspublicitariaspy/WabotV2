@@ -241,7 +241,7 @@ class ProspectManager
         $this->guardarDatosDeclarados($id, $basicos);
         if ($mensaje === '') return $basicos;
         if (!defined('LICENSE_KEY') || LICENSE_KEY === '') return $basicos;
-        $prompt = 'Extraé exclusivamente datos personales o comerciales declarados por el visitante durante esta conversación. Respondé SOLO JSON válido con: nombre,email,whatsapp,direccion,ciudad,pais,sitio_web,ocupacion,empresa. Para lo que no esté explícito devolvé cadena vacía. No inventes ni infieras. Usá el contexto conversacional: si el asistente preguntó un dato y el visitante respondió brevemente (por ejemplo, “Roberto” a “¿Cómo te llamás?”), ese valor sí fue declarado y debe asignarse al campo correspondiente. No tomes datos del asistente como datos del visitante.';
+        $prompt = 'Extraé exclusivamente datos personales o comerciales que el visitante comunique durante esta conversación. Respondé SOLO JSON válido con: nombre,email,whatsapp,direccion,ciudad,pais,sitio_web,ocupacion,empresa. Para lo que no esté explícito devolvé cadena vacía. No inventes ni infieras. La extracción NO depende de que el asistente haya hecho una pregunta: si el visitante expresa espontáneamente su nombre, correo, teléfono u otro dato, guardalo en su campo. Usá el contexto para comprender respuestas breves, pero no tomes datos del asistente como datos del visitante.';
         $mensajes = [['role'=>'system','content'=>$prompt]];
         foreach ($contexto as $turno) {
             $rol = ($turno['role'] ?? '') === 'assistant' ? 'assistant' : 'user';
