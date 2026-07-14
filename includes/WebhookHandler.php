@@ -237,7 +237,13 @@ class WebhookHandler
         }
         $mensajeInId = $this->chatManager->guardarMensaje($conversacionId, $text, 'in', $messageId);
         $this->chatManager->actualizarConversacion($conversacionId, $text, 'pendiente');
-        $datosProspecto = $prospecto->registrarDatosDeclarados($prospectoId, $text);
+        // La extracción comercial usa el intercambio reciente, no solo este
+        // mensaje. Así una respuesta corta conserva su sentido humano.
+        $datosProspecto = $prospecto->registrarDatosDeclarados(
+            $prospectoId,
+            $text,
+            $this->chatManager->getHistorial($conversacionId, 16)
+        );
         if ($nombreDeclarado === '' && !empty($datosProspecto['nombre'])) {
             Database::getConnection()->prepare('UPDATE conversaciones SET wa_name = ? WHERE id = ?')
                 ->execute([trim((string) $datosProspecto['nombre']), $conversacionId]);
