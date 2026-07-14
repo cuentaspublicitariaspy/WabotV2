@@ -56,6 +56,11 @@ tr:hover td{background:#1a2744}
 .modal-close:hover{color:#f1f5f9}
 .modal-body{padding:20px}
 .modal-footer{padding:16px 20px;border-top:1px solid #334155;display:flex;justify-content:flex-end;gap:8px}
+.confirm-dialog{max-width:420px;overflow:hidden}
+.confirm-icon{width:48px;height:48px;border-radius:14px;background:rgba(220,38,38,.16);border:1px solid rgba(252,165,165,.22);display:flex;align-items:center;justify-content:center;color:#fca5a5;margin-bottom:16px}
+.confirm-icon svg{width:24px;height:24px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.confirm-copy{color:#94a3b8;font-size:14px;line-height:1.55}
+.confirm-copy strong{color:#f8fafc}
 .form-group{margin-bottom:16px}
 .form-group label{display:block;font-size:13px;font-weight:600;color:#94a3b8;margin-bottom:4px}
 .form-group input[type="text"],.form-group input[type="url"]{width:100%;padding:10px 12px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:14px;outline:none;transition:border .2s}
@@ -102,6 +107,20 @@ tr:hover td{background:#1a2744}
     </div>
     <div class="modal-body" id="modal-body"></div>
     <div class="modal-footer" id="modal-footer"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+  <div class="modal confirm-dialog">
+    <div class="modal-body">
+      <div class="confirm-icon"><svg viewBox="0 0 24 24"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 2.6 17.1A2 2 0 0 0 4.3 20h15.4a2 2 0 0 0 1.7-2.9L13.7 3.9a2 2 0 0 0-3.4 0Z"></path></svg></div>
+      <h3 id="confirm-title" style="font-size:18px;color:#f8fafc;margin-bottom:8px">¿Eliminar cliente?</h3>
+      <p class="confirm-copy" id="confirm-message"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" style="background:#475569;color:#e2e8f0" onclick="closeConfirm()">Cancelar</button>
+      <button class="btn btn-delete" id="confirm-action">Eliminar cliente</button>
+    </div>
   </div>
 </div>
 
@@ -357,11 +376,25 @@ function toggleClient(key) {
 }
 
 function deleteClient(key) {
-  if (!confirm('¿Eliminar cliente ' + STATE.clients[key].name + '? Esta acción no se puede deshacer.')) return;
+  var name = STATE.clients[key].name;
+  document.getElementById('confirm-message').innerHTML = 'Vas a eliminar a <strong>' + esc(name) + '</strong>. Esta acción no se puede deshacer.';
+  document.getElementById('confirm-action').onclick = function(){
+    closeConfirm();
+    performDelete(key);
+  };
+  document.getElementById('confirm-modal').classList.add('active');
+  setTimeout(function(){ document.getElementById('confirm-action').focus(); }, 100);
+}
+
+function performDelete(key) {
   api('/api/abm/clients', { method: 'DELETE', body: { api_key: key } }).then(function(d){
     if (d.success) { toast('Cliente eliminado', true); loadClients(); }
     else { toast('Error al eliminar', false); }
   });
+}
+
+function closeConfirm() {
+  document.getElementById('confirm-modal').classList.remove('active');
 }
 
 function closeModal() {
