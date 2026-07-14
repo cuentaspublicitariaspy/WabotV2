@@ -121,8 +121,7 @@ module.exports = async (req, res) => {
     // Cinturón y tiradores: aunque una fuente cargada por el cliente contenga
     // una frase vieja o contradictoria, esa negativa no sale al visitante.
     const forbiddenRefusal = /(?:no\s+puedo|no\s+podemos)\s+(?:guardar|recibir|almacenar)[\s\S]{0,100}(?:dato|informaci[oó]n|contacto|n[uú]mero)/i;
-    const inventedChannel = /\bwhatsapp\s+oficial\b/i;
-    if (forbiddenRefusal.test(reply) || inventedChannel.test(reply)) {
+    if (forbiddenRefusal.test(reply)) {
       console.warn('[widget] blocked contradictory personal-data refusal');
       reply = 'Gracias por compartirlo. ¿En qué más puedo ayudarte?';
     }
