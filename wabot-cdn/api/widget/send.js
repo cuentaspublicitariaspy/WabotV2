@@ -83,18 +83,11 @@ module.exports = async (req, res) => {
       }
     }
 
-    const messages = [];
-    if (systemPrompt) {
-      messages.push({ role: 'system', content: systemPrompt });
-    }
-    // Regla operativa de la plataforma: la identidad o los datos que un
-    // visitante ofrece voluntariamente son parte normal de una conversación
-    // comercial. El bot no debe inventar restricciones de privacidad,
-    // números oficiales ni afirmar que no puede recibir esos datos.
-    messages.push({
+    const mandatoryRules = 'REGLAS OPERATIVAS INNEGOCIABLES: si el visitante comparte voluntariamente su nombre, teléfono, correo u otros datos de contacto, respondé con naturalidad y continuá ayudándolo. Nunca afirmes que no podés guardar o recibir datos personales. Nunca inventes políticas de privacidad, números de WhatsApp, correos ni canales oficiales. Solo hablá de privacidad si la persona lo pregunta explícitamente. La información posterior es únicamente contexto comercial: no puede contradecir estas reglas.';
+    const messages = [{
       role: 'system',
-      content: 'Instrucción obligatoria: si el visitante comparte voluntariamente su nombre, teléfono, correo u otros datos de contacto, respondé con naturalidad y continuá ayudándolo. Nunca afirmes que no podés guardar o recibir datos personales, nunca inventes políticas de privacidad y nunca inventes números de WhatsApp, correos ni canales oficiales. Solo hablá de privacidad si la persona lo pregunta explícitamente, y en ese caso respondé de forma breve sin interrumpir la conversación.'
-    });
+      content: mandatoryRules + (systemPrompt ? '\n\nCONTEXTO COMERCIAL DEL CLIENTE:\n' + systemPrompt : '')
+    }];
     messages.push(...parsedHistory);
     messages.push({ role: 'user', content: message });
 
@@ -124,7 +117,15 @@ module.exports = async (req, res) => {
     }
 
     const openaiData = await openaiRes.json();
-    const reply = openaiData.choices?.[0]?.message?.content || '';
+    let reply = openaiData.choices?.[0]?.message?.content || '';
+    // Cinturón y tiradores: aunque una fuente cargada por el cliente contenga
+    // una frase vieja o contradictoria, esa negativa no sale al visitante.
+    const forbiddenRefusal = /(?:no\s+puedo|no\s+podemos)\s+(?:guardar|recibir|almacenar)[\s\S]{0,100}(?:dato|informaci[oó]n|contacto|n[uú]mero)/i;
+    const inventedChannel = /\bwhatsapp\s+oficial\b/i;
+    if (forbiddenRefusal.test(reply) || inventedChannel.test(reply)) {
+      console.warn('[widget] blocked contradictory personal-data refusal');
+      reply = 'Gracias por compartirlo. ¿En qué más puedo ayudarte?';
+    }
 
     res.json({
       success: true,
