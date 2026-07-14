@@ -47,8 +47,12 @@ if (!$chatId) {
     exit;
 }
 
-$stmt = $db->prepare("UPDATE widget_chats SET visitor_name = COALESCE(NULLIF(?, ''), visitor_name), visitor_email = COALESCE(NULLIF(?, ''), visitor_email), visitor_phone = COALESCE(NULLIF(?, ''), visitor_phone) WHERE id = ?");
-$stmt->execute([$name, $email, $phone, $chatId]);
+$stmt = $db->prepare("UPDATE widget_chats SET
+    visitor_name = CASE WHEN ? <> '' AND (visitor_name IS NULL OR visitor_name = '' OR visitor_name = 'Visitante web') THEN ? ELSE visitor_name END,
+    visitor_email = COALESCE(NULLIF(?, ''), visitor_email),
+    visitor_phone = COALESCE(NULLIF(?, ''), visitor_phone)
+    WHERE id = ?");
+$stmt->execute([$name, $name, $email, $phone, $chatId]);
 if ($chatId) {
     (new ProspectManager())->vincular('chatbot', (string) $chatId, ['nombre' => $name, 'email' => $email, 'whatsapp' => $phone]);
 }
