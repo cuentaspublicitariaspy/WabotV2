@@ -22,6 +22,7 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 - WS debe solicitar, normalizar y guardar ese dominio al crear o editar un cliente.
 - Si el Chatbot se carga desde otro dominio, debe bloquearse y mostrar un mensaje visual cuidado, no un error técnico.
 - La License Key y API Key son datos sensibles: se muestran completas solo al crear el cliente y luego se enmascaran.
+- Al crear un cliente, WS debe mantener visible el modal de resultado hasta que el operador copie la API Key, la License Key y el código de inserción del Chatbot.
 - WC debe fallar de forma segura si no cuenta con License Key válida o WS no está disponible.
 
 ## Interfaz
