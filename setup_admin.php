@@ -34,7 +34,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $hash = password_hash($password, PASSWORD_BCRYPT);
             $stmt = $db->prepare("INSERT INTO usuarios (nombre, email, password_hash, rol) VALUES (?, ?, ?, 'super_admin')");
             $stmt->execute([$nombre, $email, $hash]);
-            $success = true;
+            @unlink(__DIR__ . '/setup.php');
+            @unlink(__DIR__ . '/init.sql');
+            @unlink(__FILE__);
+            header('Location: login.php?installed=1');
+            exit;
         } catch (PDOException $e) {
             $error = 'Error: ' . ($e->getCode() === '23000' ? 'El email ya existe' : $e->getMessage());
         }
