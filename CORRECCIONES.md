@@ -26,6 +26,7 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 - Al subir o agregar una fuente, WC debe confirmar el resultado y permanecer en **Comunicación Inteligente → Conocimiento**.
 - La Base de Conocimiento debe ser la fuente principal de las respuestas del Chatbot y de WhatsApp. Si falta información, la IA debe reconocerlo y ofrecer derivación; no inventar datos.
 - El Chatbot debe aislarse de los estilos del sitio que lo contiene, respetar su color configurado y conservar un encuadre legible tanto en escritorio como en móvil.
+- La Base de Conocimiento puede enviarse de forma transitoria desde WC a OpenAI para generar una respuesta, mediante la API Key central. WS no debe guardar ni poner en caché su contenido; al terminar la solicitud se descarta.
 
 ## Seguridad y dominios en WS
 
