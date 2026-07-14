@@ -51,7 +51,7 @@ function getRequestDomain(req) {
 }
 
 function isAuthorizedDomain(req, client) {
-  const allowed = normalizeDomain(client?.authorized_domain);
+  const allowed = normalizeDomain(client?.authorized_domain || client?.client_url);
   const requested = getRequestDomain(req);
   return Boolean(allowed && requested && allowed === requested);
 }
