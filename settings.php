@@ -423,7 +423,7 @@ ob_start();
       <div class="bg-white border border-slate-100 rounded-2xl p-6">
         <h5 class="text-sm font-semibold text-slate-700 mb-3">Código para incrustar</h5>
         <div class="bg-slate-900 rounded-xl overflow-hidden">
-          <pre class="text-green-400 text-xs leading-relaxed px-4 py-3 m-0 overflow-x-auto" id="embed-code">&lt;script src="<?= $apiBase ?>/widget.js?v=20260714-2"
+          <pre class="text-green-400 text-xs leading-relaxed px-4 py-3 m-0 overflow-x-auto" id="embed-code">&lt;script src="<?= $apiBase ?>/widget.js?v=20260714-3"
   data-api-key="<?= htmlspecialchars($config['api_key'] ?? '') ?>"
   data-api-base="<?= $apiBase ?>"
   data-store="<?= htmlspecialchars($wcBaseUrl) ?>/api/widget/store.php"
