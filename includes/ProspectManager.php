@@ -137,12 +137,47 @@ class ProspectManager
         if ($sets) { $values[]=$id; $this->db->prepare('UPDATE prospectos SET ' . implode(', ', $sets) . ' WHERE id = ?')->execute($values); }
     }
 
+    /**
+     * Guarda únicamente valores realmente declarados. El modelo devuelve
+     * campos vacíos para lo que desconoce: esos vacíos nunca deben borrar una
+     * ficha que ya tenía información.
+     */
+    private function guardarDatosDeclarados(int $id, array $datos): void
+    {
+        $campos = ['nombre','email','whatsapp','direccion','ciudad','pais','sitio_web','ocupacion','empresa'];
+        $limpios = [];
+        foreach ($campos as $campo) {
+            $valor = trim((string) ($datos[$campo] ?? ''));
+            if ($valor !== '') $limpios[$campo] = $valor;
+        }
+        if (!$limpios) return;
+
+        // Si un visitante web y uno de WhatsApp declararon el mismo correo o
+        // teléfono, pasan a ser un único prospecto local.
+        $email = $limpios['email'] ?? '';
+        $whatsapp = isset($limpios['whatsapp']) ? preg_replace('/\D+/', '', $limpios['whatsapp']) : '';
+        if ($email !== '' || $whatsapp !== '') {
+            $where = []; $params = [$id];
+            if ($email !== '') { $where[] = 'email = ?'; $params[] = $email; }
+            if ($whatsapp !== '') { $where[] = 'whatsapp = ?'; $params[] = $whatsapp; }
+            $stmt = $this->db->prepare('SELECT id FROM prospectos WHERE id <> ? AND (' . implode(' OR ', $where) . ') ORDER BY updated_at DESC LIMIT 1');
+            $stmt->execute($params);
+            $destino = (int) $stmt->fetchColumn();
+            if ($destino > 0) {
+                $this->db->prepare('UPDATE prospecto_referencias SET prospecto_id = ? WHERE prospecto_id = ?')->execute([$destino, $id]);
+                $this->db->prepare('DELETE FROM prospectos WHERE id = ?')->execute([$id]);
+                $id = $destino;
+            }
+        }
+        $this->actualizar($id, $limpios);
+    }
+
     /** Extrae datos personales declarados en un mensaje y actualiza WC. WS no conserva el contenido. */
-    public function registrarDatosDeclarados(int $id, string $mensaje): void
+    public function registrarDatosDeclarados(int $id, string $mensaje): array
     {
         $mensaje = trim($mensaje);
-        if ($mensaje === '' || !preg_match('/(@|https?:|www\.|\+?\d[\d\s().-]{6,}|\b(mi nombre|me llamo|soy |correo|email|mail|direcci[oó]n|vivo|trabajo|me dedico|empresa|negocio|web|sitio)\b)/iu', $mensaje)) return;
-        if (!defined('LICENSE_KEY') || LICENSE_KEY === '') return;
+        if ($mensaje === '' || !preg_match('/(@|https?:|www\.|\+?\d[\d\s().-]{6,}|\b(mi nombre|me llamo|soy |correo|email|mail|direcci[oó]n|vivo|trabajo|me dedico|empresa|negocio|web|sitio)\b)/iu', $mensaje)) return [];
+        if (!defined('LICENSE_KEY') || LICENSE_KEY === '') return [];
         $prompt = 'Extraé exclusivamente datos personales o comerciales que la persona declaró en este mensaje. Respondé SOLO JSON válido con: nombre,email,whatsapp,direccion,ciudad,pais,sitio_web,ocupacion,empresa. Para lo que no esté explícito devolvé cadena vacía. No inventes ni infieras.';
         $payload = json_encode(['action'=>'chat','license_key'=>LICENSE_KEY,'messages'=>[
             ['role'=>'system','content'=>$prompt], ['role'=>'user','content'=>$mensaje]
@@ -153,7 +188,11 @@ class ProspectManager
         $content = json_decode((string)$response, true)['content'] ?? '';
         $content = preg_replace('/^```(?:json)?\s*|\s*```$/', '', trim((string)$content));
         $data = json_decode($content, true);
-        if ($status === 200 && is_array($data)) $this->actualizar($id, $data);
+        if ($status === 200 && is_array($data)) {
+            $this->guardarDatosDeclarados($id, $data);
+            return $data;
+        }
+        return [];
     }
 
     public function metricas(): array
