@@ -233,7 +233,9 @@ class ProspectManager
             $texto = preg_replace('/\s+/u', ' ', trim($texto));
             return function_exists('mb_strtolower') ? mb_strtolower($texto, 'UTF-8') : strtolower($texto);
         };
-        return str_contains($normalizar($mensaje), $normalizar($valor));
+        // strpos mantiene compatibilidad con PHP 7.4, que sigue presente en
+        // algunos hostings compartidos donde str_contains no existe.
+        return strpos($normalizar($mensaje), $normalizar($valor)) !== false;
     }
 
     private function filtrarDatosVerificables(array $datos, string $mensaje, array $contexto): array
