@@ -219,6 +219,38 @@ class ProspectManager
     }
 
     /**
+     * La IA puede comprender un mensaje, pero no aportar datos que fueron
+     * dichos por el asistente. Para todo campo distinto del nombre, el valor
+     * debe estar materialmente presente en el turno actual del visitante.
+     */
+    private function valorDeclaradoPorVisitante(string $valor, string $mensaje): bool
+    {
+        $valor = trim($valor);
+        $mensaje = trim($mensaje);
+        if ($valor === '' || $mensaje === '') return false;
+
+        $normalizar = static function (string $texto): string {
+            $texto = preg_replace('/\s+/u', ' ', trim($texto));
+            return function_exists('mb_strtolower') ? mb_strtolower($texto, 'UTF-8') : strtolower($texto);
+        };
+        return str_contains($normalizar($mensaje), $normalizar($valor));
+    }
+
+    private function filtrarDatosVerificables(array $datos, string $mensaje, array $contexto): array
+    {
+        foreach ($datos as $campo => $valor) {
+            $valor = trim((string) $valor);
+            if ($valor === '') { unset($datos[$campo]); continue; }
+            if ($campo === 'nombre') {
+                if (!$this->nombreDeclaradoEnContexto($valor, $mensaje, $contexto)) unset($datos[$campo]);
+                continue;
+            }
+            if (!$this->valorDeclaradoPorVisitante($valor, $mensaje)) unset($datos[$campo]);
+        }
+        return $datos;
+    }
+
+    /**
      * Guarda únicamente valores realmente declarados. El modelo devuelve
      * campos vacíos para lo que desconoce: esos vacíos nunca deben borrar una
      * ficha que ya tenía información.
@@ -290,11 +322,9 @@ class ProspectManager
         $content = preg_replace('/^```(?:json)?\s*|\s*```$/', '', trim((string)$content));
         $data = json_decode($content, true);
         if ($status === 200 && is_array($data)) {
-            // WS interpreta, WC decide qué identidad se persiste localmente.
-            // Sin una evidencia textual inequívoca, se descarta el nombre.
-            if (!empty($data['nombre']) && !$this->nombreDeclaradoEnContexto((string) $data['nombre'], $mensaje, $contexto)) {
-                unset($data['nombre']);
-            }
+            // WS interpreta; WC solo persiste datos verificables en el turno
+            // del visitante. Nunca los extraídos de un mensaje del asistente.
+            $data = $this->filtrarDatosVerificables($data, $mensaje, $contexto);
             $this->guardarDatosDeclarados($id, $data);
             return array_merge($basicos, array_filter($data, static fn($value) => trim((string) $value) !== ''));
         }
