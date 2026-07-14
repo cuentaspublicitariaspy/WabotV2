@@ -37,13 +37,20 @@ module.exports = async (req, res) => {
       }
 
       try {
-        const phpUrl = `${client.client_url.replace(/\/+$/, '')}/api/widget-config.php?key=${encodeURIComponent(apiKey)}`;
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 5000);
-        const response = await fetch(phpUrl, { signal: controller.signal });
-        clearTimeout(timeout);
-
-        if (response.ok) {
+        const baseUrl = client.client_url.replace(/\/+$/, '');
+        const candidateUrls = [
+          `${baseUrl}/api/widget-config.php?key=${encodeURIComponent(apiKey)}`,
+          `${baseUrl}/wabot/api/widget-config.php?key=${encodeURIComponent(apiKey)}`
+        ];
+        let response = null;
+        for (const phpUrl of candidateUrls) {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 5000);
+          const attempt = await fetch(phpUrl, { signal: controller.signal });
+          clearTimeout(timeout);
+          if (attempt.ok) { response = attempt; break; }
+        }
+        if (response && response.ok) {
           const data = await response.json();
           if (data.success && data.config) {
             await setCachedConfig(apiKey, data.config);
