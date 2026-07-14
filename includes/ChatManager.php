@@ -194,10 +194,12 @@ class ChatManager
         return $stmt->rowCount() === 1;
     }
 
-    public function getHistorial(int $conversacionId, int $limit = 10): array
+    public function getHistorial(int $conversacionId, int $limit = 60): array
     {
         $stmt = $this->db->prepare(
-            "SELECT contenido, direccion FROM mensajes WHERE conversacion_id = ? ORDER BY created_at DESC LIMIT ?"
+            // created_at tiene precisión de segundos: varios mensajes de una
+            // conversación pueden compartirlo. El id conserva el orden real.
+            "SELECT contenido, direccion FROM mensajes WHERE conversacion_id = ? ORDER BY id DESC LIMIT ?"
         );
         $stmt->execute([$conversacionId, $limit]);
         $rows = $stmt->fetchAll();
