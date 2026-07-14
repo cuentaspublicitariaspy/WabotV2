@@ -218,7 +218,7 @@ function formatTime(d){if(!d)return'';var o=new Date(d.replace(' ','T')+(d.inclu
 function esc(s){var e=document.createElement('div');e.textContent=s||'';return e.innerHTML;}
 function heartbeat(){ fetch('ajax/session.php',{method:'POST'}).catch(function(){}); }
 function maybeLoadMore(el){}
-loadConversations(); pollInterval=setInterval(loadConversations,3000); sessionInterval=setInterval(heartbeat,30000); heartbeat();
+loadConversations(); pollInterval=setInterval(loadConversations,1000); sessionInterval=setInterval(heartbeat,30000); heartbeat();
 </script>
 EOS;
 $mainContent = ob_get_clean();
