@@ -54,6 +54,11 @@ if (!$config) {
     $db->prepare("INSERT INTO widget_config (api_key) VALUES (?)")->execute([$apiKey]);
     $config = $db->query("SELECT * FROM widget_config ORDER BY id DESC LIMIT 1")->fetch();
 }
+$chatbotApiKey = EnvWriter::get('CHATBOT_API_KEY');
+if ($chatbotApiKey !== '' && $chatbotApiKey !== $config['api_key']) {
+    $db->prepare("UPDATE widget_config SET api_key=? WHERE id=?")->execute([$chatbotApiKey, $config['id']]);
+    $config = $db->query("SELECT * FROM widget_config ORDER BY id DESC LIMIT 1")->fetch();
+}
 
 $activePage = 'settings';
 $pageTitle = 'Configuración del sistema';
@@ -106,10 +111,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($section === 'license') {
         $licenseKey = trim($_POST['license_key'] ?? '');
+        $chatbotApiKey = trim($_POST['chatbot_api_key'] ?? '');
         if ($licenseKey) {
             EnvWriter::set('LICENSE_KEY', $licenseKey);
             $db->prepare("UPDATE widget_config SET license_key=? WHERE id=?")->execute([$licenseKey, $config['id']]);
             $msg = 'License Key guardada';
+            $msgType = 'success';
+        }
+        if ($chatbotApiKey) {
+            EnvWriter::set('CHATBOT_API_KEY', $chatbotApiKey);
+            $db->prepare("UPDATE widget_config SET api_key=? WHERE id=?")->execute([$chatbotApiKey, $config['id']]);
+            $config = $db->query("SELECT * FROM widget_config ORDER BY id DESC LIMIT 1")->fetch();
+            $msg = $msg ? 'Credenciales guardadas' : 'API Key del Chatbot guardada';
             $msgType = 'success';
         }
     }
@@ -126,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->prepare("UPDATE widget_config SET license_key=? WHERE id=?")->execute([$licenseKey, $config['id']]);
         }
         $config = $db->query("SELECT * FROM widget_config ORDER BY id DESC LIMIT 1")->fetch();
-        $msg = 'Widget guardado';
+        $msg = 'Chatbot guardado';
         $msgType = 'success';
     }
 
@@ -192,7 +205,8 @@ if ($waVerifyToken === '') {
 $waConnected = $waToken !== '' && $waPhoneId !== '';
 
 $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-$callbackUrl = "$scheme://{$_SERVER['HTTP_HOST']}/webhook.php";
+$basePath = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
+$callbackUrl = "$scheme://{$_SERVER['HTTP_HOST']}" . ($basePath === '' || $basePath === '/' ? '' : $basePath) . '/webhook.php';
 
 $licenseDisplay = EnvWriter::get('LICENSE_KEY') ?: ($config['license_key'] ?? '');
 $apiBase = 'https://wabot-cdn.vercel.app';
@@ -228,17 +242,22 @@ ob_start();
   <div id="main-credenciales" class="main-tab-content <?= $firstMain === 'credenciales' ? 'active' : '' ?>">
     <div class="bg-white border border-slate-100 rounded-2xl p-6">
       <h2 class="text-lg font-bold text-slate-700 mb-1">Credenciales</h2>
-      <p class="text-sm text-slate-500 mb-5">License Key del sistema y API Key del chatbot.</p>
+      <p class="text-sm text-slate-500 mb-5">Claves entregadas por WS para habilitar este WC y su Chatbot.</p>
       <form method="POST" class="space-y-4 mb-6">
         <input type="hidden" name="section" value="license">
         <div>
           <label class="block text-sm font-medium text-slate-700 mb-1">License Key</label>
           <input type="text" name="license_key" value="<?= htmlspecialchars($licenseDisplay) ?>" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-xs" placeholder="Ingresá la License Key">
         </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">API Key del Chatbot</label>
+          <input type="text" name="chatbot_api_key" value="<?= htmlspecialchars(EnvWriter::get('CHATBOT_API_KEY') ?: ($config['api_key'] ?? '')) ?>" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-xs" placeholder="wak_...">
+          <p class="text-xs text-slate-400 mt-1">Debe coincidir con la API Key generada para este cliente en WS.</p>
+        </div>
         <div class="flex justify-end"><button type="submit" class="px-5 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 transition shadow-lg">Guardar License Key</button></div>
       </form>
       <div>
-        <label class="block text-sm font-medium text-slate-700 mb-1">API Key</label>
+        <label class="block text-sm font-medium text-slate-700 mb-1">API Key del Chatbot</label>
         <div class="flex gap-2">
           <input type="text" readonly value="<?= htmlspecialchars($config['api_key'] ?? '') ?>" class="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none bg-slate-50 font-mono text-xs">
           <button onclick="navigator.clipboard.writeText('<?= htmlspecialchars($config['api_key'] ?? '') ?>'); this.textContent='Copiado!'; setTimeout(()=>this.textContent='Copiar',1500)" class="px-4 py-2.5 bg-slate-100 text-slate-700 text-sm rounded-xl hover:bg-slate-200 transition shrink-0">Copiar</button>
