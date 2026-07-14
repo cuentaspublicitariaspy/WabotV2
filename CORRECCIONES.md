@@ -51,6 +51,7 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 - En tablas con poco espacio, usar acciones con iconos, `title` y etiqueta accesible en vez de texto largo.
 - Priorizar una interfaz sobria, moderna, clara y consistente; no sacrificar acciones importantes por falta de espacio.
 - La sección de acciones rápidas del dashboard de WC (Conversaciones y Conocimiento) no debe existir.
+- **Regla de trabajo:** nunca afirmar que una función está operativa sin evidencia verificable. Si no se pudo comprobar, se declara como no comprobada; si algo no se puede hacer, se informa sin fingir resultados.
 
 ## Proceso de alta de cliente
 
