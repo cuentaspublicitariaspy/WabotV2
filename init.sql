@@ -127,8 +127,10 @@ CREATE TABLE IF NOT EXISTS widget_messages (
     chat_id INT NOT NULL,
     role ENUM('visitor', 'assistant', 'agent', 'system') NOT NULL,
     content TEXT NOT NULL,
+    client_message_id VARCHAR(80) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_widget_chat (chat_id),
+    UNIQUE KEY uq_widget_message_client (client_message_id),
     FOREIGN KEY (chat_id) REFERENCES widget_chats(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -143,6 +145,7 @@ CREATE TABLE IF NOT EXISTS prospectos (
     sitio_web VARCHAR(255) NOT NULL DEFAULT '',
     ocupacion VARCHAR(150) NOT NULL DEFAULT '',
     empresa VARCHAR(150) NOT NULL DEFAULT '',
+    estado ENUM('nuevo','contactado','seguimiento','cerrado') NOT NULL DEFAULT 'nuevo',
     notas TEXT NULL,
     resumen TEXT NULL,
     intencion VARCHAR(255) NOT NULL DEFAULT '',
