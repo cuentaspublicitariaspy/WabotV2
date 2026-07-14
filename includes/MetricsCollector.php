@@ -34,6 +34,10 @@ class MetricsCollector
         $clienteJoin = "";
         $clienteJoinFull = "";
 
+        // Tasa de respuesta: mensajes entrantes que tienen una respuesta
+        // registrada, sobre el total de mensajes recibidos por WhatsApp.
+        $entrantes = (int)$this->db->query("SELECT COUNT(*) FROM mensajes WHERE direccion = 'in'")->fetchColumn();
+
         if ($usuarioId !== null) {
             $total = $this->db->prepare("SELECT COUNT(*) FROM metricas m$clienteJoin WHERE (m.respondido_por = ? OR m.respondido_por_ia = 1)");
             $total->execute([$usuarioId]);
@@ -76,8 +80,10 @@ class MetricsCollector
             );
             $porDepartamento->execute([$usuarioId]);
 
+            $totalValue = (int)$total->fetchColumn();
+
             return [
-                'total' => (int)$total->fetchColumn(),
+                'total' => $totalValue,
                 'promedio_seg' => ($p = $promedio->fetchColumn()) ? round((float)$p) : 0,
                 'maximo_seg' => (int)($maximo->fetchColumn() ?? 0),
                 'minimo_seg' => (int)($minimo->fetchColumn() ?? 0),
@@ -86,6 +92,7 @@ class MetricsCollector
                 'ia_count' => (int)$iaTotal,
                 'humano_count' => (int)($humanoCount->fetchColumn() ?? 0),
                 'por_departamento' => $porDepartamento->fetchAll(),
+                'tasa_respuesta' => $entrantes > 0 ? min(100, round(($totalValue / $entrantes) * 100)) : 0,
             ];
         }
 
@@ -131,6 +138,7 @@ class MetricsCollector
             'ia_count' => (int)$iaCount,
             'humano_count' => (int)$humanoCount,
             'por_departamento' => $porDepartamento,
+            'tasa_respuesta' => $entrantes > 0 ? min(100, round(((int)$total / $entrantes) * 100)) : 0,
         ];
     }
 }
