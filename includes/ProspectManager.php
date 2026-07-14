@@ -21,6 +21,7 @@ class ProspectManager
             sitio_web VARCHAR(255) NOT NULL DEFAULT '',
             ocupacion VARCHAR(150) NOT NULL DEFAULT '',
             empresa VARCHAR(150) NOT NULL DEFAULT '',
+            estado ENUM('nuevo','contactado','seguimiento','cerrado') NOT NULL DEFAULT 'nuevo',
             notas TEXT NULL,
             resumen TEXT NULL,
             intencion VARCHAR(255) NOT NULL DEFAULT '',
@@ -32,6 +33,7 @@ class ProspectManager
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             INDEX idx_email (email), INDEX idx_whatsapp (whatsapp), INDEX idx_temperatura (temperatura)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        try { $this->db->exec("ALTER TABLE prospectos ADD COLUMN estado ENUM('nuevo','contactado','seguimiento','cerrado') NOT NULL DEFAULT 'nuevo'"); } catch (Throwable $e) {}
         $this->db->exec("CREATE TABLE IF NOT EXISTS prospecto_referencias (
             id INT AUTO_INCREMENT PRIMARY KEY,
             prospecto_id INT NOT NULL,
@@ -123,7 +125,7 @@ class ProspectManager
 
     public function actualizar(int $id, array $datos): void
     {
-        $campos = ['nombre','email','whatsapp','direccion','ciudad','pais','sitio_web','ocupacion','empresa','notas','resumen','intencion','nivel_interes','temperatura','puntaje'];
+        $campos = ['nombre','email','whatsapp','direccion','ciudad','pais','sitio_web','ocupacion','empresa','estado','notas','resumen','intencion','nivel_interes','temperatura','puntaje'];
         $sets=[]; $values=[];
         foreach ($campos as $campo) {
             if (!array_key_exists($campo, $datos)) continue;
@@ -131,10 +133,25 @@ class ProspectManager
             if ($campo === 'whatsapp') $valor = preg_replace('/\D+/', '', $valor);
             if ($campo === 'nivel_interes' && !in_array($valor, ['bajo','medio','alto'], true)) $valor='medio';
             if ($campo === 'temperatura' && !in_array($valor, ['frio','tibio','caliente','muy_caliente'], true)) $valor='tibio';
+            if ($campo === 'estado' && !in_array($valor, ['nuevo','contactado','seguimiento','cerrado'], true)) $valor='nuevo';
             if ($campo === 'puntaje') $valor=max(0,min(100,(int)$valor));
             $sets[] = "$campo = ?"; $values[] = $valor;
         }
         if ($sets) { $values[]=$id; $this->db->prepare('UPDATE prospectos SET ' . implode(', ', $sets) . ' WHERE id = ?')->execute($values); }
+    }
+
+    public function crear(array $datos): int
+    {
+        $this->db->prepare("INSERT INTO prospectos (nombre, estado) VALUES (?, 'nuevo')")
+            ->execute([trim((string) ($datos['nombre'] ?? ''))]);
+        $id = (int) $this->db->lastInsertId();
+        $this->actualizar($id, $datos);
+        return $id;
+    }
+
+    public function eliminar(int $id): void
+    {
+        $this->db->prepare('DELETE FROM prospectos WHERE id = ?')->execute([$id]);
     }
 
     /** Datos inequívocos que pueden actualizarse localmente, sin esperar IA. */
