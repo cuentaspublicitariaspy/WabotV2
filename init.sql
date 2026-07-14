@@ -99,10 +99,35 @@ CREATE TABLE IF NOT EXISTS widget_config (
     secondary_color VARCHAR(7) DEFAULT '#F3F4F6',
     welcome_title VARCHAR(255) DEFAULT 'Asistente',
     welcome_subtitle VARCHAR(255) DEFAULT 'Online',
+    whatsapp_number VARCHAR(30) DEFAULT '',
     license_key VARCHAR(64) DEFAULT '',
     response_mode ENUM('ai','human') DEFAULT 'ai',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS widget_chats (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    widget_config_id INT NOT NULL,
+    session_id VARCHAR(128) NOT NULL UNIQUE,
+    visitor_name VARCHAR(100) DEFAULT '',
+    visitor_email VARCHAR(255) DEFAULT '',
+    visitor_phone VARCHAR(30) DEFAULT '',
+    unread TINYINT(1) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_widget_config (widget_config_id),
+    FOREIGN KEY (widget_config_id) REFERENCES widget_config(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS widget_messages (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    chat_id INT NOT NULL,
+    role ENUM('visitor', 'assistant', 'agent', 'system') NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_widget_chat (chat_id),
+    FOREIGN KEY (chat_id) REFERENCES widget_chats(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS plantillas (
@@ -121,4 +146,3 @@ CREATE TABLE IF NOT EXISTS knowledge_sources (
     content TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
