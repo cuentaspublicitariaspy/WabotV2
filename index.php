@@ -70,7 +70,6 @@ if ($user !== null) {
         </div>
     </div>
 
-
     <!-- Recent conversations -->
     <div class="flex-1 px-6 pb-5 overflow-hidden flex flex-col">
         <div class="flex items-center justify-between mb-3">
