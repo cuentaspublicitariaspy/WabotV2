@@ -213,6 +213,13 @@ class WebhookHandler
 
     private function processIncomingMessage(string $waPhone, string $waName, string $text, string $messageId, string $phoneNumberId): void
     {
+        // Meta puede reenviar el mismo webhook si el procesamiento de IA toma
+        // varios segundos. Lo reclamamos antes de cualquier efecto externo:
+        // una entrada de WhatsApp solo puede generar una respuesta.
+        if ($messageId === '' || !$this->chatManager->claimIncomingMessage($messageId)) {
+            return;
+        }
+
         $this->markAsRead($waPhone, $messageId, $phoneNumberId);
 
         $conversacionId = $this->chatManager->getOrCreateConversacion($waPhone, $waName);
