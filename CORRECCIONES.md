@@ -22,6 +22,10 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 - Un envío manual de WhatsApp se considera exitoso ante cualquier respuesta HTTP 2xx de Meta; no debe mostrarse un error si el mensaje fue aceptado y entregado.
 - Para las respuestas automáticas de WhatsApp, WS debe entregar a WC un contrato estable con `content`; WC conserva compatibilidad con el formato original de OpenAI durante actualizaciones parciales.
 - La IA automática solo responde cuando no existen agentes humanos activos. Mientras un administrador/agente figura **Online**, la conversación se asigna a esa persona y la IA no interviene.
+- Un mismo webhook entrante de Meta debe procesarse una sola vez, incluso cuando Meta lo reintenta mientras WC genera una respuesta. Nunca se deben enviar respuestas duplicadas.
+- Al subir o agregar una fuente, WC debe confirmar el resultado y permanecer en **Comunicación Inteligente → Conocimiento**.
+- La Base de Conocimiento debe ser la fuente principal de las respuestas del Chatbot y de WhatsApp. Si falta información, la IA debe reconocerlo y ofrecer derivación; no inventar datos.
+- El Chatbot debe aislarse de los estilos del sitio que lo contiene, respetar su color configurado y conservar un encuadre legible tanto en escritorio como en móvil.
 
 ## Seguridad y dominios en WS
 
