@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const { getClient, setClient, deleteClient, getAllClients, saveClientsIndex } = require('../_lib/kv');
+const { getClient, setClient, deleteClient, getAllClients, saveClientsIndex, normalizeDomain } = require('../_lib/kv');
 
 function auth(req, res) {
   const header = req.headers['authorization'] || '';
@@ -62,7 +62,13 @@ async function handleGet(req, res) {
 }
 
 async function handlePost(req, res) {
-  const { api_key, name, client_url, enabled, rate_limits } = req.body || {};
+  const { api_key, name, client_url, authorized_domain, enabled, rate_limits } = req.body || {};
+  const normalizedDomain = authorized_domain === undefined ? undefined : normalizeDomain(authorized_domain);
+
+  if (authorized_domain !== undefined && !normalizedDomain) {
+    res.status(400).json({ success: false, error: 'Ingresá un dominio autorizado válido' });
+    return;
+  }
 
   if (api_key) {
     const existing = await getClient(api_key);
@@ -75,6 +81,7 @@ async function handlePost(req, res) {
       ...existing,
       name: name !== undefined ? name : existing.name,
       client_url: client_url !== undefined ? client_url : existing.client_url,
+      authorized_domain: normalizedDomain !== undefined ? normalizedDomain : existing.authorized_domain,
       enabled: enabled !== undefined ? enabled : existing.enabled,
       rate_limits: rate_limits || existing.rate_limits || { chat: 60, transcribe: 6 }
     };
@@ -84,8 +91,8 @@ async function handlePost(req, res) {
     return;
   }
 
-  if (!name || !client_url) {
-    res.status(400).json({ success: false, error: 'Nombre y URL del cliente son requeridos' });
+  if (!name || !client_url || !normalizedDomain) {
+    res.status(400).json({ success: false, error: 'Nombre, URL y dominio autorizado son requeridos' });
     return;
   }
 
@@ -95,6 +102,7 @@ async function handlePost(req, res) {
   const clientData = {
     name,
     client_url,
+    authorized_domain: normalizedDomain,
     enabled: enabled !== undefined ? enabled : true,
     license_key: licenseKey,
     api_key: key,
