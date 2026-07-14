@@ -19,9 +19,9 @@ class License
         $key = LICENSE_KEY;
 
         if ($serverUrl === '' || $key === '') {
-            self::$cache = true;
+            self::$cache = false;
             self::$cacheTime = $now;
-            return true;
+            return false;
         }
 
         $url = rtrim($serverUrl, '/') . "/api/license/check?domain=" . urlencode($domain) . "&key=" . urlencode($key);
@@ -39,13 +39,9 @@ class License
         curl_close($ch);
 
         if ($error || $httpCode !== 200) {
-            // Si el license server no responde, usamos la última respuesta en caché
-            if (self::$cache !== null) {
-                return self::$cache;
-            }
-            self::$cache = true;
+            self::$cache = false;
             self::$cacheTime = $now;
-            return true;
+            return false;
         }
 
         $data = json_decode($resp, true);
