@@ -9,6 +9,7 @@ uploads/*
 NO SUBIR/
 *.log
 node_modules/
+dist/
 
 # OS
 Thumbs.db
