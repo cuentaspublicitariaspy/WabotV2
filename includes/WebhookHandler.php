@@ -130,7 +130,10 @@ class WebhookHandler
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
-        if ($httpCode !== 201) {
+        // Cloud API responde 200 cuando acepta un mensaje. Algunas versiones
+        // también pueden devolver otro 2xx válido, por lo que no hay que
+        // reportar un falso error después de que el cliente ya lo recibió.
+        if ($httpCode < 200 || $httpCode >= 300) {
             error_log("WhatsApp send error: $httpCode - $resp");
             return null;
         }
@@ -261,7 +264,7 @@ class WebhookHandler
             $resp = curl_exec($ch);
             curl_close($ch);
             $data = json_decode($resp, true);
-            $departamento = trim(strtolower($data['content'] ?? 'general'));
+            $departamento = trim(strtolower($this->getProxyContent($data) ?? 'general'));
             $validas = ['ventas', 'soporte', 'administracion', 'general'];
             if (!in_array($departamento, $validas, true)) $departamento = 'general';
             $stmt = Database::getConnection()->prepare("UPDATE conversaciones SET departamento = ? WHERE id = ?");
@@ -298,7 +301,7 @@ class WebhookHandler
 
         if ($httpCode === 200) {
             $data = json_decode($resp, true);
-            $response = $data['content'] ?? null;
+            $response = $this->getProxyContent($data);
             if ($response !== null) {
                 $mensajeOutId = $this->sendMessage($waPhone, $response, $phoneNumberId);
                 if ($mensajeOutId !== null) {
@@ -311,5 +314,21 @@ class WebhookHandler
         } else {
             error_log("Proxy chat falló para conversación $conversacionId (HTTP $httpCode)");
         }
+    }
+
+    /**
+     * WS expone la respuesta simplificada como `content`. Se conserva el
+     * formato de OpenAI como respaldo para instalaciones durante una
+     * actualización parcial entre WC y WS.
+     */
+    private function getProxyContent(array $data): ?string
+    {
+        $content = $data['content'] ?? ($data['choices'][0]['message']['content'] ?? null);
+        if (!is_string($content)) {
+            return null;
+        }
+
+        $content = trim($content);
+        return $content === '' ? null : $content;
     }
 }
