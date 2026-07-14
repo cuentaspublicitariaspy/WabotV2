@@ -228,7 +228,12 @@ class WebhookHandler
         // perfil comercial local, sin enviar estos datos a WS.
         $prospecto = new ProspectManager();
         $prospectoId = $prospecto->vincular('whatsapp', $waPhone, ['nombre' => $waName, 'whatsapp' => $waPhone]);
-        $prospecto->registrarDatosDeclarados($prospectoId, $text);
+        $datosProspecto = $prospecto->registrarDatosDeclarados($prospectoId, $text);
+        $nombreDeclarado = trim((string) ($datosProspecto['nombre'] ?? ''));
+        if ($nombreDeclarado !== '') {
+            Database::getConnection()->prepare('UPDATE conversaciones SET wa_name = ? WHERE id = ?')
+                ->execute([$nombreDeclarado, $conversacionId]);
+        }
         $mensajeInId = $this->chatManager->guardarMensaje($conversacionId, $text, 'in', $messageId);
         $this->chatManager->actualizarConversacion($conversacionId, $text, 'pendiente');
 
