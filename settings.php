@@ -33,6 +33,11 @@ $visibleSub = array_filter($subTabs, fn($t) => $isSuperAdmin ? $t['super'] : $t[
 $visibleSubKeys = array_keys($visibleSub);
 $firstSub = $visibleSubKeys[0] ?? 'whatsapp';
 
+// Después de guardar una sección de Comunicación, WC debe volver exactamente
+// a esa pestaña en vez de saltar a Credenciales o WhatsApp.
+$selectedMain = $_GET['tab'] ?? $firstMain;
+$selectedSub = $_GET['sub'] ?? $firstSub;
+
 $db->exec("CREATE TABLE IF NOT EXISTS widget_config (
   id INT AUTO_INCREMENT PRIMARY KEY,
   api_key VARCHAR(64) NULL UNIQUE,
@@ -142,6 +147,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($section === 'widget') {
+        $selectedMain = 'comunicacion';
+        $selectedSub = 'chatbot';
         $licenseKey = trim($_POST['license_key'] ?? '');
         $primaryColor = trim($_POST['primary_color'] ?? '#2F63E9');
         $welcomeTitle = trim($_POST['welcome_title'] ?? 'Asistente');
@@ -158,6 +165,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($section === 'knowledge') {
+        $selectedMain = 'comunicacion';
+        $selectedSub = 'knowledge';
         $action = $_POST['action'] ?? '';
         if ($action === 'add_text') {
             $title = trim($_POST['title'] ?? '');
@@ -251,13 +260,13 @@ ob_start();
 
   <div class="flex gap-1 border-b border-slate-200 mb-6 overflow-x-auto">
     <?php $first = true; foreach ($visibleMain as $key => $tab): ?>
-    <div class="tab-btn <?= $first ? 'active' : '' ?>" onclick="switchMain('<?= $key ?>')" data-main="<?= $key ?>"><?= $tab['label'] ?></div>
+    <div class="tab-btn <?= $key === $selectedMain ? 'active' : '' ?>" onclick="switchMain('<?= $key ?>')" data-main="<?= $key ?>"><?= $tab['label'] ?></div>
     <?php $first = false; endforeach; ?>
   </div>
 
   <!-- ===== CREDENCIALES ===== -->
   <?php if ($isSuperAdmin): ?>
-  <div id="main-credenciales" class="main-tab-content <?= $firstMain === 'credenciales' ? 'active' : '' ?>">
+  <div id="main-credenciales" class="main-tab-content <?= $selectedMain === 'credenciales' ? 'active' : '' ?>">
     <div class="bg-white border border-slate-100 rounded-2xl p-6">
       <h2 class="text-lg font-bold text-slate-700 mb-1">Credenciales</h2>
       <p class="text-sm text-slate-500 mb-5">Claves entregadas por WS para habilitar este WC y su Chatbot.</p>
@@ -280,19 +289,19 @@ ob_start();
   <?php endif; ?>
 
   <!-- ===== COMUNICACIÓN INTELIGENTE ===== -->
-  <div id="main-comunicacion" class="main-tab-content <?= $firstMain === 'comunicacion' ? 'active' : '' ?>">
+  <div id="main-comunicacion" class="main-tab-content <?= $selectedMain === 'comunicacion' ? 'active' : '' ?>">
     <h2 class="text-lg font-bold text-slate-700">Comunicación Inteligente</h2>
     <p class="text-sm text-slate-500 mb-5">Configuración de canales de comunicación y conocimiento de la IA.</p>
 
     <div class="flex gap-1 border-b border-slate-200 mb-5 overflow-x-auto">
       <?php $subFirst = true; foreach ($visibleSub as $key => $tab): ?>
-      <div class="sub-tab-btn <?= $subFirst ? 'active' : '' ?>" onclick="switchSub('<?= $key ?>')" data-sub="<?= $key ?>"><?= $tab['label'] ?></div>
+      <div class="sub-tab-btn <?= $key === $selectedSub ? 'active' : '' ?>" onclick="switchSub('<?= $key ?>')" data-sub="<?= $key ?>"><?= $tab['label'] ?></div>
       <?php $subFirst = false; endforeach; ?>
     </div>
 
     <!-- SUB: WhatsApp -->
     <?php if ($isSuperAdmin): ?>
-    <div id="sub-whatsapp" class="sub-tab-content <?= $firstSub === 'whatsapp' ? 'active' : '' ?>">
+    <div id="sub-whatsapp" class="sub-tab-content <?= $selectedSub === 'whatsapp' ? 'active' : '' ?>">
       <div class="bg-white border border-slate-100 rounded-2xl p-6">
         <h2 class="text-lg font-bold text-slate-700 mb-1">WhatsApp API</h2>
         <p class="text-sm text-slate-500 mb-5">Configuración de conexión con Meta WhatsApp API.</p>
@@ -381,7 +390,7 @@ ob_start();
     <?php endif; ?>
 
     <!-- SUB: Chatbot -->
-    <div id="sub-chatbot" class="sub-tab-content <?= $firstSub === 'chatbot' ? 'active' : '' ?>">
+    <div id="sub-chatbot" class="sub-tab-content <?= $selectedSub === 'chatbot' ? 'active' : '' ?>">
       <div class="bg-white border border-slate-100 rounded-2xl p-6 mb-5">
         <h2 class="text-lg font-bold text-slate-700 mb-1">Chatbot</h2>
         <p class="text-sm text-slate-500 mb-5">Configuración del chatbot para incrustar en sitios web.</p>
@@ -422,7 +431,7 @@ ob_start();
     </div>
 
     <!-- SUB: Conocimiento -->
-    <div id="sub-knowledge" class="sub-tab-content <?= $firstSub === 'knowledge' ? 'active' : '' ?>">
+    <div id="sub-knowledge" class="sub-tab-content <?= $selectedSub === 'knowledge' ? 'active' : '' ?>">
       <div class="flex items-center justify-between mb-5">
         <h2 class="text-lg font-bold text-slate-700">Base de conocimiento</h2>
         <span class="text-sm font-medium <?= $knowledgeCount >= 5 ? 'text-amber-600' : 'text-slate-500' ?>"><?= $knowledgeCount ?>/5 fuentes</span>
