@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../includes/config.php';
 require_once __DIR__ . '/../../includes/Database.php';
+require_once __DIR__ . '/../../includes/ProspectManager.php';
 
 header('Content-Type: application/json');
 // El Chatbot se instala dentro del mismo dominio que WC. Solo exponemos CORS
@@ -44,6 +45,7 @@ $db->prepare('INSERT IGNORE INTO widget_chats (widget_config_id, session_id, unr
 $stmt = $db->prepare('SELECT wc.id FROM widget_chats wc INNER JOIN widget_config cfg ON cfg.id = wc.widget_config_id WHERE wc.session_id = ? AND cfg.api_key = ?');
 $stmt->execute([$sessionId, $key]);
 $chatId = (int) $stmt->fetchColumn();
+(new ProspectManager())->vincular('chatbot', (string) $chatId);
 $db->prepare('INSERT INTO widget_messages (chat_id, role, content) VALUES (?, ?, ?)')->execute([$chatId, $role, $content]);
 $db->prepare('UPDATE widget_chats SET unread = ?, memory_message_count = memory_message_count + 1, updated_at = NOW() WHERE id = ?')->execute([$role === 'visitor' ? 1 : 0, $chatId]);
 echo json_encode(['success'=>true]);
