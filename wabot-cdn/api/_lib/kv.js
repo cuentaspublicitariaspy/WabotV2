@@ -34,9 +34,32 @@ async function setCachedConfig(apiKey, data) {
   await kv.set(`config_cache:${apiKey}`, data, { ex: CACHE_TTL });
 }
 
+function normalizeDomain(value) {
+  if (!value) return '';
+  let candidate = String(value).trim().toLowerCase();
+  if (!/^https?:\/\//.test(candidate)) candidate = `https://${candidate}`;
+  try {
+    return new URL(candidate).hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+}
+
+function getRequestDomain(req) {
+  const origin = req.headers?.origin || req.query?.origin || '';
+  return normalizeDomain(origin);
+}
+
+function isAuthorizedDomain(req, client) {
+  const allowed = normalizeDomain(client?.authorized_domain);
+  const requested = getRequestDomain(req);
+  return Boolean(allowed && requested && allowed === requested);
+}
+
 module.exports = {
   getClient, setClient, deleteClient,
   getAllClients, saveClientsIndex,
   getCachedConfig, setCachedConfig,
+  normalizeDomain, getRequestDomain, isAuthorizedDomain,
   CACHE_TTL
 };
