@@ -26,6 +26,7 @@ module.exports = async (req, res) => {
     // pública del Chatbot usamos su API Key; en WhatsApp/administración se
     // valida la License Key. Ningún mensaje se persiste en WS.
     let client = null;
+    let resolvedApiKey = api_key || '';
     if (api_key) client = await getClient(api_key);
     if (!client && license_key) {
       const clients = await getAllClients();
@@ -33,6 +34,7 @@ module.exports = async (req, res) => {
         const possibleClient = await getClient(candidate);
         if (possibleClient?.license_key === license_key) {
           client = possibleClient;
+          resolvedApiKey = candidate;
           break;
         }
       }
@@ -58,7 +60,31 @@ module.exports = async (req, res) => {
         return;
       }
 
-      const openaiRes = await fetch(OPENAI_CHAT_URL, {
+      // La misma agenda se usa desde WhatsApp y el Chatbot. WS interpreta la
+      // intención y WC ejecuta la validación/acción de forma determinística.
+      const agendaTools = client.client_url ? [{
+        type: 'function', function: {
+          name: 'agenda', description: 'Consulta o crea citas solo con disponibilidad real. Nunca inventes horarios.',
+          parameters: { type: 'object', additionalProperties: false, required: ['accion'], properties: {
+            accion: { type: 'string', enum: ['catalogo', 'disponibilidad', 'crear'] }, servicio_id: { type: 'integer' }, profesional_id: { type: 'integer' }, sucursal_id: { type: 'integer' }, fecha: { type: 'string' }, inicio: { type: 'string' }, nombre_cliente: { type: 'string' }, telefono: { type: 'string' }, email: { type: 'string' }, motivo: { type: 'string' }, confirmada: { type: 'boolean' }
+          }}
+        }
+      }] : [];
+      async function agendaCall(args) {
+        const base = client.client_url.replace(/\/+$/, '');
+        const map = { catalogo: 'catalogo', disponibilidad: 'disponibilidad', crear: 'crear' };
+        const payload = { ...args, action: map[args.accion] || '', api_key: resolvedApiKey, canal: 'whatsapp' };
+        for (const url of [`${base}/wabot/api/agenda/assistant.php`, `${base}/api/agenda/assistant.php`]) {
+          try {
+            const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            const data = await response.json();
+            if (response.ok || response.status !== 404) return data;
+          } catch { /* compatible installation path */ }
+        }
+        return { success: false, error: 'La agenda no está disponible todavía.' };
+      }
+
+      let openaiRes = await fetch(OPENAI_CHAT_URL, {
         method: 'POST',
         signal: controller.signal,
         headers: {
@@ -67,14 +93,16 @@ module.exports = async (req, res) => {
         },
         body: JSON.stringify({
           model: model || 'gpt-4o-mini',
-          messages,
+          messages: [{ role: 'system', content: 'Si hay una solicitud de cita, usá la herramienta agenda. No inventes disponibilidad y solo confirmá una reserva después de una confirmación explícita del cliente.' }, ...messages],
+          tools: agendaTools.length ? agendaTools : undefined,
+          tool_choice: agendaTools.length ? 'auto' : undefined,
           max_tokens: 1024,
           temperature: 0.7
         })
       });
       clearTimeout(timeout);
 
-      const data = await openaiRes.json();
+      let data = await openaiRes.json();
       if (!openaiRes.ok) {
         res.status(openaiRes.status).json({
           success: false,
@@ -84,6 +112,16 @@ module.exports = async (req, res) => {
         return;
       }
 
+      const toolCalls = data?.choices?.[0]?.message?.tool_calls || [];
+      if (toolCalls.length) {
+        const toolMessages = [{ role: 'system', content: 'Si hay una solicitud de cita, usá la herramienta agenda. No inventes disponibilidad y solo confirmá una reserva después de una confirmación explícita del cliente.' }, ...messages, data.choices[0].message];
+        for (const call of toolCalls) {
+          let args = {}; try { args = JSON.parse(call.function.arguments || '{}'); } catch { args = {}; }
+          toolMessages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(await agendaCall(args)) });
+        }
+        const followup = await fetch(OPENAI_CHAT_URL, { method: 'POST', headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: model || 'gpt-4o-mini', messages: toolMessages, max_tokens: 1024, temperature: 0.4 }) });
+        if (followup.ok) data = await followup.json();
+      }
       const content = data?.choices?.[0]?.message?.content?.trim();
       if (!content) {
         res.status(502).json({ success: false, error: 'OpenAI devolvió una respuesta vacía' });
