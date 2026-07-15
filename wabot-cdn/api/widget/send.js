@@ -97,7 +97,7 @@ module.exports = async (req, res) => {
         parameters: {
           type: 'object', additionalProperties: false, required: ['accion'],
           properties: {
-            accion: { type: 'string', enum: ['catalogo', 'disponibilidad', 'crear', 'reprogramar'] },
+            accion: { type: 'string', enum: ['catalogo', 'disponibilidad', 'crear', 'citas_cliente', 'reprogramar', 'cancelar'] },
             servicio_id: { type: 'integer' }, agenda_id: { type: 'integer', description: 'ID de la agenda única que se reserva; no es un profesional genérico.' },
             fecha: { type: 'string', description: 'Fecha ISO YYYY-MM-DD' }, inicio: { type: 'string', description: 'Fecha y hora ISO local YYYY-MM-DD HH:mm' },
             cita_id: { type: 'integer', description: 'ID de una cita existente, requerido para reprogramar.' }, nombre_cliente: { type: 'string' }, telefono: { type: 'string' }, email: { type: 'string' }, motivo: { type: 'string' },
@@ -109,7 +109,7 @@ module.exports = async (req, res) => {
 
     async function agendaCall(args) {
       const base = client.client_url.replace(/\/+$/, '');
-      const actionMap = { catalogo: 'catalogo', disponibilidad: 'disponibilidad', crear: 'crear', reprogramar: 'reprogramar' };
+      const actionMap = { catalogo: 'catalogo', disponibilidad: 'disponibilidad', crear: 'crear', citas_cliente: 'citas_cliente', reprogramar: 'reprogramar', cancelar: 'cancelar' };
       const body = { ...args, action: actionMap[args.accion] || '', api_key: key, canal: 'chatbot' };
       const urls = [`${base}/wabot/api/agenda/assistant.php`, `${base}/api/agenda/assistant.php`];
       for (const url of urls) {
