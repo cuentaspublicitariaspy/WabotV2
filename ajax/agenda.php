@@ -13,6 +13,7 @@ try {
         case 'save_hours': $agenda->saveHours($input); $out=[]; break;
         case 'save_settings': $agenda->saveSettings($input); $out=[]; break;
         case 'create': $input['canal']=$input['canal']??'manual'; $out=['id'=>$agenda->create($input,'humano:'.($user['nombre']??'usuario'))]; break;
+        case 'block': $out=['id'=>$agenda->createBlock($input,'humano:'.($user['nombre']??'usuario'))]; break;
         case 'status': $agenda->changeStatus((int)($input['id']??0),(string)($input['status']??''),'humano:'.($user['nombre']??'usuario')); $out=[]; break;
         default: throw new InvalidArgumentException('Acción no válida.');
     }
