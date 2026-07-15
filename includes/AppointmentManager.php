@@ -76,9 +76,11 @@ class AppointmentManager
 
     private function ensureColumn(string $table, string $column, string $definition): void
     {
-        $stmt = $this->db->prepare('SHOW COLUMNS FROM `'.$table.'` LIKE ?');
-        $stmt->execute([$column]);
-        if (!$stmt->fetch()) $this->db->exec('ALTER TABLE `'.$table.'` ADD COLUMN `'.$column.'` '.$definition);
+        // MariaDB no permite placeholders en SHOW COLUMNS ... LIKE. Consultar
+        // information_schema sí admite parámetros y funciona en Hostinger.
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?');
+        $stmt->execute([$table, $column]);
+        if (!(int)$stmt->fetchColumn()) $this->db->exec('ALTER TABLE `'.$table.'` ADD COLUMN `'.$column.'` '.$definition);
     }
 
     private function migrateLegacyProfessionals(): void
