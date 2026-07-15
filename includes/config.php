@@ -39,6 +39,7 @@ define('DB_USER', getenv('DB_USER') ?: '');
 define('DB_PASS', getenv('DB_PASS') ?: '');
 
 define('LICENSE_KEY', getenv('LICENSE_KEY') ?: '');
+define('CHATBOT_API_KEY', getenv('CHATBOT_API_KEY') ?: '');
 define('ADMIN_SESSION_KEY', 'wabot_admin_logged_in');
 define('ADMIN_USER_ID_KEY', 'wabot_user_id');
 define('ADMIN_USER_NAME_KEY', 'wabot_user_name');
