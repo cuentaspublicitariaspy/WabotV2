@@ -1,4 +1,5 @@
 const { getClient, isAuthorizedDomain } = require('../_lib/kv');
+const { confirmExactProposal } = require('../_lib/agenda-confirmation');
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 const OPENAI_MODEL = 'gpt-4o-mini';
@@ -131,6 +132,12 @@ module.exports = async (req, res) => {
         } catch { /* try compatible path */ }
       }
       return { success: false, error: 'La agenda no está disponible todavía.' };
+    }
+
+    const confirmed = await confirmExactProposal({ history: parsedHistory, message, agendaCall, channel: 'chatbot' });
+    if (confirmed?.handled) {
+      res.json({ success: confirmed.success, message: { role: 'assistant', content: confirmed.reply } });
+      return;
     }
 
     const controller = new AbortController();
