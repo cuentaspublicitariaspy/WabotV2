@@ -23,9 +23,13 @@ class AppointmentManager
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
         $this->db->exec("INSERT IGNORE INTO agenda_settings (id) VALUES (1)");
+        $this->db->exec("CREATE TABLE IF NOT EXISTS agenda_negocios (
+            id INT AUTO_INCREMENT PRIMARY KEY, nombre VARCHAR(150) NOT NULL, descripcion VARCHAR(255) NOT NULL DEFAULT '',
+            activo TINYINT(1) NOT NULL DEFAULT 1, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
         $this->db->exec("CREATE TABLE IF NOT EXISTS agenda_sucursales (
-            id INT AUTO_INCREMENT PRIMARY KEY, nombre VARCHAR(120) NOT NULL, direccion VARCHAR(255) NOT NULL DEFAULT '', activo TINYINT(1) NOT NULL DEFAULT 1,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            id INT AUTO_INCREMENT PRIMARY KEY, negocio_id INT NULL, nombre VARCHAR(120) NOT NULL, direccion VARCHAR(255) NOT NULL DEFAULT '', activo TINYINT(1) NOT NULL DEFAULT 1,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_sucursal_negocio (negocio_id, activo)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
         // Una agenda es el recurso que se reserva: puede ser una persona, una
         // sala, un consultorio o cualquier capacidad única del negocio.
@@ -66,12 +70,16 @@ class AppointmentManager
             servicio_id INT NULL, profesional_id INT NULL, sucursal_id INT NULL, desde DATE NULL, hasta DATE NULL, preferencia TEXT NULL,
             estado ENUM('activa','ofrecida','convertida','cancelada') NOT NULL DEFAULT 'activa', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $this->ensureColumn('agenda_sucursales', 'negocio_id', 'INT NULL AFTER id');
+        $this->ensureColumn('agenda_servicios', 'agenda_id', 'INT NULL AFTER id');
+        $this->ensureColumn('agenda_horarios', 'servicio_id', 'INT NULL AFTER id');
         $this->ensureColumn('agenda_horarios', 'agenda_id', 'INT NULL AFTER id');
         $this->ensureColumn('agenda_bloqueos', 'agenda_id', 'INT NULL AFTER id');
         $this->ensureColumn('citas', 'agenda_id', 'INT NULL AFTER id');
         // Migración de instalaciones previas: cada profesional configurado se
         // transforma en una agenda de su sucursal para no perder datos.
         $this->migrateLegacyProfessionals();
+        $this->migrateBusinessHierarchy();
     }
 
     private function ensureColumn(string $table, string $column, string $definition): void
@@ -81,6 +89,20 @@ class AppointmentManager
         $stmt = $this->db->prepare('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?');
         $stmt->execute([$table, $column]);
         if (!(int)$stmt->fetchColumn()) $this->db->exec('ALTER TABLE `'.$table.'` ADD COLUMN `'.$column.'` '.$definition);
+    }
+
+    private function migrateBusinessHierarchy(): void
+    {
+        $businessId = (int)($this->db->query('SELECT id FROM agenda_negocios ORDER BY id LIMIT 1')->fetchColumn() ?: 0);
+        if (!$businessId) {
+            $this->db->prepare('INSERT INTO agenda_negocios(nombre,descripcion,activo) VALUES(?,?,1)')->execute(['Negocio principal', 'Migrado desde la configuración anterior']);
+            $businessId = (int)$this->db->lastInsertId();
+        }
+        $this->db->prepare('UPDATE agenda_sucursales SET negocio_id=? WHERE negocio_id IS NULL OR negocio_id=0')->execute([$businessId]);
+        $singleAgenda = (int)($this->db->query('SELECT id FROM agenda_agendas WHERE activo=1 ORDER BY id LIMIT 1')->fetchColumn() ?: 0);
+        if ($singleAgenda) $this->db->prepare('UPDATE agenda_servicios SET agenda_id=? WHERE agenda_id IS NULL OR agenda_id=0')->execute([$singleAgenda]);
+        $singleService = (int)($this->db->query('SELECT id FROM agenda_servicios WHERE activo=1 ORDER BY id LIMIT 1')->fetchColumn() ?: 0);
+        if ($singleService) $this->db->prepare('UPDATE agenda_horarios SET servicio_id=? WHERE servicio_id IS NULL OR servicio_id=0')->execute([$singleService]);
     }
 
     private function migrateLegacyProfessionals(): void
