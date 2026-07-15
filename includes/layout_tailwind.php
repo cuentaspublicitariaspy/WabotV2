@@ -28,6 +28,7 @@ $navLinks = [
 $adminNavLinks = [
     'estadisticas' => ['label' => 'Estadísticas', 'icon' => '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>', 'href' => 'estadisticas.php'],
 
+    'pruebas' => ['label' => 'Pruebas', 'icon' => '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 3v6.75l-4.5 7.794A3 3 0 007.848 22h8.304a3 3 0 002.598-4.456l-4.5-7.794V3m-4.5 0h4.5M8 14h8"></path></svg>', 'href' => 'pruebas.php'],
     'usuarios' => ['label' => 'Usuarios', 'icon' => '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>', 'href' => 'usuarios.php'],
 ];
 $esAdminOrSuper = in_array($user['rol'], ['super_admin', 'admin']);
