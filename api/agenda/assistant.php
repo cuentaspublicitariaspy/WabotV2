@@ -11,15 +11,36 @@ if($key===''){http_response_code(401);echo json_encode(['success'=>false,'error'
 $stmt=Database::getConnection()->prepare('SELECT id FROM widget_config WHERE api_key=? AND enabled=1');$stmt->execute([$key]);
 if(!$stmt->fetch()){http_response_code(403);echo json_encode(['success'=>false,'error'=>'Cliente no autorizado']);exit;}
 $agenda=new AppointmentManager();$action=$input['action']??'';
+
+/**
+ * Cuando la instalación tiene una sola agenda o un solo servicio activos,
+ * no obligamos a la IA a repetir IDs que ya son inequívocos. Si hay varias
+ * opciones, no se elige ninguna a ciegas: el resultado devuelve el catálogo.
+ */
+function resolveUnambiguousAgendaSelection(AppointmentManager $agenda, array $input): array {
+    $services=array_values(array_filter($agenda->list('servicios'),static fn($item)=>!empty($item['activo'])));
+    $agendas=array_values(array_filter($agenda->list('agendas'),static fn($item)=>!empty($item['activo'])));
+    if(empty($input['servicio_id']) && count($services)===1)$input['servicio_id']=(int)$services[0]['id'];
+    if(empty($input['agenda_id']) && count($agendas)===1)$input['agenda_id']=(int)$agendas[0]['id'];
+    $input['_selection']=['servicios'=>$services,'agendas'=>$agendas];
+    return $input;
+}
 try {
     if($action==='catalogo'){
         echo json_encode(['success'=>true,'servicios'=>$agenda->list('servicios'),'agendas'=>$agenda->list('agendas'),'sucursales'=>$agenda->list('sucursales'),'reglas'=>$agenda->settings()]);exit;
     }
     if($action==='disponibilidad'){
+        $input=resolveUnambiguousAgendaSelection($agenda,$input);
         echo json_encode(['success'=>true,'slots'=>$agenda->availability($input)]);exit;
     }
     if($action==='proximos_horarios'){
-        echo json_encode(['success'=>true,'opciones'=>$agenda->nextAvailability($input)]);exit;
+        $input=resolveUnambiguousAgendaSelection($agenda,$input);
+        if(empty($input['servicio_id']) || empty($input['agenda_id'])){
+            echo json_encode(['success'=>false,'error'=>'Hay más de una opción para reservar. Pedí que elija servicio o agenda.','servicios'=>$input['_selection']['servicios'],'agendas'=>$input['_selection']['agendas']]);exit;
+        }
+        if(empty($input['fecha_desde']))$input['fecha_desde']=date('Y-m-d');
+        if(empty($input['dias']))$input['dias']=14;
+        echo json_encode(['success'=>true,'opciones'=>$agenda->nextAvailability($input),'agenda_id'=>(int)$input['agenda_id'],'servicio_id'=>(int)$input['servicio_id']]);exit;
     }
     if($action==='citas_cliente'){
         echo json_encode(['success'=>true,'citas'=>$agenda->findUpcoming($input)]);exit;
