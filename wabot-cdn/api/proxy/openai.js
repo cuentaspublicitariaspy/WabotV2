@@ -3,6 +3,15 @@ const { getClient, getAllClients } = require('../_lib/kv');
 const OPENAI_CHAT_URL = 'https://api.openai.com/v1/chat/completions';
 const OPENAI_TRANSCRIBE_URL = 'https://api.openai.com/v1/audio/transcriptions';
 
+function asuncionDate() {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Asuncion', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+  const value = Object.fromEntries(parts.filter(p => p.type !== 'literal').map(p => [p.type, p.value]));
+  return `${value.year}-${value.month}-${value.day}`;
+}
+function agendaInstructions() {
+  return `AGENDA CONVERSACIONAL: hoy es ${asuncionDate()} en America/Asuncion. Interpretá “mañana”, días de la semana y mañana/tarde sin pedir una fecha exacta cuando ya existe una referencia natural. Consultá catálogo y luego disponibilidad real antes de ofrecer horarios. “Sí” confirma la última alternativa exacta propuesta. Pedí solo el dato faltante, sin tono de formulario. Para reprogramar o cancelar, buscá primero las citas activas y aclarar cuál si hay varias. Nunca inventes fechas, horarios, disponibilidad ni ignores buffers.`;
+}
+
 module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') {
     res.status(200).end();
@@ -93,11 +102,11 @@ module.exports = async (req, res) => {
         },
         body: JSON.stringify({
           model: model || 'gpt-4o-mini',
-          messages: [{ role: 'system', content: 'Si hay una solicitud de cita, usá la herramienta agenda. No inventes disponibilidad y solo confirmá una reserva después de una confirmación explícita del cliente.' }, ...messages],
+          messages: [{ role: 'system', content: agendaInstructions() }, ...messages],
           tools: agendaTools.length ? agendaTools : undefined,
           tool_choice: agendaTools.length ? 'auto' : undefined,
           max_tokens: 1024,
-          temperature: 0.7
+          temperature: 0.45
         })
       });
       clearTimeout(timeout);
@@ -112,15 +121,20 @@ module.exports = async (req, res) => {
         return;
       }
 
-      const toolCalls = data?.choices?.[0]?.message?.tool_calls || [];
-      if (toolCalls.length) {
-        const toolMessages = [{ role: 'system', content: 'Si hay una solicitud de cita, usá la herramienta agenda. No inventes disponibilidad y solo confirmá una reserva después de una confirmación explícita del cliente.' }, ...messages, data.choices[0].message];
+      let toolCalls = data?.choices?.[0]?.message?.tool_calls || [];
+      let toolRound = 0;
+      const toolMessages = [{ role: 'system', content: agendaInstructions() }, ...messages];
+      while (toolCalls.length && toolRound < 4) {
+        toolMessages.push(data.choices[0].message);
         for (const call of toolCalls) {
           let args = {}; try { args = JSON.parse(call.function.arguments || '{}'); } catch { args = {}; }
           toolMessages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(await agendaCall(args)) });
         }
-        const followup = await fetch(OPENAI_CHAT_URL, { method: 'POST', headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: model || 'gpt-4o-mini', messages: toolMessages, max_tokens: 1024, temperature: 0.4 }) });
-        if (followup.ok) data = await followup.json();
+        const followup = await fetch(OPENAI_CHAT_URL, { method: 'POST', headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: model || 'gpt-4o-mini', messages: toolMessages, tools: agendaTools.length ? agendaTools : undefined, tool_choice: agendaTools.length ? 'auto' : undefined, max_tokens: 1024, temperature: 0.25 }) });
+        if (!followup.ok) break;
+        data = await followup.json();
+        toolCalls = data?.choices?.[0]?.message?.tool_calls || [];
+        toolRound++;
       }
       const content = data?.choices?.[0]?.message?.content?.trim();
       if (!content) {
