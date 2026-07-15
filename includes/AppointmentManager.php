@@ -184,6 +184,36 @@ class AppointmentManager
         return (int)$this->db->lastInsertId();
     }
 
+    public function setEntityActive(string $entity, int $id, bool $active): void
+    {
+        $tables=['negocios'=>'agenda_negocios','sucursales'=>'agenda_sucursales','agendas'=>'agenda_agendas','servicios'=>'agenda_servicios','horarios'=>'agenda_horarios'];
+        if (!$id || !isset($tables[$entity])) throw new InvalidArgumentException('Elemento no válido.');
+        $this->db->prepare('UPDATE '.$tables[$entity].' SET activo=? WHERE id=?')->execute([$active?1:0,$id]);
+    }
+
+    public function deleteEntity(string $entity, int $id): void
+    {
+        if (!$id) throw new InvalidArgumentException('Elemento no válido.');
+        $checks=[
+            'negocios'=>['agenda_negocios','agenda_sucursales','negocio_id','No podés eliminar un negocio que todavía tiene sucursales.'],
+            'sucursales'=>['agenda_sucursales','agenda_agendas','sucursal_id','No podés eliminar una sucursal que todavía tiene agendas.'],
+            'agendas'=>['agenda_agendas','agenda_servicios','agenda_id','No podés eliminar una agenda que todavía tiene servicios.'],
+            'servicios'=>['agenda_servicios','citas','servicio_id','No podés eliminar un servicio que ya tiene citas.'],
+            'horarios'=>['agenda_horarios',null,null,'']
+        ];
+        if (!isset($checks[$entity])) throw new InvalidArgumentException('Elemento no válido.');
+        [$table,$child,$foreign,$message]=$checks[$entity];
+        if ($child) {
+            $stmt=$this->db->prepare('SELECT COUNT(*) FROM '.$child.' WHERE '.$foreign.'=?');$stmt->execute([$id]);
+            if ((int)$stmt->fetchColumn()) throw new RuntimeException($message);
+        }
+        if ($entity==='servicios') {
+            $stmt=$this->db->prepare('SELECT COUNT(*) FROM agenda_horarios WHERE servicio_id=?');$stmt->execute([$id]);
+            if ((int)$stmt->fetchColumn()) throw new RuntimeException('No podés eliminar un servicio que todavía tiene horarios.');
+        }
+        $this->db->prepare('DELETE FROM '.$table.' WHERE id=?')->execute([$id]);
+    }
+
     public function saveHours(array $data): void
     {
         $agendaId=(int)($data['agenda_id']??0);
