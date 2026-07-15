@@ -66,13 +66,13 @@ module.exports = async (req, res) => {
         type: 'function', function: {
           name: 'agenda', description: 'Consulta o crea citas solo con disponibilidad real. Nunca inventes horarios.',
           parameters: { type: 'object', additionalProperties: false, required: ['accion'], properties: {
-            accion: { type: 'string', enum: ['catalogo', 'disponibilidad', 'crear', 'reprogramar'] }, servicio_id: { type: 'integer' }, agenda_id: { type: 'integer' }, cita_id: { type: 'integer' }, fecha: { type: 'string' }, inicio: { type: 'string' }, nombre_cliente: { type: 'string' }, telefono: { type: 'string' }, email: { type: 'string' }, motivo: { type: 'string' }, confirmada: { type: 'boolean' }
+            accion: { type: 'string', enum: ['catalogo', 'disponibilidad', 'crear', 'citas_cliente', 'reprogramar', 'cancelar'] }, servicio_id: { type: 'integer' }, agenda_id: { type: 'integer' }, cita_id: { type: 'integer' }, fecha: { type: 'string' }, inicio: { type: 'string' }, nombre_cliente: { type: 'string' }, telefono: { type: 'string' }, email: { type: 'string' }, motivo: { type: 'string' }, confirmada: { type: 'boolean' }
           }}
         }
       }] : [];
       async function agendaCall(args) {
         const base = client.client_url.replace(/\/+$/, '');
-        const map = { catalogo: 'catalogo', disponibilidad: 'disponibilidad', crear: 'crear', reprogramar: 'reprogramar' };
+        const map = { catalogo: 'catalogo', disponibilidad: 'disponibilidad', crear: 'crear', citas_cliente: 'citas_cliente', reprogramar: 'reprogramar', cancelar: 'cancelar' };
         const payload = { ...args, action: map[args.accion] || '', api_key: resolvedApiKey, canal: 'whatsapp' };
         for (const url of [`${base}/wabot/api/agenda/assistant.php`, `${base}/api/agenda/assistant.php`]) {
           try {
