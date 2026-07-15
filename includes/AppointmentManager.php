@@ -191,6 +191,62 @@ class AppointmentManager
         $stmt->execute([$from,$to]);return $stmt->fetchAll();
     }
 
+    /** Resumen operativo para el día seleccionado. No contiene datos simulados. */
+    public function dayOverview(string $date): array
+    {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) throw new InvalidArgumentException('Fecha inválida.');
+        $from = $date.' 00:00:00';
+        $to = date('Y-m-d 00:00:00', strtotime($date.' +1 day'));
+        $appointments = $this->appointments($from, $to);
+        $blocks = $this->blocks($from, $to);
+        $occupied = 0;
+        $pending = 0;
+        foreach ($appointments as $appointment) {
+            if (!in_array($appointment['estado'], ['cancelada_cliente','cancelada_negocio','no_asistio'], true)) {
+                $occupied += max(0, strtotime($appointment['fin']) - strtotime($appointment['inicio']));
+            }
+            if ($appointment['estado'] === 'pendiente_confirmacion') $pending++;
+        }
+        return [
+            'appointments' => $appointments,
+            'blocks' => $blocks,
+            'total' => count($appointments),
+            'pending' => $pending,
+            'occupied_minutes' => (int)round($occupied / 60),
+            'ready_profiles' => count(array_filter($appointments, static fn($a) => !empty($a['prospecto_id']) || !empty($a['motivo'])))
+        ];
+    }
+
+    public function blocks(string $from, string $to): array
+    {
+        $stmt = $this->db->prepare("SELECT b.*, p.nombre profesional, s.nombre sucursal
+            FROM agenda_bloqueos b
+            LEFT JOIN agenda_profesionales p ON p.id=b.profesional_id
+            LEFT JOIN agenda_sucursales s ON s.id=b.sucursal_id
+            WHERE b.inicio < ? AND b.fin > ? ORDER BY b.inicio ASC");
+        $stmt->execute([$to, $from]);
+        return $stmt->fetchAll();
+    }
+
+    public function createBlock(array $data, string $actor = 'manual'): int
+    {
+        $tz = new DateTimeZone($this->settings()['timezone'] ?? 'America/Asuncion');
+        try {
+            $start = new DateTimeImmutable((string)($data['inicio'] ?? ''), $tz);
+            $end = new DateTimeImmutable((string)($data['fin'] ?? ''), $tz);
+        } catch (Throwable $e) { throw new InvalidArgumentException('Indicá un inicio y fin válidos para el bloqueo.'); }
+        if ($end <= $start) throw new InvalidArgumentException('El bloqueo debe terminar después de comenzar.');
+        $reason = trim((string)($data['motivo'] ?? 'Bloqueo de agenda'));
+        $stmt = $this->db->prepare('INSERT INTO agenda_bloqueos(profesional_id,sucursal_id,inicio,fin,motivo) VALUES(?,?,?,?,?)');
+        $stmt->execute([
+            (int)($data['profesional_id'] ?? 0) ?: null,
+            (int)($data['sucursal_id'] ?? 0) ?: null,
+            $start->format('Y-m-d H:i:s'), $end->format('Y-m-d H:i:s'),
+            $reason.' · '.$actor
+        ]);
+        return (int)$this->db->lastInsertId();
+    }
+
     public function changeStatus(int $id,string $status,string $actor='manual'): void
     {
         $allowed=['confirmada','pendiente_confirmacion','reprogramada','cancelada_cliente','cancelada_negocio','no_asistio','completada'];
