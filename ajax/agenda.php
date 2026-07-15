@@ -10,6 +10,8 @@ try {
     switch($input['action']??'') {
         case 'availability': $out=['slots'=>$agenda->availability($input)]; break;
         case 'save_entity': $out=['id'=>$agenda->saveEntity((string)($input['entity']??''),$input)]; break;
+        case 'toggle_entity': $agenda->setEntityActive((string)($input['entity']??''),(int)($input['id']??0),!empty($input['activo'])); $out=[]; break;
+        case 'delete_entity': $agenda->deleteEntity((string)($input['entity']??''),(int)($input['id']??0)); $out=[]; break;
         case 'save_hours': $agenda->saveHours($input); $out=[]; break;
         case 'save_settings': $agenda->saveSettings($input); $out=[]; break;
         case 'create': $input['canal']=$input['canal']??'manual'; $out=['id'=>$agenda->create($input,'humano:'.($user['nombre']??'usuario'))]; break;
