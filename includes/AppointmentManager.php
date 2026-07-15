@@ -187,15 +187,18 @@ class AppointmentManager
     public function saveHours(array $data): void
     {
         $agendaId=(int)($data['agenda_id']??0);
-        if (!$agendaId) throw new InvalidArgumentException('Elegí la agenda a la que pertenece este horario.');
+        $serviceId=(int)($data['servicio_id']??0);
+        if (!$agendaId || !$serviceId) throw new InvalidArgumentException('Elegí el servicio y la agenda a los que pertenece este horario.');
+        $owner=$this->db->prepare('SELECT COUNT(*) FROM agenda_servicios WHERE id=? AND agenda_id=? AND activo=1');$owner->execute([$serviceId,$agendaId]);
+        if(!(int)$owner->fetchColumn()) throw new InvalidArgumentException('El servicio no pertenece a esa agenda.');
         $day=(int)($data['dia_semana']??0); $from=(string)($data['hora_inicio']??''); $to=(string)($data['hora_fin']??'');
         if ($day<0 || $day>6 || !preg_match('/^\d\d:\d\d$/',$from) || !preg_match('/^\d\d:\d\d$/',$to) || $from >= $to) throw new InvalidArgumentException('Horario inválido.');
-        $this->db->prepare('INSERT INTO agenda_horarios(agenda_id,dia_semana,hora_inicio,hora_fin) VALUES(?,?,?,?)')->execute([$agendaId,$day,$from,$to]);
+        $this->db->prepare('INSERT INTO agenda_horarios(servicio_id,agenda_id,dia_semana,hora_inicio,hora_fin) VALUES(?,?,?,?,?)')->execute([$serviceId,$agendaId,$day,$from,$to]);
     }
 
     public function hours(): array
     {
-        return $this->db->query("SELECT h.*, a.nombre agenda, s.nombre sucursal FROM agenda_horarios h LEFT JOIN agenda_agendas a ON a.id=h.agenda_id LEFT JOIN agenda_sucursales s ON s.id=a.sucursal_id WHERE h.activo=1 ORDER BY h.dia_semana,h.hora_inicio")->fetchAll();
+        return $this->db->query("SELECT h.*, v.nombre servicio, a.nombre agenda, s.nombre sucursal, n.nombre negocio FROM agenda_horarios h LEFT JOIN agenda_servicios v ON v.id=h.servicio_id LEFT JOIN agenda_agendas a ON a.id=h.agenda_id LEFT JOIN agenda_sucursales s ON s.id=a.sucursal_id LEFT JOIN agenda_negocios n ON n.id=s.negocio_id WHERE h.activo=1 ORDER BY n.nombre,s.nombre,a.nombre,v.nombre,h.dia_semana,h.hora_inicio")->fetchAll();
     }
 
     public function availability(array $filter): array
@@ -203,7 +206,7 @@ class AppointmentManager
         $serviceId=(int)($filter['servicio_id']??0); $agendaId=(int)($filter['agenda_id']??0);
         $date=(string)($filter['fecha']??'');
         if (!$date || !preg_match('/^\d{4}-\d{2}-\d{2}$/',$date)) throw new InvalidArgumentException('Indicá una fecha válida.');
-        $service=$this->db->prepare('SELECT duracion_minutos FROM agenda_servicios WHERE id=? AND activo=1'); $service->execute([$serviceId]); $duration=(int)$service->fetchColumn();
+        $service=$this->db->prepare('SELECT duracion_minutos FROM agenda_servicios WHERE id=? AND agenda_id=? AND activo=1'); $service->execute([$serviceId,$agendaId]); $duration=(int)$service->fetchColumn();
         if (!$duration) throw new InvalidArgumentException('Elegí un servicio activo.');
         if (!$agendaId) throw new InvalidArgumentException('Indicá la agenda que se desea consultar.');
         $agendaStmt=$this->db->prepare('SELECT * FROM agenda_agendas WHERE id=? AND activo=1');$agendaStmt->execute([$agendaId]);$agenda=$agendaStmt->fetch();
@@ -212,8 +215,8 @@ class AppointmentManager
         $target=new DateTimeImmutable($date, $tz); $today=new DateTimeImmutable('today',$tz);
         if ($target<$today || $target>$today->modify('+'.(int)$settings['max_advance_days'].' days')) return [];
         $weekday=(int)$target->format('w');
-        $q='SELECT hora_inicio,hora_fin FROM agenda_horarios WHERE activo=1 AND dia_semana=? AND agenda_id=? ORDER BY hora_inicio';
-        $params=[$weekday,$agendaId];
+        $q='SELECT hora_inicio,hora_fin FROM agenda_horarios WHERE activo=1 AND dia_semana=? AND agenda_id=? AND servicio_id=? ORDER BY hora_inicio';
+        $params=[$weekday,$agendaId,$serviceId];
         $stmt=$this->db->prepare($q); $stmt->execute($params); $ranges=$stmt->fetchAll();
         $slots=[]; $step=max(5,(int)$settings['slot_minutes']); $buffer=(int)$agenda['buffer_minutes'];
         foreach($ranges as $range) {
