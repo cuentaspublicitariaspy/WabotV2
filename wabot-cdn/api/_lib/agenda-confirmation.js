@@ -85,14 +85,14 @@ function selected(items, proposalText, field = 'nombre') {
  * anterior pidió confirmar una fecha/hora exactas y el visitante acepta esa
  * propuesta de forma natural.
  */
-async function confirmExactProposal({ history, message, agendaCall, channel, telefono = '', nombre_cliente = '' }) {
+async function confirmExactProposal({ history, message, agendaCall, channel, telefono = '', nombre_cliente = '', semanticIntent = '' }) {
   const entries = [...(Array.isArray(history) ? history : []), { role: 'user', content: message }];
   const confirmationPrompt = [...entries].reverse().find(item => {
     const candidate = text(item?.content);
     return item?.role === 'assistant' && /(confirm|reserv|agend)/i.test(candidate) && !!parseProposal(candidate);
   });
   const proposalText = text(confirmationPrompt?.content);
-  if (!isConfirmationIntent(message, proposalText)) return null;
+  // La clasificación semántica proviene de la IA y entiende el sentido de la respuesta;\n  // los patrones locales solo son una red de seguridad ante un fallo temporal.\n  if (semanticIntent === 'rechazar_o_cambiar') return null;\n  if (semanticIntent !== 'confirmar' && !isConfirmationIntent(message, proposalText)) return null;
   if (!proposalText) return null;
   const inicio = parseProposal(proposalText);
   const phone = String(telefono || phoneFrom(entries)).replace(/\D/g, '');
