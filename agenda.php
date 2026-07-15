@@ -52,14 +52,14 @@ ob_start();
       <a href="agenda.php?tab=citas&amp;date=<?= $previous ?>" class="w-10 h-10 border border-slate-200 rounded-xl grid place-items-center hover:bg-slate-50" aria-label="Día anterior">‹</a>
       <input id="agenda-date" type="date" value="<?= htmlspecialchars($date) ?>" onchange="goToDate(this.value)" class="h-10 border border-slate-200 rounded-xl px-3 text-sm font-semibold text-slate-700">
       <a href="agenda.php?tab=citas&amp;date=<?= $next ?>" class="w-10 h-10 border border-slate-200 rounded-xl grid place-items-center hover:bg-slate-50" aria-label="Día siguiente">›</a>
-      <button type="button" onclick="openBooking(event)" class="h-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-4 text-sm font-semibold">+ Nueva cita</button>
+      <a href="agenda.php?tab=configuracion" class="h-10 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl px-4 text-sm font-semibold inline-flex items-center">Ver estructura</a><button type="button" onclick="openBooking(event)" class="h-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-4 text-sm font-semibold">+ Nueva cita</button>
     </div>
     <?php endif; ?>
   </header>
 
   <nav class="inline-flex items-center gap-1 rounded-2xl bg-slate-100 p-1" aria-label="Secciones de agenda">
     <a href="agenda.php?tab=citas&amp;date=<?= htmlspecialchars($date) ?>" class="rounded-xl px-4 py-2 text-sm font-semibold transition <?= $tab === 'citas' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800' ?>">Citas</a>
-    <a href="agenda.php?tab=configuracion" class="rounded-xl px-4 py-2 text-sm font-semibold transition <?= $tab === 'configuracion' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800' ?>">Configuración</a>
+    <a href="agenda.php?tab=configuracion" class="rounded-xl px-4 py-2 text-sm font-semibold transition <?= $tab === 'configuracion' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800' ?>">Estructura y reglas</a>
   </nav>
 
   <?php if ($tab === 'citas'): ?>
@@ -161,6 +161,51 @@ function openSetup(e){stop(e);openModal('Configurar operación',`<div class="spa
 function openEntity(type){if(type==='sucursales'){openModal('Nueva sucursal',`<form class="space-y-3" onsubmit="saveEntity(event,'sucursales')"><label class="block text-sm">Nombre<input required name="nombre" class="mt-1 border rounded-xl p-2.5 w-full"></label><label class="block text-sm">Dirección<input name="direccion" class="mt-1 border rounded-xl p-2.5 w-full"></label><input type="hidden" name="activo" value="1"><button class="w-full bg-emerald-600 text-white rounded-xl p-3 font-semibold">Guardar sucursal</button></form>`);return}if(type==='agendas'){openModal('Nueva agenda',`<form class="space-y-3" onsubmit="saveEntity(event,'agendas')"><label class="block text-sm">Sucursal<select required name="sucursal_id" class="mt-1 border rounded-xl p-2.5 w-full"><option value="">Elegí una sucursal</option>${branches.filter(b=>Number(b.activo)).map(b=>`<option value="${b.id}">${esc(b.nombre)}</option>`).join('')}</select></label><label class="block text-sm">Nombre de la agenda<input required name="nombre" placeholder="Dra. Martínez, Cabina 1, Sala de reuniones…" class="mt-1 border rounded-xl p-2.5 w-full"></label><label class="block text-sm">Descripción<input name="descripcion" class="mt-1 border rounded-xl p-2.5 w-full"></label><label class="block text-sm">Buffer entre citas (min)<input required type="number" min="0" name="buffer_minutes" value="0" class="mt-1 border rounded-xl p-2.5 w-full"></label><input type="hidden" name="activo" value="1"><button class="w-full bg-emerald-600 text-white rounded-xl p-3 font-semibold">Guardar agenda</button></form>`);return}openModal('Nuevo servicio',`<form class="space-y-3" onsubmit="saveEntity(event,'servicios')"><label class="block text-sm">Nombre<input required name="nombre" class="mt-1 border rounded-xl p-2.5 w-full"></label><label class="block text-sm">Duración (min)<input required type="number" min="5" name="duracion_minutos" value="30" class="mt-1 border rounded-xl p-2.5 w-full"></label><input type="hidden" name="activo" value="1"><button class="w-full bg-emerald-600 text-white rounded-xl p-3 font-semibold">Guardar servicio</button></form>`)}
 async function saveEntity(e,entity){e.preventDefault();try{await api({...formDataObject(e.target),action:'save_entity',entity});location.reload()}catch(err){alert(err.message)}}
 async function saveSettings(e){e.preventDefault();try{await api({...formDataObject(e.target),action:'save_settings'});alert('Reglas actualizadas.')}catch(err){alert(err.message)}}
+
+/* Flujo manual: elegir recurso, ver disponibilidad real y completar la cita. */
+function manualPairCards(next, serviceId, agendaId){
+  const listA=agendas.filter(function(a){return Number(a.activo)}), listS=services.filter(function(x){return Number(x.activo)});
+  if(!listA.length||!listS.length)return '<p class="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">Primero necesitás una sucursal, una agenda y un servicio activos.</p>';
+  return '<div class="space-y-3">'+listA.map(function(a){
+    return '<section class="border border-slate-200 rounded-2xl p-4"><p class="text-xs text-slate-400 font-semibold">'+esc(a.sucursal||'Sucursal')+'</p><h3 class="font-semibold mt-1">'+esc(a.nombre)+'</h3><p class="text-xs text-slate-500 mt-1">Buffer entre citas: '+Number(a.buffer_minutes||0)+' min</p><div class="flex flex-wrap gap-2 mt-3">'+listS.map(function(service){
+      const active=Number(service.id)===Number(serviceId)&&Number(a.id)===Number(agendaId);
+      return '<button type="button" onclick="'+next+'('+Number(a.id)+','+Number(service.id)+')" class="rounded-xl border px-3 py-2 text-xs font-semibold '+(active?'border-emerald-500 bg-emerald-50 text-emerald-800':'border-slate-200 hover:border-emerald-400 text-slate-700')+'">'+esc(service.nombre)+' · '+Number(service.duracion_minutos)+' min</button>';
+    }).join('')+'</div></section>';
+  }).join('')+'</div>';
+}
+function manualService(id){return services.find(function(x){return Number(x.id)===Number(id)})||{}}
+function manualAgenda(id){return agendas.find(function(x){return Number(x.id)===Number(id)})||{}}
+function openBooking(e,prefill){
+  stop(e);window.manualFlow={mode:'create',prefill:prefill||{}};
+  openModal('Nueva cita · elegí servicio y agenda','<p class="text-sm text-slate-500 mb-4">Seleccioná una combinación para ver los horarios que realmente se pueden reservar.</p>'+manualPairCards('manualChoose',0,prefill&&prefill.agenda_id));
+}
+function openReschedule(e){
+  stop(e);if(!selectedAppointment)return;
+  window.manualFlow={mode:'reschedule',prefill:selectedAppointment};
+  openModal('Reagendar · elegí servicio y agenda','<p class="text-sm text-slate-500 mb-4">Elegí la agenda y el servicio. El sistema excluirá esta misma cita al calcular sus horarios disponibles.</p>'+manualPairCards('manualChoose',selectedAppointment.servicio_id,selectedAppointment.agenda_id));
+}
+function manualChoose(agendaId,serviceId){
+  const flow=window.manualFlow||{mode:'create',prefill:{}}, a=manualAgenda(agendaId), service=manualService(serviceId);
+  flow.agendaId=agendaId;flow.serviceId=serviceId;flow.date=String(flow.prefill.inicio||agendaDate).slice(0,10);window.manualFlow=flow;
+  openModal('Elegí un horario disponible','<div class="space-y-4"><div class="rounded-2xl border border-slate-100 bg-slate-50 p-4"><p class="font-semibold">'+esc(service.nombre)+'</p><p class="text-xs text-slate-500 mt-1">'+esc(a.sucursal||'Sucursal')+' · '+esc(a.nombre)+'</p></div><label class="block text-sm font-medium">Fecha<input id="manual-date" onchange="manualLoadSlots()" type="date" value="'+esc(flow.date)+'" class="mt-1 w-full border border-slate-200 rounded-xl p-2.5"></label><div id="manual-slots" class="text-sm text-slate-500">Buscando horarios...</div><button type="button" onclick="'+(flow.mode==='reschedule'?'openReschedule(event)':'openBooking(event)')+'" class="w-full border border-slate-200 rounded-xl p-2.5 text-sm font-semibold">Volver</button></div>');
+  manualLoadSlots();
+}
+async function manualLoadSlots(){
+  const flow=window.manualFlow,date=document.getElementById('manual-date').value,holder=document.getElementById('manual-slots');flow.date=date;holder.textContent='Buscando horarios...';
+  try{
+    const result=await api({action:'availability',agenda_id:flow.agendaId,servicio_id:flow.serviceId,fecha:date,cita_id:flow.mode==='reschedule'?flow.prefill.id:null}),slots=result.slots||[];
+    holder.innerHTML=slots.length?'<p class="text-xs text-slate-500 mb-2">Elegí un horario</p><div class="grid grid-cols-3 gap-2">'+slots.map(function(slot){return '<button type="button" onclick="manualSlot('+JSON.stringify(slot)+')" class="rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 py-2 text-sm font-semibold">'+esc(slot)+'</button>'}).join('')+'</div>':'<p class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">No hay horarios disponibles para esa fecha.</p>';
+  }catch(err){holder.innerHTML='<p class="rounded-xl bg-red-50 p-3 text-sm text-red-700">'+esc(err.message)+'</p>'}
+}
+function manualSlot(slot){
+  const flow=window.manualFlow,a=manualAgenda(flow.agendaId),service=manualService(flow.serviceId);flow.slot=slot;
+  const summary='<div class="rounded-2xl border border-slate-100 bg-slate-50 p-4"><p class="font-semibold">'+esc(service.nombre)+'</p><p class="text-sm text-slate-600 mt-1">'+esc(a.sucursal||'Sucursal')+' · '+esc(a.nombre)+'</p><p class="text-sm text-slate-600 mt-1">'+esc(flow.date)+' a las '+esc(slot)+'</p></div>';
+  if(flow.mode==='reschedule'){openModal('Confirmar reagendamiento','<form class="space-y-4" onsubmit="manualReschedule(event)">'+summary+'<button class="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl p-3 font-semibold">Reagendar cita</button></form>');return}
+  openModal('Completar nueva cita','<form class="space-y-3" onsubmit="manualBook(event)">'+summary+'<label class="block text-sm">Nombre<input required name="nombre_cliente" class="mt-1 w-full border border-slate-200 rounded-xl p-2.5"></label><label class="block text-sm">Teléfono<input name="telefono" class="mt-1 w-full border border-slate-200 rounded-xl p-2.5"></label><label class="block text-sm">Correo<input type="email" name="email" class="mt-1 w-full border border-slate-200 rounded-xl p-2.5"></label><label class="block text-sm">Motivo<textarea name="motivo" class="mt-1 w-full border border-slate-200 rounded-xl p-2.5"></textarea></label><button class="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl p-3 font-semibold">Agendar cita</button></form>');
+}
+async function manualBook(e){e.preventDefault();const f=window.manualFlow;try{await api(Object.assign(formDataObject(e.target),{action:'create',agenda_id:f.agendaId,servicio_id:f.serviceId,inicio:f.date+' '+f.slot,canal:'manual'}));location.href='agenda.php?tab=citas&date='+encodeURIComponent(f.date)}catch(err){alert(err.message)}}
+async function manualReschedule(e){e.preventDefault();const f=window.manualFlow;try{await api({action:'reschedule',id:f.prefill.id,agenda_id:f.agendaId,servicio_id:f.serviceId,inicio:f.date+' '+f.slot});location.href='agenda.php?tab=citas&date='+encodeURIComponent(f.date)}catch(err){alert(err.message)}}
+
 </script>
 <?php endif; ?>
 <?php $mainContent=ob_get_clean(); require __DIR__.'/includes/layout_tailwind.php';
