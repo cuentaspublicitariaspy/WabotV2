@@ -6,18 +6,38 @@ requireLogin();
 $date = $_GET['date'] ?? date('Y-m-d');
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) $date = date('Y-m-d');
 $user = getUsuarioActual();
-$agenda = new AppointmentManager();
-$overview = $agenda->dayOverview($date);
-$services = $agenda->list('servicios');
-$agendas = $agenda->list('agendas');
-$branches = $agenda->list('sucursales');
-$settings = $agenda->settings();
+$agendaInitError = '';
+try {
+    $agenda = new AppointmentManager();
+    $overview = $agenda->dayOverview($date);
+    $services = $agenda->list('servicios');
+    $agendas = $agenda->list('agendas');
+    $branches = $agenda->list('sucursales');
+    $settings = $agenda->settings();
+} catch (Throwable $e) {
+    // El diagnóstico se muestra únicamente en el WC ya autenticado. Evita un
+    // 500 opaco sin exponer este detalle al visitante del sitio público.
+    error_log('[Wabot Agenda] '.$e->getMessage());
+    $agendaInitError = $e->getMessage();
+    $overview = ['appointments'=>[],'blocks'=>[],'total'=>0,'pending'=>0,'occupied_minutes'=>0,'ready_profiles'=>0];
+    $services = $agendas = $branches = [];
+    $settings = ['buffer_minutes'=>0,'min_notice_hours'=>2,'max_advance_days'=>90];
+}
 $activePage='agenda'; $pageTitle='Agenda';
 $previous = date('Y-m-d', strtotime($date.' -1 day'));
 $next = date('Y-m-d', strtotime($date.' +1 day'));
 $dateLabel = (new DateTimeImmutable($date))->format('d/m/Y');
 ob_start();
 ?>
+<?php if ($agendaInitError): ?>
+<div class="max-w-3xl mx-auto bg-white border border-red-200 rounded-3xl p-8 shadow-sm">
+  <p class="text-sm font-semibold text-red-700">Agenda no pudo inicializarse</p>
+  <h1 class="text-2xl font-bold text-slate-900 mt-2">Necesitamos corregir la migración de agenda.</h1>
+  <p class="text-sm text-slate-600 mt-3">Este detalle solo se muestra al administrador para diagnosticar el problema:</p>
+  <pre class="mt-4 whitespace-pre-wrap break-words rounded-2xl bg-slate-950 text-slate-100 p-4 text-xs leading-relaxed"><?= htmlspecialchars($agendaInitError) ?></pre>
+  <p class="text-xs text-slate-500 mt-4">Copiá este mensaje y enviámelo. No incluye contraseñas.</p>
+</div>
+<?php else: ?>
 <div class="max-w-7xl mx-auto space-y-6">
   <header class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
     <div>
@@ -65,9 +85,11 @@ ob_start();
 
   <section class="bg-white border border-slate-200 rounded-3xl p-5 md:p-6 shadow-sm"><div class="flex items-center justify-between mb-5"><div><h2 class="font-bold">Reglas de disponibilidad</h2><p class="text-xs text-slate-400 mt-1">Protegen la agenda sin importar el canal desde el que se solicite la cita.</p></div><button type="button" onclick="openHours(event)" class="text-xs font-semibold text-emerald-700">+ Añadir horario</button></div><form onsubmit="saveSettings(event)" class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4"><label class="text-xs text-slate-500">Buffer entre citas<input name="buffer_minutes" type="number" min="0" value="<?= (int)$settings['buffer_minutes'] ?>" class="mt-1 w-full border border-slate-200 rounded-xl p-2.5 text-sm"></label><label class="text-xs text-slate-500">Anticipación mínima (h)<input name="min_notice_hours" type="number" min="0" value="<?= (int)$settings['min_notice_hours'] ?>" class="mt-1 w-full border border-slate-200 rounded-xl p-2.5 text-sm"></label><label class="text-xs text-slate-500">Anticipación máxima (días)<input name="max_advance_days" type="number" min="1" value="<?= (int)$settings['max_advance_days'] ?>" class="mt-1 w-full border border-slate-200 rounded-xl p-2.5 text-sm"></label><div class="flex items-end"><button class="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-xl py-2.5 text-sm font-semibold">Guardar reglas</button></div></form></section>
 </div>
+<?php endif; ?>
 
 <div id="agenda-modal" class="hidden fixed inset-0 z-50 bg-slate-950/40 p-4 overflow-auto"><div class="bg-white max-w-lg mx-auto mt-10 rounded-3xl p-6 shadow-xl"><div class="flex justify-between gap-4"><h2 id="agenda-modal-title" class="font-bold text-lg"></h2><button type="button" onclick="closeAgendaModal()" class="text-slate-400">✕</button></div><div id="agenda-modal-body" class="mt-5"></div></div></div>
 
+<?php if (!$agendaInitError): ?>
 <script>
 const agendaDate=<?= json_encode($date) ?>;
 const services=<?= json_encode($services, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT) ?>;
@@ -96,4 +118,5 @@ function openEntity(type){if(type==='sucursales'){openModal('Nueva sucursal',`<f
 async function saveEntity(e,entity){e.preventDefault();try{await api({...formDataObject(e.target),action:'save_entity',entity});location.reload()}catch(err){alert(err.message)}}
 async function saveSettings(e){e.preventDefault();try{await api({...formDataObject(e.target),action:'save_settings'});alert('Reglas actualizadas.')}catch(err){alert(err.message)}}
 </script>
+<?php endif; ?>
 <?php $mainContent=ob_get_clean(); require __DIR__.'/includes/layout_tailwind.php';
