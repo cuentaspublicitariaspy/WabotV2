@@ -18,6 +18,9 @@ try {
     if($action==='disponibilidad'){
         echo json_encode(['success'=>true,'slots'=>$agenda->availability($input)]);exit;
     }
+    if($action==='proximos_horarios'){
+        echo json_encode(['success'=>true,'opciones'=>$agenda->nextAvailability($input)]);exit;
+    }
     if($action==='citas_cliente'){
         echo json_encode(['success'=>true,'citas'=>$agenda->findUpcoming($input)]);exit;
     }
