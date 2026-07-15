@@ -115,4 +115,38 @@ async function confirmExactProposal({ history, message, agendaCall, channel, tel
   return { handled: true, success: true, reply: `Listo. Tu ${service.nombre} con ${agenda.nombre} quedó agendada para el ${inicio.slice(8, 10)}/${inicio.slice(5, 7)}/${inicio.slice(0, 4)} a las ${inicio.slice(11, 16)}. Te contactaremos al ${phone}.` };
 }
 
-module.exports = { confirmExactProposal };
+
+function selectedRescheduleTime(message, proposalText) {
+  const candidate = normalize(message).match(/\b(\d{1,2})(?:[:.](\d{2}))?\b/);
+  if (!candidate) return null;
+  const hour = String(Number(candidate[1])).padStart(2, '0');
+  const time = hour + ':' + String(candidate[2] || '00').padStart(2, '0');
+  const options = String(proposalText || '').match(/\b(?:[01]?\d|2[0-3])(?::[0-5]\d)?\b/g) || [];
+  return options.some(value => {
+    const [h, m = '00'] = value.split(':');
+    return String(Number(h)).padStart(2, '0') + ':' + m.padStart(2, '0') === time;
+  }) ? time : null;
+}
+
+/* La IA interpreta el pedido; esta función ejecuta el cambio solo cuando el
+   visitante escogió una de las alternativas reales ya devueltas por WC. */
+async function confirmRescheduleProposal({ history, message, agendaCall, telefono = '', semanticIntent = '' }) {
+  const entries = [...(Array.isArray(history) ? history : []), { role: 'user', content: message }];
+  const proposal = [...entries].reverse().find(item => item?.role === 'assistant' && /(reagend|reprogram|nuevas? opciones|horarios disponibles)/i.test(text(item?.content)) && parseProposal(text(item?.content)));
+  const proposalText = text(proposal?.content);
+  if (!proposalText || semanticIntent === 'rechazar_o_cambiar') return null;
+  const time = selectedRescheduleTime(message, proposalText);
+  if (!time) return null;
+  const dateTime = parseProposal(proposalText);
+  const phone = String(telefono || phoneFrom(entries)).replace(/\D/g, '');
+  if (!dateTime || !phone) return null;
+  const found = await agendaCall({ accion: 'citas_cliente', telefono: phone });
+  const citas = (found?.citas || []).filter(cita => cita && cita.id);
+  if (citas.length !== 1) return null;
+  const target = dateTime.slice(0, 10) + ' ' + time;
+  const changed = await agendaCall({ accion: 'reprogramar', cita_id: Number(citas[0].id), inicio: target, confirmada: true });
+  if (!changed?.success) return { handled: true, success: false, reply: changed?.error || 'No pude reagendar esa cita porque el horario acaba de dejar de estar disponible.' };
+  return { handled: true, success: true, reply: 'Listo. Reagendé tu cita para el ' + target.slice(8, 10) + '/' + target.slice(5, 7) + '/' + target.slice(0, 4) + ' a las ' + target.slice(11, 16) + '.' };
+}
+
+module.exports = { confirmExactProposal, confirmRescheduleProposal };
