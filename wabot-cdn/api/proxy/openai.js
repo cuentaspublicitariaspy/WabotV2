@@ -10,11 +10,11 @@ function asuncionDate() {
   return `${value.year}-${value.month}-${value.day}`;
 }
 function agendaInstructions() {
-  return `AGENDA CONVERSACIONAL: hoy es ${asuncionDate()} en America/Asuncion. Interpretá “mañana”, días de la semana y mañana/tarde sin pedir una fecha exacta cuando ya existe una referencia natural. Si el cliente pide la próxima disponibilidad, el próximo horario, “decime vos” o una alternativa sin fecha, consultá catálogo y luego usá próximos_horarios desde hoy. Consultá siempre disponibilidad real antes de ofrecer horarios. Si no hay lugar, usá próximos_horarios y ofrecé alternativas de los días siguientes. La confirmación es conversacional: además de “sí”, aceptá expresiones como “ok”, “está bien”, “10:30 como te dije”, “elegí tu favorito y agendame” o cualquier aceptación inequívoca de la última opción concreta. Al pedir confirmación, repetí siempre día, mes, año y hora exactos. Pedí solo el dato faltante, sin tono de formulario ni frases como “parece que necesito”. Para reprogramar o cancelar, buscá primero las citas activas y aclarar cuál si hay varias. Nunca inventes fechas, horarios, disponibilidad ni ignores buffers. PROHIBIDO afirmar “tengo”, “hay” o “puedo ofrecer” una hora si no aparece en el resultado de agenda de esta misma respuesta. Si una hora fue rechazada por agenda, no la vuelvas a proponer ni confirmar. CANAL: esta conversación llega por WhatsApp; el número de contacto ya fue autenticado por Meta y se recibe transitoriamente en el pedido. Nunca lo solicites de nuevo; solo pedí el nombre si todavía falta para la reserva.`;
+  return `AGENDA CONVERSACIONAL: hoy es ${asuncionDate()} en America/Asuncion. Interpretá “mañana”, días de la semana y mañana/tarde sin pedir una fecha exacta cuando ya existe una referencia natural. Si el cliente pide la próxima disponibilidad, el próximo horario, “decime vos” o una alternativa sin fecha, consultá catálogo y luego usá próximos_horarios desde hoy. Consultá siempre disponibilidad real antes de ofrecer horarios. Si no hay lugar, usá próximos_horarios y ofrecé alternativas de los días siguientes. La confirmación es conversacional: además de “sí”, aceptá expresiones como “ok”, “está bien”, “10:30 como te dije”, “elegí tu favorito y agendame” o cualquier aceptación inequívoca de la última opción concreta. Al pedir confirmación, repetí siempre día, mes, año y hora exactos. Pedí solo el dato faltante, sin tono de formulario. Nunca uses la expresión “parece que” ni variantes. Para reprogramar o cancelar, buscá primero las citas activas y aclarar cuál si hay varias. Nunca inventes fechas, horarios, disponibilidad ni ignores buffers. PROHIBIDO afirmar “tengo”, “hay” o “puedo ofrecer” una hora si no aparece en el resultado de agenda de esta misma respuesta. Si una hora fue rechazada por agenda, no la vuelvas a proponer ni confirmar. CANAL: esta conversación llega por WhatsApp; el número de contacto ya fue autenticado por Meta y se recibe transitoriamente en el pedido. Nunca lo solicites de nuevo; solo pedí el nombre si todavía falta para la reserva.`;
 }
 
 async function semanticConfirmationIntent(openaiKey, proposal, answer) {
-  if (!proposal || !answer) return '';
+  if (!proposal || !answer) return { decision: '', nombreCliente: '' };
   try {
     const response = await fetch(OPENAI_CHAT_URL, {
       method: 'POST',
@@ -23,19 +23,19 @@ async function semanticConfirmationIntent(openaiKey, proposal, answer) {
         model: 'gpt-4o-mini',
         response_format: { type: 'json_object' },
         temperature: 0,
-        max_tokens: 40,
+        max_tokens: 80,
         messages: [
-          { role: 'system', content: 'Clasificá la intención semántica de la respuesta del visitante frente a la última propuesta de cita. No dependas de frases clave: comprendé el sentido completo. Respondé SOLO JSON: {"decision":"confirmar"|"rechazar_o_cambiar"|"indeterminado"}. Confirmar solo si acepta inequívocamente esa propuesta concreta; rechazar_o_cambiar si la niega o pide otra; indeterminado en cualquier otro caso.' },
+          { role: 'system', content: 'Comprendé semánticamente la respuesta del visitante frente a la última propuesta de cita. Respondé SOLO JSON válido: {"decision":"confirmar"|"completar_reserva"|"rechazar_o_cambiar"|"indeterminado","nombre_cliente":""}. confirmar: acepta la propuesta. completar_reserva: la persona entrega los datos que acabás de pedir para una cita ya elegida; eso autoriza crearla sin pedir otra confirmación. rechazar_o_cambiar: niega o cambia la propuesta. indeterminado: otro caso. No uses frases clave; interpretá el contexto. nombre_cliente solo si fue declarado explícitamente por la persona en esta respuesta.' },
           { role: 'user', content: JSON.stringify({ ultima_propuesta: proposal, respuesta_visitante: answer }) }
         ]
       })
     });
     const data = await response.json();
-    const decision = JSON.parse(data?.choices?.[0]?.message?.content || '{}').decision;
-    return ['confirmar', 'rechazar_o_cambiar', 'indeterminado'].includes(decision) ? decision : '';
-  } catch { return ''; }
+    const parsed = JSON.parse(data?.choices?.[0]?.message?.content || '{}');
+    const decision = ['confirmar', 'completar_reserva', 'rechazar_o_cambiar', 'indeterminado'].includes(parsed?.decision) ? parsed.decision : '';
+    return { decision, nombreCliente: String(parsed?.nombre_cliente || '').trim() };
+  } catch { return { decision: '', nombreCliente: '' }; }
 }
-
 
 module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') {
@@ -120,8 +120,8 @@ module.exports = async (req, res) => {
 
       const latestUser = [...messages].reverse().find(item => item?.role === 'user');
       const lastAssistant = [...messages].reverse().find(item => item?.role === 'assistant');
-      const semanticIntent = await semanticConfirmationIntent(openaiKey, lastAssistant?.content || '', latestUser?.content || '');
-      const confirmed = await confirmExactProposal({ history: messages.slice(0, -1), message: latestUser?.content || '', agendaCall, channel: 'whatsapp', telefono, nombre_cliente, semanticIntent });
+      const semantic = await semanticConfirmationIntent(openaiKey, lastAssistant?.content || '', latestUser?.content || '');
+      const confirmed = await confirmExactProposal({ history: messages.slice(0, -1), message: latestUser?.content || '', agendaCall, channel: 'whatsapp', telefono, nombre_cliente: semantic.nombreCliente || nombre_cliente, semanticIntent: semantic.decision });
       if (confirmed?.handled) {
         res.json({ success: confirmed.success, content: confirmed.reply });
         return;
