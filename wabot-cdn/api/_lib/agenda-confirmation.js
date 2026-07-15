@@ -35,9 +35,12 @@ function selected(items, proposalText, field = 'nombre') {
 async function confirmExactProposal({ history, message, agendaCall, channel }) {
   if (!isAffirmative(message)) return null;
   const entries = [...(Array.isArray(history) ? history : []), { role: 'user', content: message }];
-  const lastAssistant = [...entries].reverse().find(item => item?.role === 'assistant');
-  const proposalText = text(lastAssistant?.content);
-  if (!/(confirm|reserv|agend)/i.test(proposalText)) return null;
+  const confirmationPrompt = [...entries].reverse().find(item => {
+    const candidate = text(item?.content);
+    return item?.role === 'assistant' && /(confirm|reserv|agend)/i.test(candidate) && !!parseProposal(candidate);
+  });
+  const proposalText = text(confirmationPrompt?.content);
+  if (!proposalText) return null;
   const inicio = parseProposal(proposalText);
   const telefono = phoneFrom(entries);
   if (!inicio || !telefono) return null;
