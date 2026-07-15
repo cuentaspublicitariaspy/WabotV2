@@ -9,7 +9,7 @@ function asuncionDate() {
   return `${value.year}-${value.month}-${value.day}`;
 }
 function agendaInstructions() {
-  return `AGENDA CONVERSACIONAL: hoy es ${asuncionDate()} en America/Asuncion. Interpretá “mañana”, días de la semana y mañana/tarde sin pedir una fecha exacta cuando ya existe una referencia natural. Consultá catálogo y luego disponibilidad real antes de ofrecer horarios. “Sí” confirma la última alternativa exacta propuesta. Pedí solo el dato faltante, sin tono de formulario. Para reprogramar o cancelar, buscá primero las citas activas y aclarar cuál si hay varias. Nunca inventes fechas, horarios, disponibilidad ni ignores buffers.`;
+  return `AGENDA CONVERSACIONAL: hoy es ${asuncionDate()} en America/Asuncion. Interpretá “mañana”, días de la semana y mañana/tarde sin pedir una fecha exacta cuando ya existe una referencia natural. Consultá catálogo y luego disponibilidad real antes de ofrecer horarios. Si no hay lugar, usá próximos_horarios y ofrecé alternativas de los días siguientes. “Sí” confirma la última alternativa exacta propuesta. Pedí solo el dato faltante, sin tono de formulario. Para reprogramar o cancelar, buscá primero las citas activas y aclarar cuál si hay varias. Nunca inventes fechas, horarios, disponibilidad ni ignores buffers.`;
 }
 
 module.exports = async (req, res) => {
@@ -75,13 +75,13 @@ module.exports = async (req, res) => {
         type: 'function', function: {
           name: 'agenda', description: 'Consulta o crea citas solo con disponibilidad real. Nunca inventes horarios.',
           parameters: { type: 'object', additionalProperties: false, required: ['accion'], properties: {
-            accion: { type: 'string', enum: ['catalogo', 'disponibilidad', 'crear', 'citas_cliente', 'reprogramar', 'cancelar'] }, servicio_id: { type: 'integer' }, agenda_id: { type: 'integer' }, cita_id: { type: 'integer' }, fecha: { type: 'string' }, inicio: { type: 'string' }, nombre_cliente: { type: 'string' }, telefono: { type: 'string' }, email: { type: 'string' }, motivo: { type: 'string' }, confirmada: { type: 'boolean' }
+            accion: { type: 'string', enum: ['catalogo', 'disponibilidad', 'proximos_horarios', 'crear', 'citas_cliente', 'reprogramar', 'cancelar'] }, servicio_id: { type: 'integer' }, agenda_id: { type: 'integer' }, cita_id: { type: 'integer' }, fecha: { type: 'string' }, fecha_desde: { type: 'string' }, dias: { type: 'integer' }, franja: { type: 'string', enum: ['manana','tarde'] }, inicio: { type: 'string' }, nombre_cliente: { type: 'string' }, telefono: { type: 'string' }, email: { type: 'string' }, motivo: { type: 'string' }, confirmada: { type: 'boolean' }
           }}
         }
       }] : [];
       async function agendaCall(args) {
         const base = client.client_url.replace(/\/+$/, '');
-        const map = { catalogo: 'catalogo', disponibilidad: 'disponibilidad', crear: 'crear', citas_cliente: 'citas_cliente', reprogramar: 'reprogramar', cancelar: 'cancelar' };
+        const map = { catalogo: 'catalogo', disponibilidad: 'disponibilidad', proximos_horarios: 'proximos_horarios', crear: 'crear', citas_cliente: 'citas_cliente', reprogramar: 'reprogramar', cancelar: 'cancelar' };
         const payload = { ...args, action: map[args.accion] || '', api_key: resolvedApiKey, canal: 'whatsapp' };
         for (const url of [`${base}/wabot/api/agenda/assistant.php`, `${base}/api/agenda/assistant.php`]) {
           try {
