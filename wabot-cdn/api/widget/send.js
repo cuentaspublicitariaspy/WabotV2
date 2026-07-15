@@ -10,7 +10,7 @@ function asuncionDate() {
 }
 
 function agendaInstructions() {
-  return `AGENDA CONVERSACIONAL: hoy es ${asuncionDate()} en la zona horaria America/Asuncion. Convertí referencias naturales: “mañana”, “pasado mañana”, “el viernes” y “por la mañana/tarde” a fechas y preferencias reales; nunca le exijas una fecha exacta a quien ya dijo “mañana”, ni inventes una fecha. Si una persona pide una cita, consultá el catálogo de agendas y servicios, luego la disponibilidad válida de la agenda correspondiente y proponé opciones reales. “Sí” confirma la última opción exacta que vos propusiste. Pedí solo el dato que falta para continuar; no hagas un cuestionario ni uses frases robóticas como “parece que necesito”. Para cambiar o cancelar una cita, buscá primero las citas activas de esa persona, aclarando cuál si hay más de una. La disponibilidad, los buffers y las colisiones siempre los decide la herramienta; vos solo conversás.`;
+  return `AGENDA CONVERSACIONAL: hoy es ${asuncionDate()} en la zona horaria America/Asuncion. Convertí referencias naturales: “mañana”, “pasado mañana”, “el viernes” y “por la mañana/tarde” a fechas y preferencias reales; nunca le exijas una fecha exacta a quien ya dijo “mañana”, ni inventes una fecha. Si una persona pide una cita, consultá el catálogo de agendas y servicios, luego la disponibilidad válida de la agenda correspondiente y proponé opciones reales. Si el horario pedido no existe, llamá próximos_horarios y ofrecé alternativas concretas de los siguientes días, respetando mañana/tarde si la persona lo indicó. “Sí” confirma la última opción exacta que vos propusiste. Pedí solo el dato que falta para continuar; no hagas un cuestionario ni uses frases robóticas como “parece que necesito”. Para cambiar o cancelar una cita, buscá primero las citas activas de esa persona, aclarando cuál si hay más de una. La disponibilidad, los buffers y las colisiones siempre los decide la herramienta; vos solo conversás.`;
 }
 
 module.exports = async (req, res) => {
@@ -107,9 +107,9 @@ module.exports = async (req, res) => {
         parameters: {
           type: 'object', additionalProperties: false, required: ['accion'],
           properties: {
-            accion: { type: 'string', enum: ['catalogo', 'disponibilidad', 'crear', 'citas_cliente', 'reprogramar', 'cancelar'] },
+            accion: { type: 'string', enum: ['catalogo', 'disponibilidad', 'proximos_horarios', 'crear', 'citas_cliente', 'reprogramar', 'cancelar'] },
             servicio_id: { type: 'integer' }, agenda_id: { type: 'integer', description: 'ID de la agenda única que se reserva; no es un profesional genérico.' },
-            fecha: { type: 'string', description: 'Fecha ISO YYYY-MM-DD' }, inicio: { type: 'string', description: 'Fecha y hora ISO local YYYY-MM-DD HH:mm' },
+            fecha: { type: 'string', description: 'Fecha ISO YYYY-MM-DD' }, fecha_desde: { type: 'string', description: 'Fecha ISO inicial para buscar alternativas' }, dias: { type: 'integer' }, franja: { type: 'string', enum: ['manana','tarde'] }, inicio: { type: 'string', description: 'Fecha y hora ISO local YYYY-MM-DD HH:mm' },
             cita_id: { type: 'integer', description: 'ID de una cita existente, requerido para reprogramar.' }, nombre_cliente: { type: 'string' }, telefono: { type: 'string' }, email: { type: 'string' }, motivo: { type: 'string' },
             confirmada: { type: 'boolean', description: 'Solo true si el cliente confirmó explícitamente el horario exacto.' }
           }
@@ -119,7 +119,7 @@ module.exports = async (req, res) => {
 
     async function agendaCall(args) {
       const base = client.client_url.replace(/\/+$/, '');
-      const actionMap = { catalogo: 'catalogo', disponibilidad: 'disponibilidad', crear: 'crear', citas_cliente: 'citas_cliente', reprogramar: 'reprogramar', cancelar: 'cancelar' };
+      const actionMap = { catalogo: 'catalogo', disponibilidad: 'disponibilidad', proximos_horarios: 'proximos_horarios', crear: 'crear', citas_cliente: 'citas_cliente', reprogramar: 'reprogramar', cancelar: 'cancelar' };
       const body = { ...args, action: actionMap[args.accion] || '', api_key: key, canal: 'chatbot' };
       const urls = [`${base}/wabot/api/agenda/assistant.php`, `${base}/api/agenda/assistant.php`];
       for (const url of urls) {
