@@ -12,6 +12,7 @@ $agendaInitError = '';
 try {
     $agenda = new AppointmentManager();
     $overview = $agenda->dayOverview($date);
+    $businesses = $agenda->list('negocios');
     $services = $agenda->list('servicios');
     $agendas = $agenda->list('agendas');
     $branches = $agenda->list('sucursales');
@@ -23,7 +24,7 @@ try {
     error_log('[Wabot Agenda] '.$e->getMessage());
     $agendaInitError = $e->getMessage();
     $overview = ['appointments'=>[],'blocks'=>[],'total'=>0,'pending'=>0,'occupied_minutes'=>0,'ready_profiles'=>0];
-    $services = $agendas = $branches = $hours = [];
+    $businesses = $services = $agendas = $branches = $hours = [];
     $settings = ['buffer_minutes'=>0,'min_notice_hours'=>2,'max_advance_days'=>90];
 }
 $activePage='agenda'; $pageTitle='Agenda';
@@ -88,6 +89,14 @@ ob_start();
   <?php else: ?>
 
   <section class="bg-white border border-slate-200 rounded-3xl p-5 md:p-6 shadow-sm">
+    <div class="flex items-center justify-between gap-3 mb-5"><div><h2 class="font-bold text-slate-900">Negocios</h2><p class="text-xs text-slate-400 mt-1">Primer nivel de la estructura. Un negocio puede tener una o más sucursales.</p></div><button type="button" onclick="openEntity('negocios')" class="text-xs font-semibold text-slate-700 border border-slate-200 rounded-xl px-3 py-2 hover:bg-slate-50">+ Negocio</button></div>
+    <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+      <?php foreach ($businesses as $item): ?><article class="rounded-2xl border border-slate-100 bg-slate-50 p-4"><div class="flex justify-between gap-3"><div><h3 class="font-semibold text-slate-800"><?= htmlspecialchars($item['nombre']) ?></h3><p class="text-xs text-slate-500 mt-1"><?= htmlspecialchars($item['descripcion'] ?: 'Sin descripción') ?></p></div><div class="flex gap-1"><button type="button" title="Editar" onclick="editEntity('negocios',<?= (int)$item['id'] ?>)">✏️</button><button type="button" title="<?= !empty($item['activo'])?'Desactivar':'Activar' ?>" onclick="toggleEntity('negocios',<?= (int)$item['id'] ?>,<?= !empty($item['activo'])?'0':'1' ?>)"><?= !empty($item['activo'])?'⏻':'◯' ?></button><button type="button" title="Eliminar" onclick="deleteEntity('negocios',<?= (int)$item['id'] ?>)">✉</button></div></div></article><?php endforeach; ?>
+      <?php if (!$businesses): ?><p class="text-sm text-slate-500">Todavía no hay negocios configurados.</p><?php endif; ?>
+    </div>
+  </section>
+
+  <section class="bg-white border border-slate-200 rounded-3xl p-5 md:p-6 shadow-sm">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5">
       <div><h2 class="font-bold text-slate-900">Estructura de disponibilidad</h2><p class="text-xs text-slate-400 mt-1">Sucursal → agenda → horarios. Esto es lo que la IA consulta antes de ofrecer o confirmar una cita.</p></div>
       <div class="flex gap-2 flex-wrap"><button type="button" onclick="openEntity('sucursales')" class="text-xs font-semibold text-slate-700 border border-slate-200 rounded-xl px-3 py-2 hover:bg-slate-50">+ Sucursal</button><button type="button" onclick="openEntity('agendas')" class="text-xs font-semibold text-emerald-700 border border-emerald-100 bg-emerald-50 rounded-xl px-3 py-2 hover:bg-emerald-100">+ Agenda</button><button type="button" onclick="openEntity('servicios')" class="text-xs font-semibold text-indigo-700 border border-indigo-100 bg-indigo-50 rounded-xl px-3 py-2 hover:bg-indigo-100">+ Servicio</button></div>
@@ -134,6 +143,7 @@ ob_start();
 <script>
 const agendaDate=<?= json_encode($date) ?>;
 const agendaTab=<?= json_encode($tab) ?>;
+const businesses=<?= json_encode($businesses, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT) ?>;
 const services=<?= json_encode($services, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT) ?>;
 const agendas=<?= json_encode($agendas, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT) ?>;
 const branches=<?= json_encode($branches, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT) ?>;
