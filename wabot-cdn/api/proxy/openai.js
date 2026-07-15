@@ -10,12 +10,16 @@ function asuncionDate() {
   return `${value.year}-${value.month}-${value.day}`;
 }
 function agendaInstructions() {
-  return `AGENDA CONVERSACIONAL: hoy es ${asuncionDate()} en America/Asuncion. Interpretá “mañana”, días de la semana y mañana/tarde sin pedir una fecha exacta cuando ya existe una referencia natural. Si el cliente pide la próxima disponibilidad, el próximo horario, “decime vos” o una alternativa sin fecha, consultá catálogo y luego usá próximos_horarios desde hoy. Consultá siempre disponibilidad real antes de ofrecer horarios. Si no hay lugar, usá próximos_horarios y ofrecé alternativas de los días siguientes. La confirmación es conversacional: además de “sí”, aceptá expresiones como “ok”, “está bien”, “10:30 como te dije”, “elegí tu favorito y agendame” o cualquier aceptación inequívoca de la última opción concreta. Al pedir confirmación, repetí siempre día, mes, año y hora exactos. Pedí solo el dato faltante, sin tono de formulario. Nunca uses la expresión “parece que” ni variantes. Para reprogramar o cancelar, buscá primero las citas activas y aclarar cuál si hay varias. Nunca inventes fechas, horarios, disponibilidad ni ignores buffers. PROHIBIDO afirmar “tengo”, “hay” o “puedo ofrecer” una hora si no aparece en el resultado de agenda de esta misma respuesta. Si una hora fue rechazada por agenda, no la vuelvas a proponer ni confirmar. CANAL: esta conversación llega por WhatsApp; el número de contacto ya fue autenticado por Meta y se recibe transitoriamente en el pedido. Nunca lo solicites de nuevo; solo pedí el nombre si todavía falta para la reserva.`;
+  return `AGENDA CONVERSACIONAL: hoy es ${asuncionDate()} en America/Asuncion. Interpretá “mañana”, días de la semana y mañana/tarde sin pedir una fecha exacta cuando ya existe una referencia natural. Si el cliente pide la próxima disponibilidad, el próximo horario, “decime vos” o una alternativa sin fecha, consultá catálogo y luego usá próximos_horarios desde hoy. Consultá siempre disponibilidad real antes de ofrecer horarios. Si no hay lugar, usá próximos_horarios y ofrecé alternativas de los días siguientes. Si la persona pide “la más próxima” o “lo más temprano posible en la mañana”, consultá y ofrecé directamente el primer horario válido; solo si necesita una alternativa, mostrale como máximo dos. Si ya inició una reserva, eligió una fecha y hora concreta y después entrega los datos solicitados, creá la cita sin pedir otra confirmación. Al pedir datos, hacelo con calidez y explicá que se usan para registrar la cita y enviarle el recordatorio. Pedí solo el dato faltante, sin tono de formulario. Nunca uses la expresión “parece que” ni variantes. Para reprogramar o cancelar, buscá primero las citas activas y aclarar cuál si hay varias. Nunca inventes fechas, horarios, disponibilidad ni ignores buffers. PROHIBIDO afirmar “tengo”, “hay” o “puedo ofrecer” una hora si no aparece en el resultado de agenda de esta misma respuesta. Si una hora fue rechazada por agenda, no la vuelvas a proponer ni confirmar. CANAL: esta conversación llega por WhatsApp; el número de contacto ya fue autenticado por Meta y se recibe transitoriamente en el pedido. Nunca lo solicites de nuevo; solo pedí el nombre si todavía falta para la reserva.`;
 }
 
-async function semanticConfirmationIntent(openaiKey, proposal, answer) {
-  if (!proposal || !answer) return { decision: '', nombreCliente: '' };
+async function semanticConfirmationIntent(openaiKey, context, answer) {
+  if (!answer) return { decision: '', nombreCliente: '' };
   try {
+    const recent = (Array.isArray(context) ? context : []).slice(-6).map(item => ({
+      role: item?.role || '',
+      content: typeof item?.content === 'string' ? item.content : ''
+    }));
     const response = await fetch(OPENAI_CHAT_URL, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
@@ -23,10 +27,10 @@ async function semanticConfirmationIntent(openaiKey, proposal, answer) {
         model: 'gpt-4o-mini',
         response_format: { type: 'json_object' },
         temperature: 0,
-        max_tokens: 80,
+        max_tokens: 100,
         messages: [
-          { role: 'system', content: 'Comprendé semánticamente la respuesta del visitante frente a la última propuesta de cita. Respondé SOLO JSON válido: {"decision":"confirmar"|"completar_reserva"|"rechazar_o_cambiar"|"indeterminado","nombre_cliente":""}. confirmar: acepta la propuesta. completar_reserva: la persona entrega los datos que acabás de pedir para una cita ya elegida; eso autoriza crearla sin pedir otra confirmación. rechazar_o_cambiar: niega o cambia la propuesta. indeterminado: otro caso. No uses frases clave; interpretá el contexto. nombre_cliente solo si fue declarado explícitamente por la persona en esta respuesta.' },
-          { role: 'user', content: JSON.stringify({ ultima_propuesta: proposal, respuesta_visitante: answer }) }
+          { role: 'system', content: 'Comprendé semánticamente una reserva usando todo el tramo reciente de conversación. Respondé SOLO JSON válido: {"decision":"confirmar"|"completar_reserva"|"rechazar_o_cambiar"|"indeterminado","nombre_cliente":""}. confirmar: acepta la última propuesta concreta. completar_reserva: la persona ya quiso agendar, eligió una fecha/hora concreta y ahora entrega datos solicitados; eso autoriza crear la cita sin pedir otra confirmación. rechazar_o_cambiar: rechaza, corrige o cambia la propuesta. indeterminado: otro caso. No uses frases clave ni exijas la palabra “sí”; interpretá la intención humana. nombre_cliente solo si fue declarado explícitamente por la persona en la respuesta actual.' },
+          { role: 'user', content: JSON.stringify({ contexto_reciente: recent, respuesta_actual: answer }) }
         ]
       })
     });
@@ -35,6 +39,10 @@ async function semanticConfirmationIntent(openaiKey, proposal, answer) {
     const decision = ['confirmar', 'completar_reserva', 'rechazar_o_cambiar', 'indeterminado'].includes(parsed?.decision) ? parsed.decision : '';
     return { decision, nombreCliente: String(parsed?.nombre_cliente || '').trim() };
   } catch { return { decision: '', nombreCliente: '' }; }
+}
+
+function polishResponse(content) {
+  return String(content || '').replace(/\bparece\s+que\s+/gi, '').replace(/\bpareciera\s+que\s+/gi, '');
 }
 
 module.exports = async (req, res) => {
@@ -119,8 +127,7 @@ module.exports = async (req, res) => {
       }
 
       const latestUser = [...messages].reverse().find(item => item?.role === 'user');
-      const lastAssistant = [...messages].reverse().find(item => item?.role === 'assistant');
-      const semantic = await semanticConfirmationIntent(openaiKey, lastAssistant?.content || '', latestUser?.content || '');
+      const semantic = await semanticConfirmationIntent(openaiKey, messages.slice(0, -1), latestUser?.content || '');
       const confirmed = await confirmExactProposal({ history: messages.slice(0, -1), message: latestUser?.content || '', agendaCall, channel: 'whatsapp', telefono, nombre_cliente: semantic.nombreCliente || nombre_cliente, semanticIntent: semantic.decision });
       if (confirmed?.handled) {
         res.json({ success: confirmed.success, content: confirmed.reply });
@@ -180,7 +187,7 @@ module.exports = async (req, res) => {
       }
 
       // Contrato estable para WC. No se filtra la respuesta completa de OpenAI.
-      res.json({ success: true, content });
+      res.json({ success: true, content: polishResponse(content) });
       return;
     }
 
