@@ -231,10 +231,11 @@ function manualPairCards(next, serviceId, agendaId){
   const listA=agendas.filter(function(a){return Number(a.activo)}), listS=services.filter(function(x){return Number(x.activo)});
   if(!listA.length||!listS.length)return '<p class="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">Primero necesitás una sucursal, una agenda y un servicio activos.</p>';
   return '<div class="space-y-3">'+listA.map(function(a){
-    return '<section class="border border-slate-200 rounded-2xl p-4"><p class="text-xs text-slate-400 font-semibold">'+esc(a.sucursal||'Sucursal')+'</p><h3 class="font-semibold mt-1">'+esc(a.nombre)+'</h3><p class="text-xs text-slate-500 mt-1">Buffer entre citas: '+Number(a.buffer_minutes||0)+' min</p><div class="flex flex-wrap gap-2 mt-3">'+listS.map(function(service){
+    const ownServices=listS.filter(function(service){return Number(service.agenda_id)===Number(a.id)});
+    return '<section class="border border-slate-200 rounded-2xl p-4"><p class="text-xs text-slate-400 font-semibold">'+esc(a.sucursal||'Sucursal')+'</p><h3 class="font-semibold mt-1">'+esc(a.nombre)+'</h3><p class="text-xs text-slate-500 mt-1">Buffer entre citas: '+Number(a.buffer_minutes||0)+' min</p><div class="flex flex-wrap gap-2 mt-3">'+(ownServices.length?ownServices.map(function(service){
       const active=Number(service.id)===Number(serviceId)&&Number(a.id)===Number(agendaId);
       return '<button type="button" onclick="'+next+'('+Number(a.id)+','+Number(service.id)+')" class="rounded-xl border px-3 py-2 text-xs font-semibold '+(active?'border-emerald-500 bg-emerald-50 text-emerald-800':'border-slate-200 hover:border-emerald-400 text-slate-700')+'">'+esc(service.nombre)+' · '+Number(service.duracion_minutos)+' min</button>';
-    }).join('')+'</div></section>';
+    }).join(''):'<span class="text-xs text-slate-400">No hay servicios activos en esta agenda.</span>')+'</div></section>';
   }).join('')+'</div>';
 }
 function manualService(id){return services.find(function(x){return Number(x.id)===Number(id)})||{}}
