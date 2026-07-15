@@ -13,7 +13,7 @@ if(!$stmt->fetch()){http_response_code(403);echo json_encode(['success'=>false,'
 $agenda=new AppointmentManager();$action=$input['action']??'';
 try {
     if($action==='catalogo'){
-        echo json_encode(['success'=>true,'servicios'=>$agenda->list('servicios'),'profesionales'=>$agenda->list('profesionales'),'sucursales'=>$agenda->list('sucursales'),'reglas'=>$agenda->settings()]);exit;
+        echo json_encode(['success'=>true,'servicios'=>$agenda->list('servicios'),'agendas'=>$agenda->list('agendas'),'sucursales'=>$agenda->list('sucursales'),'reglas'=>$agenda->settings()]);exit;
     }
     if($action==='disponibilidad'){
         echo json_encode(['success'=>true,'slots'=>$agenda->availability($input)]);exit;
@@ -27,6 +27,11 @@ try {
     }
     if($action==='estado'){
         $agenda->changeStatus((int)($input['cita_id']??0),(string)($input['estado']??''),'IA:'.($input['canal']??'chatbot'));
+        echo json_encode(['success'=>true]);exit;
+    }
+    if($action==='reprogramar'){
+        if(empty($input['confirmada']))throw new RuntimeException('La reprogramación aún requiere confirmación explícita del cliente.');
+        $agenda->reschedule((int)($input['cita_id']??0),$input,'IA:'.($input['canal']??'chatbot'));
         echo json_encode(['success'=>true]);exit;
     }
     throw new InvalidArgumentException('Acción de agenda inválida.');
