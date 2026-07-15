@@ -8,7 +8,7 @@ function isConfirmationIntent(value, proposalText = '') {
   // Una negativa o un cambio explícito nunca puede crear una reserva.
   if (/\b(no|cancel|cambi|otro horario|otra hora|mejor)\b/.test(normalized)) return false;
   if (/^(si|confirmo|confirmamos|correcto|dale|de acuerdo|ok|okay|va|vamos)\b/.test(normalized)) return true;
-  if (/\b(esta bien|perfecto|adelante|proced[ea]|reservalo|agendalo|hacelo|hazlo|lo hago|ya lo hice|ya te dije|me sirve|me queda bien|quiero ese|quiero esa|dejalo asi|obvio)\b/.test(normalized)) return true;
+  if (/\b(esta bien|perfecto|adelante|proced[ea]|reservalo|agendalo|agendame|reservame|anotame|hacelo|hazlo|lo hago|ya lo hice|ya te dije|me sirve|me queda bien|quiero ese|quiero esa|dejalo asi|obvio|elegi|elige|favorito)\b/.test(normalized)) return true;
 
   // También cuenta como confirmación que la persona repita la hora exacta de
   // la última propuesta: “10:30 como te dije” es una aceptación válida.
@@ -34,6 +34,19 @@ function parseProposal(value) {
     if (month) last = `${match[3]}-${String(month).padStart(2, '0')}-${String(match[1]).padStart(2, '0')} ${String(match[4]).padStart(2, '0')}:${String(match[5] || '00').padStart(2, '0')}`;
   }
   if (last) return last;
+
+  // También se admite “20 de julio a las 10:30”. Se toma el año actual de
+  // America/Asuncion, o el siguiente si esa fecha ya pasó.
+  const monthPattern = /(\\d{1,2})\\s+de\\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\\b(?!\\s+de\\s+\\d{4})[^\\d]{0,35}(\\d{1,2})(?:[:.](\\d{2}))?/ig;
+  let monthMatch, monthLast = null;
+  while ((monthMatch = monthPattern.exec(value))) monthLast = monthMatch;
+  if (monthLast) {
+    const today = asuncionToday();
+    const day = Number(monthLast[1]);
+    const month = MONTHS[normalize(monthLast[2])];
+    const year = month < today.month || (month === today.month && day < today.day) ? today.year + 1 : today.year;
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(monthLast[3]).padStart(2, '0')}:${String(monthLast[4] || '00').padStart(2, '0')}`;
+  }
 
   // También se admite “lunes 20 a las 10:30”. El día del mes se interpreta
   // en America/Asuncion; si ya pasó, corresponde al mes siguiente.
