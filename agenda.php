@@ -5,6 +5,8 @@ requireLogin();
 
 $date = $_GET['date'] ?? date('Y-m-d');
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) $date = date('Y-m-d');
+$tab = $_GET['tab'] ?? 'citas';
+if (!in_array($tab, ['citas', 'configuracion'], true)) $tab = 'citas';
 $user = getUsuarioActual();
 $agendaInitError = '';
 try {
@@ -42,25 +44,25 @@ ob_start();
 <div class="max-w-7xl mx-auto space-y-6">
   <header class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
     <div>
-      <h1 class="text-2xl font-bold text-slate-900">Agenda y citas activas</h1>
-      <p class="text-sm text-slate-500 mt-1">Una agenda compartida por Chatbot, WhatsApp y tu equipo.</p>
+      <h1 class="text-2xl font-bold text-slate-900">Agenda</h1>
+      <p class="text-sm text-slate-500 mt-1"><?= $tab === 'citas' ? 'Una agenda compartida por Chatbot, WhatsApp y tu equipo.' : 'Definí qué se puede reservar y bajo qué reglas.' ?></p>
     </div>
+    <?php if ($tab === 'citas'): ?>
     <div class="flex items-center gap-2 flex-wrap">
-      <a href="agenda.php?date=<?= $previous ?>" class="w-10 h-10 border border-slate-200 rounded-xl grid place-items-center hover:bg-slate-50" aria-label="Día anterior">‹</a>
+      <a href="agenda.php?tab=citas&amp;date=<?= $previous ?>" class="w-10 h-10 border border-slate-200 rounded-xl grid place-items-center hover:bg-slate-50" aria-label="Día anterior">‹</a>
       <input id="agenda-date" type="date" value="<?= htmlspecialchars($date) ?>" onchange="goToDate(this.value)" class="h-10 border border-slate-200 rounded-xl px-3 text-sm font-semibold text-slate-700">
-      <a href="agenda.php?date=<?= $next ?>" class="w-10 h-10 border border-slate-200 rounded-xl grid place-items-center hover:bg-slate-50" aria-label="Día siguiente">›</a>
-      <button type="button" onclick="openSetup(event)" class="h-10 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl px-4 text-sm font-semibold">Configurar agendas</button>
+      <a href="agenda.php?tab=citas&amp;date=<?= $next ?>" class="w-10 h-10 border border-slate-200 rounded-xl grid place-items-center hover:bg-slate-50" aria-label="Día siguiente">›</a>
       <button type="button" onclick="openBooking(event)" class="h-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-4 text-sm font-semibold">+ Nueva cita</button>
     </div>
+    <?php endif; ?>
   </header>
 
-  <div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
-    <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex justify-between"><div><p class="text-xs text-slate-500">Citas del día</p><p class="text-3xl font-bold mt-1"><?= (int)$overview['total'] ?></p></div><span class="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 grid place-items-center text-xl">◷</span></div>
-    <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex justify-between"><div><p class="text-xs text-slate-500">Por confirmar</p><p class="text-3xl font-bold text-amber-600 mt-1"><?= (int)$overview['pending'] ?></p></div><span class="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 grid place-items-center text-xl">!</span></div>
-    <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex justify-between"><div><p class="text-xs text-slate-500">Tiempo ocupado</p><p class="text-3xl font-bold mt-1"><?= number_format($overview['occupied_minutes']/60, 1, ',', '.') ?> h</p></div><span class="w-11 h-11 rounded-xl bg-slate-100 text-slate-600 grid place-items-center text-xl">▥</span></div>
-    <div class="bg-white border border-indigo-100 border-l-4 border-l-indigo-500 rounded-2xl p-5 shadow-sm flex justify-between"><div><p class="text-xs text-indigo-600">Fichas con contexto</p><p class="text-3xl font-bold text-indigo-900 mt-1"><?= (int)$overview['ready_profiles'] ?>/<?= (int)$overview['total'] ?></p></div><span class="w-11 h-11 rounded-xl bg-indigo-50 text-indigo-600 grid place-items-center text-xl">✦</span></div>
-  </div>
+  <nav class="inline-flex items-center gap-1 rounded-2xl bg-slate-100 p-1" aria-label="Secciones de agenda">
+    <a href="agenda.php?tab=citas&amp;date=<?= htmlspecialchars($date) ?>" class="rounded-xl px-4 py-2 text-sm font-semibold transition <?= $tab === 'citas' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800' ?>">Citas</a>
+    <a href="agenda.php?tab=configuracion" class="rounded-xl px-4 py-2 text-sm font-semibold transition <?= $tab === 'configuracion' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800' ?>">Configuración</a>
+  </nav>
 
+  <?php if ($tab === 'citas'): ?>
   <div class="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
     <section class="xl:col-span-7 bg-white border border-slate-200 rounded-3xl p-5 md:p-6 shadow-sm">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
@@ -83,12 +85,12 @@ ob_start();
       <div id="detail-content" class="hidden"><div class="flex items-center justify-between pb-4 border-b"><span class="text-xs font-semibold text-slate-400">Ficha de la cita</span><span id="detail-state" class="rounded-full px-2.5 py-1 text-[10px] font-semibold"></span></div><div class="flex gap-3 mt-5"><div id="detail-avatar" class="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 grid place-items-center font-bold"></div><div><h2 id="detail-name" class="font-bold text-slate-900"></h2><p id="detail-contact" class="text-xs text-slate-500 mt-1"></p></div></div><dl class="space-y-4 mt-6 text-sm"><div><dt class="text-[10px] font-semibold text-slate-400">HORARIO</dt><dd id="detail-time" class="font-medium text-slate-700 mt-1"></dd></div><div><dt class="text-[10px] font-semibold text-slate-400">SERVICIO Y RESPONSABLE</dt><dd id="detail-service" class="font-medium text-slate-700 mt-1"></dd></div><div><dt class="text-[10px] font-semibold text-slate-400">MOTIVO / CONTEXTO</dt><dd id="detail-notes" class="text-slate-600 mt-1 leading-relaxed"></dd></div></dl><div class="mt-7 pt-5 border-t grid grid-cols-2 gap-2"><button type="button" onclick="setStatus('confirmada')" class="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 text-xs font-semibold">Confirmar</button><button type="button" onclick="setStatus('cancelada_negocio')" class="rounded-xl bg-red-50 hover:bg-red-100 text-red-700 py-2.5 text-xs font-semibold">Cancelar</button></div><button type="button" onclick="openBooking(event, selectedAppointment)" class="w-full mt-2 rounded-xl border border-slate-200 hover:bg-slate-50 py-2.5 text-xs font-semibold">Crear nueva cita para este cliente</button></div>
     </aside>
   </div>
+  <?php else: ?>
 
-  <section class="bg-white border border-slate-200 rounded-3xl p-5 md:p-6 shadow-sm"><div class="flex items-center justify-between mb-5"><div><h2 class="font-bold">Reglas de disponibilidad</h2><p class="text-xs text-slate-400 mt-1">Protegen la agenda sin importar el canal desde el que se solicite la cita.</p></div><button type="button" onclick="openHours(event)" class="text-xs font-semibold text-emerald-700">+ Añadir horario</button></div><form onsubmit="saveSettings(event)" class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4"><label class="text-xs text-slate-500">Buffer entre citas<input name="buffer_minutes" type="number" min="0" value="<?= (int)$settings['buffer_minutes'] ?>" class="mt-1 w-full border border-slate-200 rounded-xl p-2.5 text-sm"></label><label class="text-xs text-slate-500">Anticipación mínima (h)<input name="min_notice_hours" type="number" min="0" value="<?= (int)$settings['min_notice_hours'] ?>" class="mt-1 w-full border border-slate-200 rounded-xl p-2.5 text-sm"></label><label class="text-xs text-slate-500">Anticipación máxima (días)<input name="max_advance_days" type="number" min="1" value="<?= (int)$settings['max_advance_days'] ?>" class="mt-1 w-full border border-slate-200 rounded-xl p-2.5 text-sm"></label><div class="flex items-end"><button class="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-xl py-2.5 text-sm font-semibold">Guardar reglas</button></div></form></section>
   <section class="bg-white border border-slate-200 rounded-3xl p-5 md:p-6 shadow-sm">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5">
       <div><h2 class="font-bold text-slate-900">Estructura de disponibilidad</h2><p class="text-xs text-slate-400 mt-1">Sucursal → agenda → horarios. Esto es lo que la IA consulta antes de ofrecer o confirmar una cita.</p></div>
-      <div class="flex gap-2"><button type="button" onclick="openEntity('sucursales')" class="text-xs font-semibold text-slate-700 border border-slate-200 rounded-xl px-3 py-2 hover:bg-slate-50">+ Sucursal</button><button type="button" onclick="openEntity('agendas')" class="text-xs font-semibold text-emerald-700 border border-emerald-100 bg-emerald-50 rounded-xl px-3 py-2 hover:bg-emerald-100">+ Agenda</button></div>
+      <div class="flex gap-2 flex-wrap"><button type="button" onclick="openEntity('sucursales')" class="text-xs font-semibold text-slate-700 border border-slate-200 rounded-xl px-3 py-2 hover:bg-slate-50">+ Sucursal</button><button type="button" onclick="openEntity('agendas')" class="text-xs font-semibold text-emerald-700 border border-emerald-100 bg-emerald-50 rounded-xl px-3 py-2 hover:bg-emerald-100">+ Agenda</button><button type="button" onclick="openEntity('servicios')" class="text-xs font-semibold text-indigo-700 border border-indigo-100 bg-indigo-50 rounded-xl px-3 py-2 hover:bg-indigo-100">+ Servicio</button></div>
     </div>
     <?php $dayNames=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado']; ?>
     <?php if (!$branches): ?>
@@ -112,7 +114,17 @@ ob_start();
     <?php endif; ?>
   </section>
 
+  <section class="bg-white border border-slate-200 rounded-3xl p-5 md:p-6 shadow-sm">
+    <div class="flex items-center justify-between gap-3 mb-5"><div><h2 class="font-bold text-slate-900">Servicios</h2><p class="text-xs text-slate-400 mt-1">Definen duración y condiciones de lo que se puede reservar.</p></div><button type="button" onclick="openEntity('servicios')" class="text-xs font-semibold text-indigo-700">+ Añadir servicio</button></div>
+    <?php if (!$services): ?>
+      <div class="border border-dashed border-slate-200 rounded-2xl p-6 text-sm text-slate-500">Todavía no hay servicios. La IA no podrá confirmar una cita hasta que exista al menos uno.</div>
+    <?php else: ?>
+      <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-3"><?php foreach ($services as $service): ?><article class="rounded-2xl border border-slate-100 bg-slate-50 p-4"><div class="flex items-start justify-between gap-3"><div><h3 class="font-semibold text-sm text-slate-800"><?= htmlspecialchars($service['nombre']) ?></h3><p class="text-xs text-slate-500 mt-1"><?= (int)$service['duracion_minutos'] ?> minutos</p></div><span class="text-[10px] font-semibold rounded-full px-2 py-1 <?= !empty($service['activo']) ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-200 text-slate-500' ?>"><?= !empty($service['activo']) ? 'Activo' : 'Inactivo' ?></span></div></article><?php endforeach; ?></div>
+    <?php endif; ?>
+  </section>
+
   <section class="bg-white border border-slate-200 rounded-3xl p-5 md:p-6 shadow-sm"><div class="flex items-center justify-between mb-5"><div><h2 class="font-bold">Reglas generales</h2><p class="text-xs text-slate-400 mt-1">Anticipación y granularidad de los turnos. El buffer operativo se define por agenda.</p></div><button type="button" onclick="openHours(event)" class="text-xs font-semibold text-emerald-700">+ Añadir horario</button></div><form onsubmit="saveSettings(event)" class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4"><label class="text-xs text-slate-500">Intervalo de turnos (min)<input name="slot_minutes" type="number" min="5" value="<?= (int)$settings['slot_minutes'] ?>" class="mt-1 w-full border border-slate-200 rounded-xl p-2.5 text-sm"></label><label class="text-xs text-slate-500">Anticipación mínima (h)<input name="min_notice_hours" type="number" min="0" value="<?= (int)$settings['min_notice_hours'] ?>" class="mt-1 w-full border border-slate-200 rounded-xl p-2.5 text-sm"></label><label class="text-xs text-slate-500">Anticipación máxima (días)<input name="max_advance_days" type="number" min="1" value="<?= (int)$settings['max_advance_days'] ?>" class="mt-1 w-full border border-slate-200 rounded-xl p-2.5 text-sm"></label><div class="flex items-end"><button class="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-xl py-2.5 text-sm font-semibold">Guardar reglas</button></div></form></section>
+  <?php endif; ?>
 </div>
 <?php endif; ?>
 
@@ -121,6 +133,7 @@ ob_start();
 <?php if (!$agendaInitError): ?>
 <script>
 const agendaDate=<?= json_encode($date) ?>;
+const agendaTab=<?= json_encode($tab) ?>;
 const services=<?= json_encode($services, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT) ?>;
 const agendas=<?= json_encode($agendas, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT) ?>;
 const branches=<?= json_encode($branches, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT) ?>;
@@ -131,7 +144,7 @@ const formDataObject=form=>Object.fromEntries(new FormData(form));
 const esc=value=>String(value??'').replace(/[&<>"']/g, x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[x]));
 async function api(payload){const r=await fetch('ajax/agenda.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const j=await r.json();if(!j.success)throw new Error(j.error||'No se pudo completar la operación.');return j}
 function stop(e){if(e){e.preventDefault();e.stopPropagation()}}
-function goToDate(value){if(value) location.href='agenda.php?date='+encodeURIComponent(value)}
+function goToDate(value){if(value) location.href='agenda.php?tab='+encodeURIComponent(agendaTab)+'&date='+encodeURIComponent(value)}
 function openModal(title, body){agendaModalTitle.textContent=title;agendaModalBody.innerHTML=body;agendaModal.classList.remove('hidden')}
 function closeAgendaModal(){agendaModal.classList.add('hidden')}
 function selectAppointment(id,e){stop(e);selectedAppointment=appointments.find(x=>Number(x.id)===Number(id));if(!selectedAppointment)return;document.querySelectorAll('.appointment-card').forEach(x=>x.classList.toggle('ring-2',Number(x.dataset.id)===Number(id)));document.getElementById('detail-empty').classList.add('hidden');document.getElementById('detail-content').classList.remove('hidden');const a=selectedAppointment;const label=String(a.estado).replaceAll('_',' ');const pending=a.estado==='pendiente_confirmacion';document.getElementById('detail-state').textContent=label;document.getElementById('detail-state').className='rounded-full px-2.5 py-1 text-[10px] font-semibold '+(pending?'bg-amber-50 text-amber-700':'bg-emerald-50 text-emerald-700');const name=a.nombre_cliente||a.telefono||'Sin identificar';document.getElementById('detail-name').textContent=name;document.getElementById('detail-avatar').textContent=name.split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();document.getElementById('detail-contact').textContent=[a.telefono,a.email,a.canal].filter(Boolean).join(' · ');document.getElementById('detail-time').textContent=a.inicio+' — '+a.fin;document.getElementById('detail-service').textContent=[a.servicio,a.agenda||a.sucursal||'Sin asignar'].filter(Boolean).join(' · ');document.getElementById('detail-notes').textContent=a.motivo||a.observaciones||'Sin contexto adicional registrado.'}
