@@ -312,6 +312,9 @@ class WebhookHandler
         $knowledge = new KnowledgeManager();
         $historial = $this->chatManager->getHistorial($conversacionId);
         $messages = [];
+        // Este flujo entra desde Meta: el canal y el teléfono ya son conocidos.
+        // La IA puede usarlo para una cita, pero nunca debe volver a pedirlo.
+        $messages[] = ['role' => 'system', 'content' => 'CANAL ACTUAL: WhatsApp. El teléfono del visitante ya fue validado por Meta y está disponible para completar una cita; no lo pidas nuevamente. Pedí solo los datos que realmente falten.'];
         $systemPrompt = $knowledge->getSystemPrompt();
         if ($systemPrompt !== '') {
             $messages[] = ['role' => 'system', 'content' => $systemPrompt];
@@ -324,6 +327,9 @@ class WebhookHandler
             'action' => 'chat',
             'license_key' => LICENSE_KEY,
             'api_key' => CHATBOT_API_KEY,
+            // Datos autenticados por Meta, enviados solo para procesar esta respuesta.
+            'telefono' => $waPhone,
+            'nombre_cliente' => $waName,
             'messages' => $messages,
         ]);
         $ch = curl_init($this->proxyUrl);
