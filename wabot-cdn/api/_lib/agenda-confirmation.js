@@ -21,6 +21,11 @@ function isConfirmationIntent(value, proposalText = '') {
   }
   return false;
 }
+function asuncionToday() {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Asuncion', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.filter(part => part.type !== 'literal').map(part => [part.type, Number(part.value)]));
+  return { year: values.year, month: values.month, day: values.day };
+}
 function parseProposal(value) {
   const pattern = /(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\s+de\s+(\d{4})[^\d]{0,35}(\d{1,2})(?:[:.](\d{2}))?/ig;
   let match, last = null;
@@ -28,7 +33,23 @@ function parseProposal(value) {
     const month = MONTHS[normalize(match[2])];
     if (month) last = `${match[3]}-${String(month).padStart(2, '0')}-${String(match[1]).padStart(2, '0')} ${String(match[4]).padStart(2, '0')}:${String(match[5] || '00').padStart(2, '0')}`;
   }
-  return last;
+  if (last) return last;
+
+  // También se admite “lunes 20 a las 10:30”. El día del mes se interpreta
+  // en America/Asuncion; si ya pasó, corresponde al mes siguiente.
+  const shortPattern = /\b(?:lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\s+(\d{1,2})\b[^\d]{0,35}(\d{1,2})(?:[:.](\d{2}))?/ig;
+  let shortMatch, shortLast = null;
+  while ((shortMatch = shortPattern.exec(value))) shortLast = shortMatch;
+  if (!shortLast) return null;
+  const today = asuncionToday();
+  let year = today.year;
+  let month = today.month;
+  const day = Number(shortLast[1]);
+  if (day < today.day) {
+    month += 1;
+    if (month === 13) { month = 1; year += 1; }
+  }
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(shortLast[2]).padStart(2, '0')}:${String(shortLast[3] || '00').padStart(2, '0')}`;
 }
 function phoneFrom(messages) {
   for (let i = messages.length - 1; i >= 0; i--) {
