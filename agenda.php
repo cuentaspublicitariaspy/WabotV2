@@ -194,7 +194,7 @@ async function manualLoadSlots(){
   const flow=window.manualFlow,date=document.getElementById('manual-date').value,holder=document.getElementById('manual-slots');flow.date=date;holder.textContent='Buscando horarios...';
   try{
     const result=await api({action:'availability',agenda_id:flow.agendaId,servicio_id:flow.serviceId,fecha:date,cita_id:flow.mode==='reschedule'?flow.prefill.id:null}),slots=result.slots||[];
-    holder.innerHTML=slots.length?'<p class="text-xs text-slate-500 mb-2">Elegí un horario</p><div class="grid grid-cols-3 gap-2">'+slots.map(function(slot){return '<button type="button" onclick="manualSlot(\\\''+String(slot).replace(/'/g,'')+'\\\')" class="rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 py-2 text-sm font-semibold">'+esc(slot)+'</button>'}).join('')+'</div>':'<p class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">No hay horarios disponibles para esa fecha.</p>';
+    holder.innerHTML=slots.length?'<p class="text-xs text-slate-500 mb-2">Elegí un horario</p><div class="grid grid-cols-3 gap-2">'+slots.map(function(slot){return '<button type="button" onclick="manualSlot(&quot;'+String(slot).replace(/&/g,'')+'&quot;)" class="rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 py-2 text-sm font-semibold">'+esc(slot)+'</button>'}).join('')+'</div>':'<p class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">No hay horarios disponibles para esa fecha.</p>';
   }catch(err){holder.innerHTML='<p class="rounded-xl bg-red-50 p-3 text-sm text-red-700">'+esc(err.message)+'</p>'}
 }
 function manualSlot(slot){
