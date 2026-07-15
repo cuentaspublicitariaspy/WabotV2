@@ -13,6 +13,7 @@ try {
     $services = $agenda->list('servicios');
     $agendas = $agenda->list('agendas');
     $branches = $agenda->list('sucursales');
+    $hours = $agenda->hours();
     $settings = $agenda->settings();
 } catch (Throwable $e) {
     // El diagnóstico se muestra únicamente en el WC ya autenticado. Evita un
@@ -20,7 +21,7 @@ try {
     error_log('[Wabot Agenda] '.$e->getMessage());
     $agendaInitError = $e->getMessage();
     $overview = ['appointments'=>[],'blocks'=>[],'total'=>0,'pending'=>0,'occupied_minutes'=>0,'ready_profiles'=>0];
-    $services = $agendas = $branches = [];
+    $services = $agendas = $branches = $hours = [];
     $settings = ['buffer_minutes'=>0,'min_notice_hours'=>2,'max_advance_days'=>90];
 }
 $activePage='agenda'; $pageTitle='Agenda';
@@ -84,6 +85,34 @@ ob_start();
   </div>
 
   <section class="bg-white border border-slate-200 rounded-3xl p-5 md:p-6 shadow-sm"><div class="flex items-center justify-between mb-5"><div><h2 class="font-bold">Reglas de disponibilidad</h2><p class="text-xs text-slate-400 mt-1">Protegen la agenda sin importar el canal desde el que se solicite la cita.</p></div><button type="button" onclick="openHours(event)" class="text-xs font-semibold text-emerald-700">+ Añadir horario</button></div><form onsubmit="saveSettings(event)" class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4"><label class="text-xs text-slate-500">Buffer entre citas<input name="buffer_minutes" type="number" min="0" value="<?= (int)$settings['buffer_minutes'] ?>" class="mt-1 w-full border border-slate-200 rounded-xl p-2.5 text-sm"></label><label class="text-xs text-slate-500">Anticipación mínima (h)<input name="min_notice_hours" type="number" min="0" value="<?= (int)$settings['min_notice_hours'] ?>" class="mt-1 w-full border border-slate-200 rounded-xl p-2.5 text-sm"></label><label class="text-xs text-slate-500">Anticipación máxima (días)<input name="max_advance_days" type="number" min="1" value="<?= (int)$settings['max_advance_days'] ?>" class="mt-1 w-full border border-slate-200 rounded-xl p-2.5 text-sm"></label><div class="flex items-end"><button class="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-xl py-2.5 text-sm font-semibold">Guardar reglas</button></div></form></section>
+  <section class="bg-white border border-slate-200 rounded-3xl p-5 md:p-6 shadow-sm">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5">
+      <div><h2 class="font-bold text-slate-900">Estructura de disponibilidad</h2><p class="text-xs text-slate-400 mt-1">Sucursal → agenda → horarios. Esto es lo que la IA consulta antes de ofrecer o confirmar una cita.</p></div>
+      <div class="flex gap-2"><button type="button" onclick="openEntity('sucursales')" class="text-xs font-semibold text-slate-700 border border-slate-200 rounded-xl px-3 py-2 hover:bg-slate-50">+ Sucursal</button><button type="button" onclick="openEntity('agendas')" class="text-xs font-semibold text-emerald-700 border border-emerald-100 bg-emerald-50 rounded-xl px-3 py-2 hover:bg-emerald-100">+ Agenda</button></div>
+    </div>
+    <?php $dayNames=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado']; ?>
+    <?php if (!$branches): ?>
+      <div class="border border-dashed border-slate-200 rounded-2xl p-6 text-sm text-slate-500">Todavía no hay sucursales. Creá una para luego asignarle una o más agendas.</div>
+    <?php else: ?>
+      <div class="grid lg:grid-cols-2 gap-4">
+        <?php foreach ($branches as $branch): ?>
+          <?php $branchAgendas=array_values(array_filter($agendas, fn($item)=>(int)$item['sucursal_id']===(int)$branch['id'])); ?>
+          <article class="rounded-2xl border border-slate-200 p-4">
+            <div class="flex items-start justify-between gap-3"><div><h3 class="font-semibold text-slate-900"><?= htmlspecialchars($branch['nombre']) ?></h3><?php if (!empty($branch['direccion'])): ?><p class="text-xs text-slate-500 mt-1"><?= htmlspecialchars($branch['direccion']) ?></p><?php endif; ?></div><span class="text-[11px] font-semibold text-slate-500 bg-slate-100 rounded-full px-2.5 py-1"><?= count($branchAgendas) ?> <?= count($branchAgendas)===1?'agenda':'agendas' ?></span></div>
+            <div class="mt-4 space-y-2">
+              <?php if (!$branchAgendas): ?><p class="text-xs text-amber-700 bg-amber-50 rounded-xl p-3">Esta sucursal aún no tiene agenda reservable.</p><?php endif; ?>
+              <?php foreach ($branchAgendas as $item): ?>
+                <?php $agendaHours=array_values(array_filter($hours, fn($hour)=>(int)$hour['agenda_id']===(int)$item['id'])); ?>
+                <div class="rounded-xl bg-slate-50 border border-slate-100 p-3"><div class="flex justify-between gap-3"><div><p class="text-sm font-semibold text-slate-800"><?= htmlspecialchars($item['nombre']) ?></p><?php if (!empty($item['descripcion'])): ?><p class="text-xs text-slate-500 mt-0.5"><?= htmlspecialchars($item['descripcion']) ?></p><?php endif; ?></div><span class="text-[11px] text-slate-500 whitespace-nowrap">buffer <?= (int)$item['buffer_minutes'] ?> min</span></div><p class="text-xs text-slate-500 mt-2"><?php if ($agendaHours): ?><?php foreach ($agendaHours as $i=>$hour): ?><?= $i ? ' · ' : '' ?><?= $dayNames[(int)$hour['dia_semana']] ?> <?= substr($hour['hora_inicio'],0,5) ?>–<?= substr($hour['hora_fin'],0,5) ?><?php endforeach; ?><?php else: ?><span class="text-amber-700">Sin horarios: la IA no ofrecerá turnos para esta agenda.</span><?php endif; ?></p></div>
+              <?php endforeach; ?>
+            </div>
+          </article>
+        <?php endforeach; ?>
+      </div>
+    <?php endif; ?>
+  </section>
+
+  <section class="bg-white border border-slate-200 rounded-3xl p-5 md:p-6 shadow-sm"><div class="flex items-center justify-between mb-5"><div><h2 class="font-bold">Reglas generales</h2><p class="text-xs text-slate-400 mt-1">Anticipación y granularidad de los turnos. El buffer operativo se define por agenda.</p></div><button type="button" onclick="openHours(event)" class="text-xs font-semibold text-emerald-700">+ Añadir horario</button></div><form onsubmit="saveSettings(event)" class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4"><label class="text-xs text-slate-500">Intervalo de turnos (min)<input name="slot_minutes" type="number" min="5" value="<?= (int)$settings['slot_minutes'] ?>" class="mt-1 w-full border border-slate-200 rounded-xl p-2.5 text-sm"></label><label class="text-xs text-slate-500">Anticipación mínima (h)<input name="min_notice_hours" type="number" min="0" value="<?= (int)$settings['min_notice_hours'] ?>" class="mt-1 w-full border border-slate-200 rounded-xl p-2.5 text-sm"></label><label class="text-xs text-slate-500">Anticipación máxima (días)<input name="max_advance_days" type="number" min="1" value="<?= (int)$settings['max_advance_days'] ?>" class="mt-1 w-full border border-slate-200 rounded-xl p-2.5 text-sm"></label><div class="flex items-end"><button class="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-xl py-2.5 text-sm font-semibold">Guardar reglas</button></div></form></section>
 </div>
 <?php endif; ?>
 
