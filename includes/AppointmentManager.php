@@ -188,7 +188,8 @@ class AppointmentManager
         foreach($ranges as $range) {
             $cursor=new DateTimeImmutable($date.' '.$range['hora_inicio'],$tz); $end=new DateTimeImmutable($date.' '.$range['hora_fin'],$tz);
             while($cursor->modify('+'.($duration+$buffer).' minutes') <= $end) {
-                if ($cursor >= new DateTimeImmutable('+'.(int)$settings['min_notice_hours'].' hours',$tz) && $this->isFree($cursor,$cursor->modify('+'.$duration.' minutes'),$agendaId)) $slots[]=$cursor->format('H:i');
+                $ignoreId = !empty($filter['cita_id']) ? (int)$filter['cita_id'] : null;
+                if ($cursor >= new DateTimeImmutable('+'.(int)$settings['min_notice_hours'].' hours',$tz) && $this->isFree($cursor,$cursor->modify('+'.$duration.' minutes'),$agendaId,$ignoreId)) $slots[]=$cursor->format('H:i');
                 $cursor=$cursor->modify('+'.$step.' minutes');
             }
         }
@@ -204,7 +205,7 @@ class AppointmentManager
         $options=[];
         for($i=0;$i<$days&&count($options)<5;$i++){
             $date=date('Y-m-d',strtotime($from.' +'.$i.' day'));
-            $slots=$this->availability(['servicio_id'=>$filter['servicio_id']??0,'agenda_id'=>$filter['agenda_id']??0,'fecha'=>$date]);
+            $slots=$this->availability(['servicio_id'=>$filter['servicio_id']??0,'agenda_id'=>$filter['agenda_id']??0,'fecha'=>$date,'cita_id'=>$filter['cita_id']??null]);
             if($period==='manana')$slots=array_values(array_filter($slots,static fn($slot)=>$slot<'12:00'));
             if($period==='tarde')$slots=array_values(array_filter($slots,static fn($slot)=>$slot>='12:00'));
             if($slots)$options[]=['fecha'=>$date,'horarios'=>array_slice($slots,0,4)];
