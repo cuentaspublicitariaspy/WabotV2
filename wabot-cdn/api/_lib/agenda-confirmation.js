@@ -135,8 +135,19 @@ async function confirmRescheduleProposal({ history, message, agendaCall, telefon
   const proposal = [...entries].reverse().find(item => item?.role === 'assistant' && /(reagend|reprogram|nuevas? opciones|horarios disponibles)/i.test(text(item?.content)) && parseProposal(text(item?.content)));
   const proposalText = text(proposal?.content);
   if (!proposalText || semanticIntent === 'rechazar_o_cambiar') return null;
-  const time = selectedRescheduleTime(message, proposalText);
-  if (!time) return null;
+  const accepted = ['confirmar', 'completar_reserva'].includes(semanticIntent) || isConfirmationIntent(message, proposalText);
+  let time = selectedRescheduleTime(message, proposalText);
+  // Si el asistente ya ofreció un único horario y pregunta “¿hacemos el
+  // cambio?”, una aceptación natural debe usar esa última hora ofrecida.
+  if (!time && accepted) {
+    const mentioned = String(proposalText).match(/\b(?:[01]?\d|2[0-3])(?::[0-5]\d)?\b/g) || [];
+    const last = mentioned[mentioned.length - 1] || '';
+    if (last) {
+      const [hour, minute = '00'] = last.split(':');
+      time = String(Number(hour)).padStart(2, '0') + ':' + minute.padStart(2, '0');
+    }
+  }
+  if (!time || !accepted) return null;
   const dateTime = parseProposal(proposalText);
   const phone = String(telefono || phoneFrom(entries)).replace(/\D/g, '');
   if (!dateTime || !phone) return null;
