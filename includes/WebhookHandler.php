@@ -285,6 +285,7 @@ class WebhookHandler
             $payload = json_encode([
                 'action' => 'chat',
                 'license_key' => LICENSE_KEY,
+                'api_key' => CHATBOT_API_KEY,
                 'messages' => [
                     ['role' => 'system', 'content' => 'Clasificá el siguiente mensaje de un cliente en UNA de estas categorías exactas: ventas, soporte, administracion, general. Respondé SOLO con el nombre de la categoría, sin explicación, sin puntuación, sin mayúsculas.'],
                     ['role' => 'user', 'content' => $text],
@@ -322,6 +323,7 @@ class WebhookHandler
         $payload = json_encode([
             'action' => 'chat',
             'license_key' => LICENSE_KEY,
+            'api_key' => CHATBOT_API_KEY,
             'messages' => $messages,
         ]);
         $ch = curl_init($this->proxyUrl);
