@@ -32,7 +32,7 @@ function selected(items, proposalText, field = 'nombre') {
  * confirmación es deliberadamente acotada: solo reserva cuando el asistente
  * anterior pidió confirmar una fecha/hora exactas y el visitante responde sí.
  */
-async function confirmExactProposal({ history, message, agendaCall, channel }) {
+async function confirmExactProposal({ history, message, agendaCall, channel, telefono = '', nombre_cliente = '' }) {
   if (!isAffirmative(message)) return null;
   const entries = [...(Array.isArray(history) ? history : []), { role: 'user', content: message }];
   const confirmationPrompt = [...entries].reverse().find(item => {
@@ -42,8 +42,7 @@ async function confirmExactProposal({ history, message, agendaCall, channel }) {
   const proposalText = text(confirmationPrompt?.content);
   if (!proposalText) return null;
   const inicio = parseProposal(proposalText);
-  const telefono = phoneFrom(entries);
-  if (!inicio || !telefono) return null;
+  // En WhatsApp WC recibe el número autenticado desde Meta. En Chatbot se usa\n  // únicamente el dato que el visitante haya escrito. WS no lo persiste.\n  const phone = String(telefono || phoneFrom(entries)).replace(/\\D/g, '');\n  if (!inicio || !phone) return null;
 
   const catalog = await agendaCall({ accion: 'catalogo' });
   if (!catalog?.success) return null;
@@ -53,10 +52,10 @@ async function confirmExactProposal({ history, message, agendaCall, channel }) {
 
   const created = await agendaCall({
     accion: 'crear', agenda_id: Number(agenda.id), servicio_id: Number(service.id), inicio,
-    telefono, confirmada: true, canal
+    telefono: phone, nombre_cliente, confirmada: true, canal
   });
   if (!created?.success) return { handled: true, success: false, reply: created?.error || 'No pude confirmar ese horario porque acaba de dejar de estar disponible.' };
-  return { handled: true, success: true, reply: `Listo. Tu ${service.nombre} con ${agenda.nombre} quedó agendada para el ${inicio.slice(8, 10)}/${inicio.slice(5, 7)}/${inicio.slice(0, 4)} a las ${inicio.slice(11, 16)}. Te contactaremos al ${telefono}.` };
+  return { handled: true, success: true, reply: `Listo. Tu ${service.nombre} con ${agenda.nombre} quedó agendada para el ${inicio.slice(8, 10)}/${inicio.slice(5, 7)}/${inicio.slice(0, 4)} a las ${inicio.slice(11, 16)}. Te contactaremos al ${phone}.` };
 }
 
 module.exports = { confirmExactProposal };
