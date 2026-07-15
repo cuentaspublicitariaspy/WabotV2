@@ -71,3 +71,6 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 - La comprensión semántica de confirmación puede enviar transitoriamente a OpenAI la última propuesta de cita y la respuesta actual; WS no almacena ese contenido y WC conserva el historial bajo control del cliente.
 
 - La IA no debe usar la muletilla “parece que” ni variantes: comunica acciones, requisitos o límites con claridad, sin proyectar duda ni falta de control.
+
+- Agenda: al elegir un horario propuesto para reagendar, la IA debe completar el cambio sin pasos redundantes; la reserva manual debe mostrar horarios reales y abrir el formulario al hacer clic.
+- Estilo: evitar Markdown visual (en especial `**`); tono siempre cálido, amable y humano, incluyendo un saludo cuando la persona abre con uno.
