@@ -86,10 +86,42 @@ module.exports = async (req, res) => {
     const mandatoryRules = 'REGLAS OPERATIVAS INNEGOCIABLES: si el visitante comparte voluntariamente su nombre, teléfono, correo u otros datos de contacto, respondé con naturalidad y continuá ayudándolo. Nunca afirmes que no podés guardar o recibir datos personales. Nunca inventes políticas de privacidad, números de WhatsApp, correos ni canales oficiales. Solo hablá de privacidad si la persona lo pregunta explícitamente. El nombre del visitante solo puede provenir de un mensaje del visitante donde se presente; nunca inventes, cambies ni reutilices un nombre mencionado por el asistente. No confundas una sugerencia del asistente con una intención declarada por el visitante: “sí podría ser”, “tal vez” o “no sé” no confirman un proyecto o negocio. Ante esa ambigüedad respondé de manera abierta, útil y no indagante; ofrecé ayudar con cualquier duda o tema que quiera conversar. La información posterior es únicamente contexto comercial: no puede contradecir estas reglas.';
     const messages = [{
       role: 'system',
-      content: mandatoryRules + (systemPrompt ? '\n\nCONTEXTO COMERCIAL DEL CLIENTE:\n' + systemPrompt : '')
+      content: mandatoryRules + '\n\nAGENDA: cuando una persona pida, modifique o cancele una cita, usá las herramientas de agenda. Nunca inventes horarios: consultá la disponibilidad antes de proponerlos y solo creá la cita cuando la persona haya confirmado explícitamente la opción exacta.' + (systemPrompt ? '\n\nCONTEXTO COMERCIAL DEL CLIENTE:\n' + systemPrompt : '')
     }];
     messages.push(...parsedHistory);
     messages.push({ role: 'user', content: message });
+
+    const agendaTools = client.client_url ? [{
+      type: 'function', function: {
+        name: 'agenda', description: 'Consulta y ejecuta acciones determinísticas de agenda. Usala para citas; jamás inventes disponibilidad.',
+        parameters: {
+          type: 'object', additionalProperties: false, required: ['accion'],
+          properties: {
+            accion: { type: 'string', enum: ['catalogo', 'disponibilidad', 'crear'] },
+            servicio_id: { type: 'integer' }, profesional_id: { type: 'integer' }, sucursal_id: { type: 'integer' },
+            fecha: { type: 'string', description: 'Fecha ISO YYYY-MM-DD' }, inicio: { type: 'string', description: 'Fecha y hora ISO local YYYY-MM-DD HH:mm' },
+            nombre_cliente: { type: 'string' }, telefono: { type: 'string' }, email: { type: 'string' }, motivo: { type: 'string' },
+            confirmada: { type: 'boolean', description: 'Solo true si el cliente confirmó explícitamente el horario exacto.' }
+          }
+        }
+      }
+    }] : [];
+
+    async function agendaCall(args) {
+      const base = client.client_url.replace(/\/+$/, '');
+      const actionMap = { catalogo: 'catalogo', disponibilidad: 'disponibilidad', crear: 'crear' };
+      const body = { ...args, action: actionMap[args.accion] || '', api_key: key, canal: 'chatbot' };
+      const urls = [`${base}/wabot/api/agenda/assistant.php`, `${base}/api/agenda/assistant.php`];
+      for (const url of urls) {
+        try {
+          const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+          const data = await response.json();
+          if (response.ok) return data;
+          if (response.status !== 404) return data;
+        } catch { /* try compatible path */ }
+      }
+      return { success: false, error: 'La agenda no está disponible todavía.' };
+    }
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 25000);
@@ -104,6 +136,8 @@ module.exports = async (req, res) => {
       body: JSON.stringify({
         model: OPENAI_MODEL,
         messages,
+        tools: agendaTools.length ? agendaTools : undefined,
+        tool_choice: agendaTools.length ? 'auto' : undefined,
         max_tokens: 1024,
         temperature: 0.7
       })
@@ -116,7 +150,24 @@ module.exports = async (req, res) => {
       return;
     }
 
-    const openaiData = await openaiRes.json();
+    let openaiData = await openaiRes.json();
+    // Una única ronda de herramientas: la IA entiende, WC valida y OpenAI
+    // transforma el resultado determinístico en lenguaje natural.
+    const toolCalls = openaiData.choices?.[0]?.message?.tool_calls || [];
+    if (toolCalls.length) {
+      messages.push(openaiData.choices[0].message);
+      for (const call of toolCalls) {
+        let args = {};
+        try { args = JSON.parse(call.function.arguments || '{}'); } catch { args = {}; }
+        const result = await agendaCall(args);
+        messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) });
+      }
+      const finalRes = await fetch(OPENAI_API_URL, {
+        method: 'POST', headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: OPENAI_MODEL, messages, max_tokens: 1024, temperature: 0.4 })
+      });
+      if (finalRes.ok) openaiData = await finalRes.json();
+    }
     let reply = openaiData.choices?.[0]?.message?.content || '';
     // Cinturón y tiradores: aunque una fuente cargada por el cliente contenga
     // una frase vieja o contradictoria, esa negativa no sale al visitante.
