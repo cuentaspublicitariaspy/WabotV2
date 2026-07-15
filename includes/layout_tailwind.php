@@ -182,13 +182,16 @@ $esAdminOrSuper = in_array($user['rol'], ['super_admin', 'admin']);
 
     <script>
         const BASE_PATH = '<?= $basePath ?>';
-        const modal = document.getElementById('profile-modal');
+        const profileModal = document.getElementById('profile-modal');
         const trigger = document.getElementById('profile-area');
         if (trigger) {
-            trigger.addEventListener('click', () => modal.classList.remove('hidden'));
+            trigger.addEventListener('click', (event) => {
+                event.stopPropagation();
+                profileModal.classList.remove('hidden');
+            });
         }
-        function closeProfile() { modal.classList.add('hidden'); }
-        modal.addEventListener('click', (e) => { if (e.target === modal) closeProfile(); });
+        function closeProfile() { profileModal.classList.add('hidden'); }
+        profileModal.addEventListener('click', (e) => { if (e.target === profileModal) closeProfile(); });
 
         function previewFoto(e) {
             const file = e.target.files[0];
