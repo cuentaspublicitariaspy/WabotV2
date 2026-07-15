@@ -109,7 +109,7 @@ async function confirmExactProposal({ history, message, agendaCall, channel, tel
 
   const created = await agendaCall({
     accion: 'crear', agenda_id: Number(agenda.id), servicio_id: Number(service.id), inicio,
-    telefono: phone, nombre_cliente, confirmada: true, canal
+    telefono: phone, nombre_cliente, confirmada: true, canal: channel
   });
   if (!created?.success) return { handled: true, success: false, reply: created?.error || 'No pude confirmar ese horario porque acaba de dejar de estar disponible.' };
   return { handled: true, success: true, reply: `Listo. Tu ${service.nombre} con ${agenda.nombre} quedó agendada para el ${inicio.slice(8, 10)}/${inicio.slice(5, 7)}/${inicio.slice(0, 4)} a las ${inicio.slice(11, 16)}. Te contactaremos al ${phone}.` };
