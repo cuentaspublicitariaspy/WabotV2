@@ -195,6 +195,23 @@ class AppointmentManager
         return array_values(array_unique($slots));
     }
 
+    public function nextAvailability(array $filter): array
+    {
+        $from=(string)($filter['fecha_desde']??date('Y-m-d'));
+        if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$from))throw new InvalidArgumentException('Fecha inicial inválida.');
+        $days=max(1,min(30,(int)($filter['dias']??7)));
+        $period=(string)($filter['franja']??'');
+        $options=[];
+        for($i=0;$i<$days&&count($options)<5;$i++){
+            $date=date('Y-m-d',strtotime($from.' +'.$i.' day'));
+            $slots=$this->availability(['servicio_id'=>$filter['servicio_id']??0,'agenda_id'=>$filter['agenda_id']??0,'fecha'=>$date]);
+            if($period==='manana')$slots=array_values(array_filter($slots,static fn($slot)=>$slot<'12:00'));
+            if($period==='tarde')$slots=array_values(array_filter($slots,static fn($slot)=>$slot>='12:00'));
+            if($slots)$options[]=['fecha'=>$date,'horarios'=>array_slice($slots,0,4)];
+        }
+        return $options;
+    }
+
     private function isFree(DateTimeImmutable $start, DateTimeImmutable $end, int $agendaId, ?int $ignoreId = null): bool
     {
         $bufferStmt=$this->db->prepare('SELECT buffer_minutes FROM agenda_agendas WHERE id=?');$bufferStmt->execute([$agendaId]);
