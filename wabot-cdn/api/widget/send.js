@@ -11,7 +11,7 @@ function asuncionDate() {
 }
 
 function agendaInstructions() {
-  return `AGENDA CONVERSACIONAL: hoy es ${asuncionDate()} en la zona horaria America/Asuncion. Convertí referencias naturales: “mañana”, “pasado mañana”, “el viernes” y “por la mañana/tarde” a fechas y preferencias reales; nunca le exijas una fecha exacta a quien ya dijo “mañana”, ni inventes una fecha. Si una persona pide la próxima disponibilidad, el próximo horario, “decime vos” o una alternativa sin indicar fecha, consultá catálogo y luego llamá proximos_horarios desde hoy. Si pide “la más próxima” o “lo más temprano posible en la mañana”, ofrecé directamente el primer horario válido; solo si necesita una alternativa, mostrale como máximo dos. Si una persona pide una agenda por nombre, usá el catálogo para identificarla. Si solo existe un servicio o una agenda activos, la herramienta los resuelve sin pedirlos. Si el horario pedido no existe, llamá próximos_horarios y ofrecé alternativas concretas de los siguientes días, respetando mañana/tarde si la persona lo indicó. Si ya inició una reserva, eligió una fecha y hora concreta y luego entrega los datos solicitados, creá la cita sin pedir una confirmación adicional. Pedí solo el dato que falta para continuar; hacelo con calidez, explicando que sirve para registrar la cita y enviarle el recordatorio. No hagas un cuestionario ni uses frases robóticas como “parece que necesito”. Para cambiar o cancelar una cita, buscá primero las citas activas de esa persona, aclarando cuál si hay más de una. La disponibilidad, los buffers y las colisiones siempre los decide la herramienta; vos solo conversás. Nunca uses la expresión “parece que” ni variantes. PROHIBIDO ofrecer, confirmar o insinuar disponibilidad de una hora que no aparezca en el resultado de agenda de esta misma respuesta. CANAL ACTUAL: Chatbot web. Este canal no trae un teléfono validado: solicitalo solo cuando sea indispensable para cerrar una reserva.`;
+  return `AGENDA CONVERSACIONAL: hoy es ${asuncionDate()} en la zona horaria America/Asuncion. Convertí referencias naturales: “mañana”, “pasado mañana”, “el viernes” y “por la mañana/tarde” a fechas y preferencias reales; nunca le exijas una fecha exacta a quien ya dijo “mañana”, ni inventes una fecha. Si una persona pide la próxima disponibilidad, el próximo horario, “decime vos” o una alternativa sin indicar fecha, consultá catálogo y luego llamá proximos_horarios desde hoy. Si pide “la más próxima” o “lo más temprano posible en la mañana”, elegí y ofrecé directamente el primer horario válido, sin listar el resto. Solo si pide alternativas, mostrá como máximo dos. Si una persona pide una agenda por nombre, usá el catálogo para identificarla. Si solo existe un servicio o una agenda activos, la herramienta los resuelve sin pedirlos. Si el horario pedido no existe, llamá próximos_horarios y ofrecé alternativas concretas de los siguientes días, respetando mañana/tarde si la persona lo indicó. Si ya inició una reserva, eligió una fecha y hora concreta y luego entrega los datos solicitados, creá la cita sin pedir una confirmación adicional. Pedí solo el dato que falta para continuar; hacelo con calidez, explicando que sirve para registrar la cita y enviarle el recordatorio. No hagas un cuestionario ni uses frases robóticas como “parece que necesito”. Para cambiar o cancelar una cita, buscá primero las citas activas de esa persona, aclarando cuál si hay más de una. La disponibilidad, los buffers y las colisiones siempre los decide la herramienta; vos solo conversás. Nunca uses la expresión “parece que” ni variantes. PROHIBIDO ofrecer, confirmar o insinuar disponibilidad de una hora que no aparezca en el resultado de agenda de esta misma respuesta. CANAL ACTUAL: Chatbot web. Este canal no trae un teléfono validado: solicitalo solo cuando sea indispensable para cerrar una reserva.`;
 }
 
 async function semanticConfirmationIntent(openaiKey, context, answer) {
@@ -166,10 +166,18 @@ module.exports = async (req, res) => {
       return { success: false, error: 'La agenda no está disponible todavía.' };
     }
 
-    const semantic = await semanticConfirmationIntent(openaiKey, parsedHistory, message);
-    const confirmed = await confirmExactProposal({ history: parsedHistory, message, agendaCall, channel: 'chatbot', nombre_cliente: semantic.nombreCliente, semanticIntent: semantic.decision });
+    // El cierre se ejecuta antes de generar texto. Si algo falla, dejamos
+    // trazabilidad en WS y respondemos de forma controlada: nunca silencio.
+    let confirmed = null;
+    try {
+      const semantic = await semanticConfirmationIntent(openaiKey, parsedHistory, message);
+      confirmed = await confirmExactProposal({ history: parsedHistory, message, agendaCall, channel: 'chatbot', nombre_cliente: semantic.nombreCliente, semanticIntent: semantic.decision });
+    } catch (error) {
+      console.error('[widget/send] appointment close failed', error?.stack || error);
+      confirmed = { handled: true, success: false, reply: 'No pude finalizar la reserva por un inconveniente técnico. Tu horario no fue reservado; podés volver a intentarlo en unos instantes.' };
+    }
     if (confirmed?.handled) {
-      res.json({ success: confirmed.success, message: { role: 'assistant', content: confirmed.reply } });
+      res.json({ success: confirmed.success, message: { role: 'assistant', content: polishResponse(confirmed.reply) } });
       return;
     }
 
