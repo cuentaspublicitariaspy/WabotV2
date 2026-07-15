@@ -18,6 +18,9 @@ try {
     if($action==='disponibilidad'){
         echo json_encode(['success'=>true,'slots'=>$agenda->availability($input)]);exit;
     }
+    if($action==='citas_cliente'){
+        echo json_encode(['success'=>true,'citas'=>$agenda->findUpcoming($input)]);exit;
+    }
     if($action==='crear'){
         // WS solo llama esta acción tras una confirmación explícita. WC vuelve
         // a validar disponibilidad y evita doble reserva dentro de la transacción.
@@ -32,6 +35,11 @@ try {
     if($action==='reprogramar'){
         if(empty($input['confirmada']))throw new RuntimeException('La reprogramación aún requiere confirmación explícita del cliente.');
         $agenda->reschedule((int)($input['cita_id']??0),$input,'IA:'.($input['canal']??'chatbot'));
+        echo json_encode(['success'=>true]);exit;
+    }
+    if($action==='cancelar'){
+        if(empty($input['confirmada']))throw new RuntimeException('La cancelación aún requiere confirmación explícita del cliente.');
+        $agenda->changeStatus((int)($input['cita_id']??0),'cancelada_cliente','IA:'.($input['canal']??'chatbot'));
         echo json_encode(['success'=>true]);exit;
     }
     throw new InvalidArgumentException('Acción de agenda inválida.');
