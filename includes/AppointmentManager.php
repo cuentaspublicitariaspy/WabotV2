@@ -300,7 +300,22 @@ class AppointmentManager
     {
         $allowed=['confirmada','pendiente_confirmacion','reprogramada','cancelada_cliente','cancelada_negocio','no_asistio','completada'];
         if(!in_array($status,$allowed,true))throw new InvalidArgumentException('Estado no válido.');
-        $this->db->prepare('UPDATE citas SET estado=? WHERE id=?')->execute([$status,$id]);
+        $current=$this->db->prepare('SELECT historial FROM citas WHERE id=?');$current->execute([$id]);$history=$current->fetchColumn();
+        if($history===false)throw new InvalidArgumentException('La cita no existe.');
+        $entries=json_decode($history?:'[]',true)?:[];$entries[]=['at'=>date('c'),'action'=>'estado:'.$status,'by'=>$actor];
+        $this->db->prepare('UPDATE citas SET estado=?,historial=? WHERE id=?')->execute([$status,json_encode($entries,JSON_UNESCAPED_UNICODE),$id]);
+    }
+
+    public function findUpcoming(array $filter): array
+    {
+        $phone=preg_replace('/\D+/','',(string)($filter['telefono']??''));
+        $email=trim((string)($filter['email']??''));
+        $name=trim((string)($filter['nombre_cliente']??''));
+        if(!$phone&&!$email&&!$name)throw new InvalidArgumentException('Hace falta teléfono, correo o nombre para localizar la cita.');
+        $where=['c.inicio>=NOW()','c.estado NOT IN ("cancelada_cliente","cancelada_negocio","no_asistio","completada")'];$params=[];
+        if($phone){$where[]='c.telefono=?';$params[]=$phone;}elseif($email){$where[]='c.email=?';$params[]=$email;}else{$where[]='c.nombre_cliente LIKE ?';$params[]='%'.$name.'%';}
+        $stmt=$this->db->prepare('SELECT c.id,c.nombre_cliente,c.telefono,c.inicio,c.fin,c.estado,s.nombre servicio,a.nombre agenda FROM citas c LEFT JOIN agenda_servicios s ON s.id=c.servicio_id LEFT JOIN agenda_agendas a ON a.id=c.agenda_id WHERE '.implode(' AND ',$where).' ORDER BY c.inicio ASC LIMIT 5');
+        $stmt->execute($params);return $stmt->fetchAll();
     }
 
     public function reschedule(int $id, array $data, string $actor='manual'): void
