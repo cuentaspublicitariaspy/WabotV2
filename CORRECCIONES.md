@@ -69,3 +69,5 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 - La IA nunca puede ofrecer ni confirmar un horario que el motor determinístico de agenda no haya devuelto como disponible en la misma interacción.
 
 - La comprensión semántica de confirmación puede enviar transitoriamente a OpenAI la última propuesta de cita y la respuesta actual; WS no almacena ese contenido y WC conserva el historial bajo control del cliente.
+
+- La IA no debe usar la muletilla “parece que” ni variantes: comunica acciones, requisitos o límites con claridad, sin proyectar duda ni falta de control.
