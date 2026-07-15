@@ -37,7 +37,7 @@ function parseProposal(value) {
 
   // También se admite “20 de julio a las 10:30”. Se toma el año actual de
   // America/Asuncion, o el siguiente si esa fecha ya pasó.
-  const monthPattern = /(\\d{1,2})\\s+de\\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\\b(?!\\s+de\\s+\\d{4})[^\\d]{0,35}(\\d{1,2})(?:[:.](\\d{2}))?/ig;
+  const monthPattern = /(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\b(?!\s+de\s+\d{4})[^\d]{0,35}(\d{1,2})(?:[:.](\d{2}))?/ig;
   let monthMatch, monthLast = null;
   while ((monthMatch = monthPattern.exec(value))) monthLast = monthMatch;
   if (monthLast) {
