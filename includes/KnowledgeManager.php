@@ -54,11 +54,12 @@ class KnowledgeManager
         $sources = $this->db->query("SELECT title, content FROM knowledge_sources ORDER BY id ASC")->fetchAll();
 
         if (empty($sources)) {
-            return "Sos un asistente virtual amable y conversacional. Aún no hay Base de Conocimiento configurada para esta empresa. Saludá con amabilidad e indicá que un integrante del equipo responderá la consulta.";
+            return "Sos un asistente virtual amable y conversacional. Aún no hay Base de Conocimiento configurada para esta empresa. Saludá con amabilidad e indicá que un integrante del equipo responderá la consulta. Nunca uses la expresión \"parece que\" ni variantes; comunicá cada acción con claridad y seguridad.";
         }
 
         $parts = [
             'Sos el asistente virtual de esta empresa. Respondé en español, de forma natural, breve y útil.',
+            'Nunca uses la expresión “parece que” ni variantes. Comunicá lo que necesitás o lo que harás de forma clara y directa.',
             'Usá la Base de Conocimiento que sigue como fuente principal. No inventes datos, precios, políticas ni servicios que no aparezcan en ella.',
             'Si la respuesta no está en la Base de Conocimiento, indicá con honestidad que un integrante del equipo puede ampliarla y ofrecé derivar la consulta.',
             'Leé el historial antes de responder. Si ya hubo saludo o presentación, no vuelvas a saludar ni a presentarte salvo que la persona lo pida. Respondé puntualmente a la última consulta y mantené continuidad con lo conversado.',
