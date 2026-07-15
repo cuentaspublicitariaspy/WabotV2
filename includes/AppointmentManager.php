@@ -152,21 +152,28 @@ class AppointmentManager
     public function saveEntity(string $entity, array $data): int
     {
         $id=(int)($data['id']??0);
-        if ($entity === 'servicios') {
-            $values=[trim((string)($data['nombre']??'')),max(5,(int)($data['duracion_minutos']??30)),!empty($data['requiere_aprobacion'])?1:0,!empty($data['activo'])?1:0];
-            if ($values[0]==='') throw new InvalidArgumentException('El servicio necesita un nombre.');
-            if ($id) { $values[]=$id; $this->db->prepare('UPDATE agenda_servicios SET nombre=?,duracion_minutos=?,requiere_aprobacion=?,activo=? WHERE id=?')->execute($values); return $id; }
-            $this->db->prepare('INSERT INTO agenda_servicios(nombre,duracion_minutos,requiere_aprobacion,activo) VALUES(?,?,?,?)')->execute($values);
+        if ($entity === 'negocios') {
+            $values=[trim((string)($data['nombre']??'')),trim((string)($data['descripcion']??'')),!empty($data['activo'])?1:0];
+            if ($values[0]==='') throw new InvalidArgumentException('El negocio necesita un nombre.');
+            if ($id) { $values[]=$id; $this->db->prepare('UPDATE agenda_negocios SET nombre=?,descripcion=?,activo=? WHERE id=?')->execute($values); return $id; }
+            $this->db->prepare('INSERT INTO agenda_negocios(nombre,descripcion,activo) VALUES(?,?,?)')->execute($values);
+        } elseif ($entity === 'servicios') {
+            $values=[(int)($data['agenda_id']??0),trim((string)($data['nombre']??'')),max(5,(int)($data['duracion_minutos']??30)),!empty($data['requiere_aprobacion'])?1:0,!empty($data['activo'])?1:0];
+            if (!$values[0]) throw new InvalidArgumentException('Elegí la agenda de este servicio.');
+            if ($values[1]==='') throw new InvalidArgumentException('El servicio necesita un nombre.');
+            if ($id) { $values[]=$id; $this->db->prepare('UPDATE agenda_servicios SET agenda_id=?,nombre=?,duracion_minutos=?,requiere_aprobacion=?,activo=? WHERE id=?')->execute($values); return $id; }
+            $this->db->prepare('INSERT INTO agenda_servicios(agenda_id,nombre,duracion_minutos,requiere_aprobacion,activo) VALUES(?,?,?,?,?)')->execute($values);
         } elseif ($entity === 'profesionales') {
             $values=[trim((string)($data['nombre']??'')),trim((string)($data['especialidad']??'')),(int)($data['sucursal_id']??0)?:null,!empty($data['activo'])?1:0];
             if ($values[0]==='') throw new InvalidArgumentException('El profesional necesita un nombre.');
             if ($id) { $values[]=$id; $this->db->prepare('UPDATE agenda_profesionales SET nombre=?,especialidad=?,sucursal_id=?,activo=? WHERE id=?')->execute($values); return $id; }
             $this->db->prepare('INSERT INTO agenda_profesionales(nombre,especialidad,sucursal_id,activo) VALUES(?,?,?,?)')->execute($values);
         } elseif ($entity === 'sucursales') {
-            $values=[trim((string)($data['nombre']??'')),trim((string)($data['direccion']??'')),!empty($data['activo'])?1:0];
-            if ($values[0]==='') throw new InvalidArgumentException('La sucursal necesita un nombre.');
-            if ($id) { $values[]=$id; $this->db->prepare('UPDATE agenda_sucursales SET nombre=?,direccion=?,activo=? WHERE id=?')->execute($values); return $id; }
-            $this->db->prepare('INSERT INTO agenda_sucursales(nombre,direccion,activo) VALUES(?,?,?)')->execute($values);
+            $values=[(int)($data['negocio_id']??0),trim((string)($data['nombre']??'')),trim((string)($data['direccion']??'')),!empty($data['activo'])?1:0];
+            if (!$values[0]) throw new InvalidArgumentException('Elegí el negocio de esta sucursal.');
+            if ($values[1]==='') throw new InvalidArgumentException('La sucursal necesita un nombre.');
+            if ($id) { $values[]=$id; $this->db->prepare('UPDATE agenda_sucursales SET negocio_id=?,nombre=?,direccion=?,activo=? WHERE id=?')->execute($values); return $id; }
+            $this->db->prepare('INSERT INTO agenda_sucursales(negocio_id,nombre,direccion,activo) VALUES(?,?,?,?)')->execute($values);
         } elseif ($entity === 'agendas') {
             $values=[(int)($data['sucursal_id']??0),trim((string)($data['nombre']??'')),trim((string)($data['descripcion']??'')),max(0,min(240,(int)($data['buffer_minutes']??0))),!empty($data['activo'])?1:0];
             if (!$values[0]) throw new InvalidArgumentException('Elegí la sucursal de esta agenda.');
