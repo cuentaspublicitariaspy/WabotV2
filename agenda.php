@@ -182,6 +182,50 @@ function openEntity(type){if(type==='sucursales'){openModal('Nueva sucursal',`<f
 async function saveEntity(e,entity){e.preventDefault();try{await api({...formDataObject(e.target),action:'save_entity',entity});location.reload()}catch(err){alert(err.message)}}
 async function saveSettings(e){e.preventDefault();try{await api({...formDataObject(e.target),action:'save_settings'});alert('Reglas actualizadas.')}catch(err){alert(err.message)}}
 
+/* ABM completo de la estructura. Sobrescribe los formularios iniciales. */
+const entityItems={negocios:businesses,sucursales:branches,agendas:agendas,servicios:services};
+function findEntity(type,id){return (entityItems[type]||[]).find(function(x){return Number(x.id)===Number(id)})||{}}
+function activeBox(item){return '<label class="flex items-center gap-2 text-sm"><input type="checkbox" name="activo" value="1" '+(item.activo===undefined||Number(item.activo)?'checked':'')+'> Activo</label>'}
+function entitySelect(name,items,current,label){
+ return '<label class="block text-sm">'+label+'<select required name="'+name+'" class="mt-1 border rounded-xl p-2.5 w-full"><option value="">Elegí una opción</option>'+items.map(function(x){return '<option value="'+x.id+'" '+(Number(x.id)===Number(current)?'selected':'')+'>'+esc(x.nombre)+'</option>'}).join('')+'</select></label>';
+}
+function editEntity(type,id){openEntity(type,findEntity(type,id))}
+function openEntity(type,item){
+ item=item||{};
+ const id=item.id?'<input type="hidden" name="id" value="'+Number(item.id)+'">':'';
+ const title=item.id?'Editar ':'Nuevo ';
+ if(type==='negocios'){
+  openModal(title+'negocio','<form class="space-y-3" onsubmit="saveEntity(event,\'negocios\')">'+id+'<label class="block text-sm">Nombre<input required name="nombre" value="'+esc(item.nombre||'')+'" class="mt-1 border rounded-xl p-2.5 w-full"></label><label class="block text-sm">Descripción<input name="descripcion" value="'+esc(item.descripcion||'')+'" class="mt-1 border rounded-xl p-2.5 w-full"></label>'+activeBox(item)+'<button class="w-full bg-emerald-600 text-white rounded-xl p-3 font-semibold">Guardar negocio</button></form>');return;
+ }
+ if(type==='sucursales'){
+  openModal(title+'sucursal','<form class="space-y-3" onsubmit="saveEntity(event,\'sucursales\')">'+id+entitySelect('negocio_id',businesses,item.negocio_id,'Negocio')+'<label class="block text-sm">Nombre<input required name="nombre" value="'+esc(item.nombre||'')+'" class="mt-1 border rounded-xl p-2.5 w-full"></label><label class="block text-sm">Dirección<input name="direccion" value="'+esc(item.direccion||'')+'" class="mt-1 border rounded-xl p-2.5 w-full"></label>'+activeBox(item)+'<button class="w-full bg-emerald-600 text-white rounded-xl p-3 font-semibold">Guardar sucursal</button></form>');return;
+ }
+ if(type==='agendas'){
+  openModal(title+'agenda','<form class="space-y-3" onsubmit="saveEntity(event,\'agendas\')">'+id+entitySelect('sucursal_id',branches,item.sucursal_id,'Sucursal')+'<label class="block text-sm">Nombre de la agenda<input required name="nombre" value="'+esc(item.nombre||'')+'" class="mt-1 border rounded-xl p-2.5 w-full"></label><label class="block text-sm">Descripción<input name="descripcion" value="'+esc(item.descripcion||'')+'" class="mt-1 border rounded-xl p-2.5 w-full"></label><label class="block text-sm">Buffer entre citas (min)<input required type="number" min="0" name="buffer_minutes" value="'+Number(item.buffer_minutes||0)+'" class="mt-1 border rounded-xl p-2.5 w-full"></label>'+activeBox(item)+'<button class="w-full bg-emerald-600 text-white rounded-xl p-3 font-semibold">Guardar agenda</button></form>');return;
+ }
+ openModal(title+'servicio','<form class="space-y-3" onsubmit="saveEntity(event,\'servicios\')">'+id+entitySelect('agenda_id',agendas,item.agenda_id,'Agenda')+'<label class="block text-sm">Nombre<input required name="nombre" value="'+esc(item.nombre||'')+'" class="mt-1 border rounded-xl p-2.5 w-full"></label><label class="block text-sm">Duración (min)<input required type="number" min="5" name="duracion_minutos" value="'+Number(item.duracion_minutos||30)+'" class="mt-1 border rounded-xl p-2.5 w-full"></label>'+activeBox(item)+'<button class="w-full bg-emerald-600 text-white rounded-xl p-3 font-semibold">Guardar servicio</button></form>');
+}
+async function toggleEntity(entity,id,active){
+ try{await api({action:'toggle_entity',entity:entity,id:id,active:active});location.reload()}catch(err){alert(err.message)}
+}
+async function deleteEntity(entity,id){
+ if(!confirm('¿Eliminar este registro? Solo se permitirá si no tiene datos dependientes.'))return;
+ try{await api({action:'delete_entity',entity:entity,id:id});location.reload()}catch(err){alert(err.message)}
+}
+function hoursServiceOptions(agendaId,current){
+ return services.filter(function(s){return Number(s.agenda_id)===Number(agendaId)}).map(function(s){return '<option value="'+s.id+'" '+(Number(s.id)===Number(current)?'selected':'')+'>'+esc(s.nombre)+' · '+Number(s.duracion_minutos)+' min</option>'}).join('');
+}
+function refreshHourServices(current){
+ const agendaId=document.getElementById('hour-agenda').value,select=document.getElementById('hour-service');
+ select.innerHTML='<option value="">Elegí un servicio</option>'+hoursServiceOptions(agendaId,current||select.dataset.current);
+}
+function openHours(e,item){
+ stop(e);item=item||{};
+ openModal(item.id?'Editar horario':'Añadir horario','<form class="space-y-3" onsubmit="saveHours(event)"><input type="hidden" name="id" value="'+(item.id||'')+'"><label class="block text-sm">Agenda<select required id="hour-agenda" name="agenda_id" onchange="refreshHourServices()" class="mt-1 border rounded-xl p-2.5 w-full"><option value="">Elegí una agenda</option>'+agendas.map(function(a){return '<option value="'+a.id+'" '+(Number(a.id)===Number(item.agenda_id)?'selected':'')+'>'+esc(a.sucursal||'Sucursal')+' · '+esc(a.nombre)+'</option>'}).join('')+'</select></label><label class="block text-sm">Servicio<select required id="hour-service" data-current="'+(item.servicio_id||'')+'" name="servicio_id" class="mt-1 border rounded-xl p-2.5 w-full"><option value="">Elegí una agenda primero</option></select></label><label class="block text-sm">Día<select name="dia_semana" class="mt-1 border rounded-xl p-2.5 w-full">'+['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'].map(function(d,i){return '<option value="'+i+'" '+(Number(i)===Number(item.dia_semana)?'selected':'')+'>'+d+'</option>'}).join('')+'</select></label><div class="grid grid-cols-2 gap-3"><label class="text-sm">Desde<input required type="time" name="hora_inicio" value="'+esc(String(item.hora_inicio||'').slice(0,5))+'" class="mt-1 border rounded-xl p-2.5 w-full"></label><label class="text-sm">Hasta<input required type="time" name="hora_fin" value="'+esc(String(item.hora_fin||'').slice(0,5))+'" class="mt-1 border rounded-xl p-2.5 w-full"></label></div>'+activeBox(item)+'<button class="w-full bg-emerald-600 text-white rounded-xl p-3 font-semibold">Guardar horario</button></form>');
+ refreshHourServices(item.servicio_id);
+}
+function editHours(item){openHours(null,item)}
+
 /* Flujo manual: elegir recurso, ver disponibilidad real y completar la cita. */
 function manualPairCards(next, serviceId, agendaId){
   const listA=agendas.filter(function(a){return Number(a.activo)}), listS=services.filter(function(x){return Number(x.activo)});
