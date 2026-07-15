@@ -10,7 +10,7 @@ function asuncionDate() {
 }
 
 function agendaInstructions() {
-  return `AGENDA CONVERSACIONAL: hoy es ${asuncionDate()} en la zona horaria America/Asuncion. Convertí referencias naturales: “mañana”, “pasado mañana”, “el viernes” y “por la mañana/tarde” a fechas y preferencias reales; nunca le exijas una fecha exacta a quien ya dijo “mañana”, ni inventes una fecha. Si una persona pide una cita, consultá el catálogo de agendas y servicios, luego la disponibilidad válida de la agenda correspondiente y proponé opciones reales. Si el horario pedido no existe, llamá próximos_horarios y ofrecé alternativas concretas de los siguientes días, respetando mañana/tarde si la persona lo indicó. “Sí” confirma la última opción exacta que vos propusiste. Pedí solo el dato que falta para continuar; no hagas un cuestionario ni uses frases robóticas como “parece que necesito”. Para cambiar o cancelar una cita, buscá primero las citas activas de esa persona, aclarando cuál si hay más de una. La disponibilidad, los buffers y las colisiones siempre los decide la herramienta; vos solo conversás.`;
+  return `AGENDA CONVERSACIONAL: hoy es ${asuncionDate()} en la zona horaria America/Asuncion. Convertí referencias naturales: “mañana”, “pasado mañana”, “el viernes” y “por la mañana/tarde” a fechas y preferencias reales; nunca le exijas una fecha exacta a quien ya dijo “mañana”, ni inventes una fecha. Si una persona pide la próxima disponibilidad, el próximo horario, “decime vos” o una alternativa sin indicar fecha, consultá catálogo y luego llamá proximos_horarios desde hoy; ofrecé opciones reales. Si una persona pide una agenda por nombre, usá el catálogo para identificarla. Si solo existe un servicio o una agenda activos, la herramienta los resuelve sin pedirlos. Si el horario pedido no existe, llamá próximos_horarios y ofrecé alternativas concretas de los siguientes días, respetando mañana/tarde si la persona lo indicó. “Sí” confirma la última opción exacta que vos propusiste. Pedí solo el dato que falta para continuar; no hagas un cuestionario ni uses frases robóticas como “parece que necesito”. Para cambiar o cancelar una cita, buscá primero las citas activas de esa persona, aclarando cuál si hay más de una. La disponibilidad, los buffers y las colisiones siempre los decide la herramienta; vos solo conversás.`;
 }
 
 module.exports = async (req, res) => {
@@ -183,6 +183,17 @@ module.exports = async (req, res) => {
       toolRound++;
     }
     let reply = openaiData.choices?.[0]?.message?.content || '';
+    if (!reply.trim()) {
+      const fallback = await fetch(OPENAI_API_URL, {
+        method: 'POST', headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: OPENAI_MODEL, messages: [...messages, { role: 'system', content: 'Respondé ahora en lenguaje natural usando únicamente los resultados de agenda ya obtenidos. No llames herramientas.' }], tool_choice: 'none', max_tokens: 512, temperature: 0.25 })
+      });
+      if (fallback.ok) {
+        const fallbackData = await fallback.json();
+        reply = fallbackData.choices?.[0]?.message?.content || '';
+      }
+    }
+    if (!reply.trim()) reply = 'No pude consultar los próximos horarios en este momento. Probá de nuevo en unos segundos.';
     // Cinturón y tiradores: aunque una fuente cargada por el cliente contenga
     // una frase vieja o contradictoria, esa negativa no sale al visitante.
     const forbiddenRefusal = /(?:no\s+puedo|no\s+podemos)\s+(?:guardar|recibir|almacenar)[\s\S]{0,100}(?:dato|informaci[oó]n|contacto|n[uú]mero)/i;
