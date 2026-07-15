@@ -11,12 +11,16 @@ function asuncionDate() {
 }
 
 function agendaInstructions() {
-  return `AGENDA CONVERSACIONAL: hoy es ${asuncionDate()} en la zona horaria America/Asuncion. Convertí referencias naturales: “mañana”, “pasado mañana”, “el viernes” y “por la mañana/tarde” a fechas y preferencias reales; nunca le exijas una fecha exacta a quien ya dijo “mañana”, ni inventes una fecha. Si una persona pide la próxima disponibilidad, el próximo horario, “decime vos” o una alternativa sin indicar fecha, consultá catálogo y luego llamá proximos_horarios desde hoy; ofrecé opciones reales. Si una persona pide una agenda por nombre, usá el catálogo para identificarla. Si solo existe un servicio o una agenda activos, la herramienta los resuelve sin pedirlos. Si el horario pedido no existe, llamá próximos_horarios y ofrecé alternativas concretas de los siguientes días, respetando mañana/tarde si la persona lo indicó. “Sí” confirma la última opción exacta que vos propusiste. Pedí solo el dato que falta para continuar; no hagas un cuestionario ni uses frases robóticas como “parece que necesito”. Para cambiar o cancelar una cita, buscá primero las citas activas de esa persona, aclarando cuál si hay más de una. La disponibilidad, los buffers y las colisiones siempre los decide la herramienta; vos solo conversás. Nunca uses la expresión “parece que” ni variantes. PROHIBIDO ofrecer, confirmar o insinuar disponibilidad de una hora que no aparezca en el resultado de agenda de esta misma respuesta. CANAL ACTUAL: Chatbot web. Este canal no trae un teléfono validado: solicitalo solo cuando sea indispensable para cerrar una reserva.`;
+  return `AGENDA CONVERSACIONAL: hoy es ${asuncionDate()} en la zona horaria America/Asuncion. Convertí referencias naturales: “mañana”, “pasado mañana”, “el viernes” y “por la mañana/tarde” a fechas y preferencias reales; nunca le exijas una fecha exacta a quien ya dijo “mañana”, ni inventes una fecha. Si una persona pide la próxima disponibilidad, el próximo horario, “decime vos” o una alternativa sin indicar fecha, consultá catálogo y luego llamá proximos_horarios desde hoy. Si pide “la más próxima” o “lo más temprano posible en la mañana”, ofrecé directamente el primer horario válido; solo si necesita una alternativa, mostrale como máximo dos. Si una persona pide una agenda por nombre, usá el catálogo para identificarla. Si solo existe un servicio o una agenda activos, la herramienta los resuelve sin pedirlos. Si el horario pedido no existe, llamá próximos_horarios y ofrecé alternativas concretas de los siguientes días, respetando mañana/tarde si la persona lo indicó. Si ya inició una reserva, eligió una fecha y hora concreta y luego entrega los datos solicitados, creá la cita sin pedir una confirmación adicional. Pedí solo el dato que falta para continuar; hacelo con calidez, explicando que sirve para registrar la cita y enviarle el recordatorio. No hagas un cuestionario ni uses frases robóticas como “parece que necesito”. Para cambiar o cancelar una cita, buscá primero las citas activas de esa persona, aclarando cuál si hay más de una. La disponibilidad, los buffers y las colisiones siempre los decide la herramienta; vos solo conversás. Nunca uses la expresión “parece que” ni variantes. PROHIBIDO ofrecer, confirmar o insinuar disponibilidad de una hora que no aparezca en el resultado de agenda de esta misma respuesta. CANAL ACTUAL: Chatbot web. Este canal no trae un teléfono validado: solicitalo solo cuando sea indispensable para cerrar una reserva.`;
 }
 
-async function semanticConfirmationIntent(openaiKey, proposal, answer) {
-  if (!proposal || !answer) return { decision: '', nombreCliente: '' };
+async function semanticConfirmationIntent(openaiKey, context, answer) {
+  if (!answer) return { decision: '', nombreCliente: '' };
   try {
+    const recent = (Array.isArray(context) ? context : []).slice(-6).map(item => ({
+      role: item?.role || '',
+      content: typeof item?.content === 'string' ? item.content : ''
+    }));
     const response = await fetch(OPENAI_API_URL, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
@@ -24,10 +28,10 @@ async function semanticConfirmationIntent(openaiKey, proposal, answer) {
         model: OPENAI_MODEL,
         response_format: { type: 'json_object' },
         temperature: 0,
-        max_tokens: 80,
+        max_tokens: 100,
         messages: [
-          { role: 'system', content: 'Comprendé semánticamente la respuesta del visitante frente a la última propuesta de cita. Respondé SOLO JSON válido: {"decision":"confirmar"|"completar_reserva"|"rechazar_o_cambiar"|"indeterminado","nombre_cliente":""}. confirmar: acepta la propuesta. completar_reserva: la persona entrega los datos que acabás de pedir para una cita ya elegida; eso autoriza crearla sin pedir otra confirmación. rechazar_o_cambiar: niega o cambia la propuesta. indeterminado: otro caso. No uses frases clave; interpretá el contexto. nombre_cliente solo si fue declarado explícitamente por la persona en esta respuesta.' },
-          { role: 'user', content: JSON.stringify({ ultima_propuesta: proposal, respuesta_visitante: answer }) }
+          { role: 'system', content: 'Comprendé semánticamente una reserva usando todo el tramo reciente de conversación. Respondé SOLO JSON válido: {"decision":"confirmar"|"completar_reserva"|"rechazar_o_cambiar"|"indeterminado","nombre_cliente":""}. confirmar: acepta la última propuesta concreta. completar_reserva: la persona ya quiso agendar, eligió una fecha/hora concreta y ahora entrega datos solicitados; eso autoriza crear la cita sin pedir otra confirmación. rechazar_o_cambiar: rechaza, corrige o cambia la propuesta. indeterminado: otro caso. No uses frases clave ni exijas la palabra “sí”; interpretá la intención humana. nombre_cliente solo si fue declarado explícitamente por la persona en la respuesta actual.' },
+          { role: 'user', content: JSON.stringify({ contexto_reciente: recent, respuesta_actual: answer }) }
         ]
       })
     });
@@ -36,6 +40,10 @@ async function semanticConfirmationIntent(openaiKey, proposal, answer) {
     const decision = ['confirmar', 'completar_reserva', 'rechazar_o_cambiar', 'indeterminado'].includes(parsed?.decision) ? parsed.decision : '';
     return { decision, nombreCliente: String(parsed?.nombre_cliente || '').trim() };
   } catch { return { decision: '', nombreCliente: '' }; }
+}
+
+function polishResponse(content) {
+  return String(content || '').replace(/\bparece\s+que\s+/gi, '').replace(/\bpareciera\s+que\s+/gi, '');
 }
 
 module.exports = async (req, res) => {
@@ -158,8 +166,7 @@ module.exports = async (req, res) => {
       return { success: false, error: 'La agenda no está disponible todavía.' };
     }
 
-    const lastAssistant = [...parsedHistory].reverse().find(item => item?.role === 'assistant');
-    const semantic = await semanticConfirmationIntent(openaiKey, lastAssistant?.content || '', message);
+    const semantic = await semanticConfirmationIntent(openaiKey, parsedHistory, message);
     const confirmed = await confirmExactProposal({ history: parsedHistory, message, agendaCall, channel: 'chatbot', nombre_cliente: semantic.nombreCliente, semanticIntent: semantic.decision });
     if (confirmed?.handled) {
       res.json({ success: confirmed.success, message: { role: 'assistant', content: confirmed.reply } });
@@ -237,7 +244,7 @@ module.exports = async (req, res) => {
 
     res.json({
       success: true,
-      message: { role: 'assistant', content: reply }
+      message: { role: 'assistant', content: polishResponse(reply) }
     });
   } catch (err) {
     if (err.name === 'AbortError') {
