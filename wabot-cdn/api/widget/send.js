@@ -11,11 +11,11 @@ function asuncionDate() {
 }
 
 function agendaInstructions() {
-  return `AGENDA CONVERSACIONAL: hoy es ${asuncionDate()} en la zona horaria America/Asuncion. Convertí referencias naturales: “mañana”, “pasado mañana”, “el viernes” y “por la mañana/tarde” a fechas y preferencias reales; nunca le exijas una fecha exacta a quien ya dijo “mañana”, ni inventes una fecha. Si una persona pide la próxima disponibilidad, el próximo horario, “decime vos” o una alternativa sin indicar fecha, consultá catálogo y luego llamá proximos_horarios desde hoy; ofrecé opciones reales. Si una persona pide una agenda por nombre, usá el catálogo para identificarla. Si solo existe un servicio o una agenda activos, la herramienta los resuelve sin pedirlos. Si el horario pedido no existe, llamá próximos_horarios y ofrecé alternativas concretas de los siguientes días, respetando mañana/tarde si la persona lo indicó. “Sí” confirma la última opción exacta que vos propusiste. Pedí solo el dato que falta para continuar; no hagas un cuestionario ni uses frases robóticas como “parece que necesito”. Para cambiar o cancelar una cita, buscá primero las citas activas de esa persona, aclarando cuál si hay más de una. La disponibilidad, los buffers y las colisiones siempre los decide la herramienta; vos solo conversás. PROHIBIDO ofrecer, confirmar o insinuar disponibilidad de una hora que no aparezca en el resultado de agenda de esta misma respuesta. CANAL ACTUAL: Chatbot web. Este canal no trae un teléfono validado: solicitalo solo cuando sea indispensable para cerrar una reserva.`;
+  return `AGENDA CONVERSACIONAL: hoy es ${asuncionDate()} en la zona horaria America/Asuncion. Convertí referencias naturales: “mañana”, “pasado mañana”, “el viernes” y “por la mañana/tarde” a fechas y preferencias reales; nunca le exijas una fecha exacta a quien ya dijo “mañana”, ni inventes una fecha. Si una persona pide la próxima disponibilidad, el próximo horario, “decime vos” o una alternativa sin indicar fecha, consultá catálogo y luego llamá proximos_horarios desde hoy; ofrecé opciones reales. Si una persona pide una agenda por nombre, usá el catálogo para identificarla. Si solo existe un servicio o una agenda activos, la herramienta los resuelve sin pedirlos. Si el horario pedido no existe, llamá próximos_horarios y ofrecé alternativas concretas de los siguientes días, respetando mañana/tarde si la persona lo indicó. “Sí” confirma la última opción exacta que vos propusiste. Pedí solo el dato que falta para continuar; no hagas un cuestionario ni uses frases robóticas como “parece que necesito”. Para cambiar o cancelar una cita, buscá primero las citas activas de esa persona, aclarando cuál si hay más de una. La disponibilidad, los buffers y las colisiones siempre los decide la herramienta; vos solo conversás. Nunca uses la expresión “parece que” ni variantes. PROHIBIDO ofrecer, confirmar o insinuar disponibilidad de una hora que no aparezca en el resultado de agenda de esta misma respuesta. CANAL ACTUAL: Chatbot web. Este canal no trae un teléfono validado: solicitalo solo cuando sea indispensable para cerrar una reserva.`;
 }
 
 async function semanticConfirmationIntent(openaiKey, proposal, answer) {
-  if (!proposal || !answer) return '';
+  if (!proposal || !answer) return { decision: '', nombreCliente: '' };
   try {
     const response = await fetch(OPENAI_API_URL, {
       method: 'POST',
@@ -24,19 +24,19 @@ async function semanticConfirmationIntent(openaiKey, proposal, answer) {
         model: OPENAI_MODEL,
         response_format: { type: 'json_object' },
         temperature: 0,
-        max_tokens: 40,
+        max_tokens: 80,
         messages: [
-          { role: 'system', content: 'Clasificá la intención semántica de la respuesta del visitante frente a la última propuesta de cita. No dependas de frases clave: comprendé el sentido completo. Respondé SOLO JSON: {"decision":"confirmar"|"rechazar_o_cambiar"|"indeterminado"}. Confirmar solo si acepta inequívocamente esa propuesta concreta; rechazar_o_cambiar si la niega o pide otra; indeterminado en cualquier otro caso.' },
+          { role: 'system', content: 'Comprendé semánticamente la respuesta del visitante frente a la última propuesta de cita. Respondé SOLO JSON válido: {"decision":"confirmar"|"completar_reserva"|"rechazar_o_cambiar"|"indeterminado","nombre_cliente":""}. confirmar: acepta la propuesta. completar_reserva: la persona entrega los datos que acabás de pedir para una cita ya elegida; eso autoriza crearla sin pedir otra confirmación. rechazar_o_cambiar: niega o cambia la propuesta. indeterminado: otro caso. No uses frases clave; interpretá el contexto. nombre_cliente solo si fue declarado explícitamente por la persona en esta respuesta.' },
           { role: 'user', content: JSON.stringify({ ultima_propuesta: proposal, respuesta_visitante: answer }) }
         ]
       })
     });
     const data = await response.json();
-    const decision = JSON.parse(data?.choices?.[0]?.message?.content || '{}').decision;
-    return ['confirmar', 'rechazar_o_cambiar', 'indeterminado'].includes(decision) ? decision : '';
-  } catch { return ''; }
+    const parsed = JSON.parse(data?.choices?.[0]?.message?.content || '{}');
+    const decision = ['confirmar', 'completar_reserva', 'rechazar_o_cambiar', 'indeterminado'].includes(parsed?.decision) ? parsed.decision : '';
+    return { decision, nombreCliente: String(parsed?.nombre_cliente || '').trim() };
+  } catch { return { decision: '', nombreCliente: '' }; }
 }
-
 
 module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') {
@@ -159,8 +159,8 @@ module.exports = async (req, res) => {
     }
 
     const lastAssistant = [...parsedHistory].reverse().find(item => item?.role === 'assistant');
-    const semanticIntent = await semanticConfirmationIntent(openaiKey, lastAssistant?.content || '', message);
-    const confirmed = await confirmExactProposal({ history: parsedHistory, message, agendaCall, channel: 'chatbot', semanticIntent });
+    const semantic = await semanticConfirmationIntent(openaiKey, lastAssistant?.content || '', message);
+    const confirmed = await confirmExactProposal({ history: parsedHistory, message, agendaCall, channel: 'chatbot', nombre_cliente: semantic.nombreCliente, semanticIntent: semantic.decision });
     if (confirmed?.handled) {
       res.json({ success: confirmed.success, message: { role: 'assistant', content: confirmed.reply } });
       return;
