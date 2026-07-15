@@ -1,4 +1,5 @@
 const { getClient, getAllClients } = require('../_lib/kv');
+const { confirmExactProposal } = require('../_lib/agenda-confirmation');
 
 const OPENAI_CHAT_URL = 'https://api.openai.com/v1/chat/completions';
 const OPENAI_TRANSCRIBE_URL = 'https://api.openai.com/v1/audio/transcriptions';
@@ -91,6 +92,13 @@ module.exports = async (req, res) => {
           } catch { /* compatible installation path */ }
         }
         return { success: false, error: 'La agenda no está disponible todavía.' };
+      }
+
+      const latestUser = [...messages].reverse().find(item => item?.role === 'user');
+      const confirmed = await confirmExactProposal({ history: messages.slice(0, -1), message: latestUser?.content || '', agendaCall, channel: 'whatsapp' });
+      if (confirmed?.handled) {
+        res.json({ success: confirmed.success, content: confirmed.reply });
+        return;
       }
 
       let openaiRes = await fetch(OPENAI_CHAT_URL, {
