@@ -207,6 +207,10 @@ class AppointmentManager
             $stmt=$this->db->prepare('SELECT COUNT(*) FROM '.$child.' WHERE '.$foreign.'=?');$stmt->execute([$id]);
             if ((int)$stmt->fetchColumn()) throw new RuntimeException($message);
         }
+        if ($entity==='agendas') {
+            $stmt=$this->db->prepare('SELECT COUNT(*) FROM citas WHERE agenda_id=?');$stmt->execute([$id]);
+            if ((int)$stmt->fetchColumn()) throw new RuntimeException('No podés eliminar una agenda con citas registradas.');
+        }
         if ($entity==='servicios') {
             $stmt=$this->db->prepare('SELECT COUNT(*) FROM agenda_horarios WHERE servicio_id=?');$stmt->execute([$id]);
             if ((int)$stmt->fetchColumn()) throw new RuntimeException('No podés eliminar un servicio que todavía tiene horarios.');
@@ -223,7 +227,12 @@ class AppointmentManager
         if(!(int)$owner->fetchColumn()) throw new InvalidArgumentException('El servicio no pertenece a esa agenda.');
         $day=(int)($data['dia_semana']??0); $from=(string)($data['hora_inicio']??''); $to=(string)($data['hora_fin']??'');
         if ($day<0 || $day>6 || !preg_match('/^\d\d:\d\d$/',$from) || !preg_match('/^\d\d:\d\d$/',$to) || $from >= $to) throw new InvalidArgumentException('Horario inválido.');
-        $this->db->prepare('INSERT INTO agenda_horarios(servicio_id,agenda_id,dia_semana,hora_inicio,hora_fin) VALUES(?,?,?,?,?)')->execute([$serviceId,$agendaId,$day,$from,$to]);
+        $id=(int)($data['id']??0);
+        if($id){
+            $this->db->prepare('UPDATE agenda_horarios SET servicio_id=?, agenda_id=?, dia_semana=?, hora_inicio=?, hora_fin=? WHERE id=?')->execute([$serviceId,$agendaId,$day,$from,$to,$id]);
+        }else{
+            $this->db->prepare('INSERT INTO agenda_horarios(servicio_id,agenda_id,dia_semana,hora_inicio,hora_fin) VALUES(?,?,?,?,?)')->execute([$serviceId,$agendaId,$day,$from,$to]);
+        }
     }
 
     public function hours(): array
