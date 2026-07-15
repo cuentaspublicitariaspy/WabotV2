@@ -60,3 +60,10 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 3. Cargar la Base de Conocimiento en WC.
 4. Configurar apariencia e insertar el **Chatbot** en el sitio autorizado.
 5. Configurar Meta/WhatsApp y ejecutar pruebas completas antes de entregar.
+
+
+## Conversación y agenda
+
+- La IA debe conocer siempre el canal exacto de la conversación (**WhatsApp**, **Chatbot web** u otro) y adaptar su conducta: en WhatsApp no debe pedir un número que Meta ya entregó; en Chatbot solo solicita contacto cuando sea indispensable para completar la gestión.
+- La confirmación de una cita se interpreta por intención conversacional, no por una palabra obligatoria. Afirmaciones, aceptación implícita o la repetición de la hora propuesta pueden confirmar una reserva; una negativa o pedido de cambio nunca lo hace.
+- La IA nunca puede ofrecer ni confirmar un horario que el motor determinístico de agenda no haya devuelto como disponible en la misma interacción.
