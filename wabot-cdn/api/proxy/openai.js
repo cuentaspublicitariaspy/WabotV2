@@ -9,7 +9,7 @@ function asuncionDate() {
   return `${value.year}-${value.month}-${value.day}`;
 }
 function agendaInstructions() {
-  return `AGENDA CONVERSACIONAL: hoy es ${asuncionDate()} en America/Asuncion. Interpretá “mañana”, días de la semana y mañana/tarde sin pedir una fecha exacta cuando ya existe una referencia natural. Consultá catálogo y luego disponibilidad real antes de ofrecer horarios. Si no hay lugar, usá próximos_horarios y ofrecé alternativas de los días siguientes. “Sí” confirma la última alternativa exacta propuesta. Pedí solo el dato faltante, sin tono de formulario. Para reprogramar o cancelar, buscá primero las citas activas y aclarar cuál si hay varias. Nunca inventes fechas, horarios, disponibilidad ni ignores buffers.`;
+  return `AGENDA CONVERSACIONAL: hoy es ${asuncionDate()} en America/Asuncion. Interpretá “mañana”, días de la semana y mañana/tarde sin pedir una fecha exacta cuando ya existe una referencia natural. Si el cliente pide la próxima disponibilidad, el próximo horario, “decime vos” o una alternativa sin fecha, consultá catálogo y luego usá próximos_horarios desde hoy. Consultá siempre disponibilidad real antes de ofrecer horarios. Si no hay lugar, usá próximos_horarios y ofrecé alternativas de los días siguientes. “Sí” confirma la última alternativa exacta propuesta. Pedí solo el dato faltante, sin tono de formulario. Para reprogramar o cancelar, buscá primero las citas activas y aclarar cuál si hay varias. Nunca inventes fechas, horarios, disponibilidad ni ignores buffers.`;
 }
 
 module.exports = async (req, res) => {
@@ -136,10 +136,13 @@ module.exports = async (req, res) => {
         toolCalls = data?.choices?.[0]?.message?.tool_calls || [];
         toolRound++;
       }
-      const content = data?.choices?.[0]?.message?.content?.trim();
+      let content = data?.choices?.[0]?.message?.content?.trim();
       if (!content) {
-        res.status(502).json({ success: false, error: 'OpenAI devolvió una respuesta vacía' });
-        return;
+        const fallback = await fetch(OPENAI_CHAT_URL, { method: 'POST', headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: model || 'gpt-4o-mini', messages: [...toolMessages, { role: 'system', content: 'Respondé ahora usando los resultados de agenda ya obtenidos. No llames herramientas.' }], tool_choice: 'none', max_tokens: 512, temperature: 0.25 }) });
+        if (fallback.ok) { const fallbackData = await fallback.json(); content = fallbackData?.choices?.[0]?.message?.content?.trim(); }
+      }
+      if (!content) {
+        res.status(502).json({ success: false, error: 'No se pudo consultar los próximos horarios. Probá de nuevo en unos segundos.' }); return;
       }
 
       // Contrato estable para WC. No se filtra la respuesta completa de OpenAI.
