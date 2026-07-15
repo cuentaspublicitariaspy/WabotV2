@@ -92,8 +92,11 @@ async function confirmExactProposal({ history, message, agendaCall, channel, tel
     return item?.role === 'assistant' && /(confirm|reserv|agend)/i.test(candidate) && !!parseProposal(candidate);
   });
   const proposalText = text(confirmationPrompt?.content);
-  // La clasificación semántica proviene de la IA y entiende el sentido de la respuesta;\n  // los patrones locales solo son una red de seguridad ante un fallo temporal.\n  if (semanticIntent === 'rechazar_o_cambiar') return null;\n  if (semanticIntent !== 'confirmar' && !isConfirmationIntent(message, proposalText)) return null;
-  if (!proposalText) return null;
+  // La clasificación semántica proviene de la IA y entiende el sentido de la respuesta.
+  // Los patrones locales solo son una red de seguridad ante un fallo temporal.
+  if (!proposalText || semanticIntent === 'rechazar_o_cambiar') return null;
+  const semanticAllowsBooking = ['confirmar', 'completar_reserva'].includes(semanticIntent);
+  if (!semanticAllowsBooking && !isConfirmationIntent(message, proposalText)) return null;
   const inicio = parseProposal(proposalText);
   const phone = String(telefono || phoneFrom(entries)).replace(/\D/g, '');
   if (!inicio || !phone) return null;
