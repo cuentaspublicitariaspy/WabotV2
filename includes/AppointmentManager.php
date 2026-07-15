@@ -141,9 +141,11 @@ class AppointmentManager
 
     public function list(string $entity): array
     {
-        $tables = ['servicios'=>'agenda_servicios','profesionales'=>'agenda_profesionales','sucursales'=>'agenda_sucursales','agendas'=>'agenda_agendas'];
+        $tables = ['negocios'=>'agenda_negocios','servicios'=>'agenda_servicios','profesionales'=>'agenda_profesionales','sucursales'=>'agenda_sucursales','agendas'=>'agenda_agendas'];
         if (!isset($tables[$entity])) return [];
-        if ($entity === 'agendas') return $this->db->query('SELECT a.*,s.nombre sucursal FROM agenda_agendas a LEFT JOIN agenda_sucursales s ON s.id=a.sucursal_id ORDER BY a.activo DESC,s.nombre,a.nombre')->fetchAll();
+        if ($entity === 'sucursales') return $this->db->query('SELECT s.*,n.nombre negocio FROM agenda_sucursales s LEFT JOIN agenda_negocios n ON n.id=s.negocio_id ORDER BY s.activo DESC,n.nombre,s.nombre')->fetchAll();
+        if ($entity === 'agendas') return $this->db->query('SELECT a.*,s.nombre sucursal,n.nombre negocio FROM agenda_agendas a LEFT JOIN agenda_sucursales s ON s.id=a.sucursal_id LEFT JOIN agenda_negocios n ON n.id=s.negocio_id ORDER BY a.activo DESC,n.nombre,s.nombre,a.nombre')->fetchAll();
+        if ($entity === 'servicios') return $this->db->query('SELECT v.*,a.nombre agenda,s.nombre sucursal,n.nombre negocio FROM agenda_servicios v LEFT JOIN agenda_agendas a ON a.id=v.agenda_id LEFT JOIN agenda_sucursales s ON s.id=a.sucursal_id LEFT JOIN agenda_negocios n ON n.id=s.negocio_id ORDER BY v.activo DESC,n.nombre,s.nombre,a.nombre,v.nombre')->fetchAll();
         return $this->db->query('SELECT * FROM '.$tables[$entity].' ORDER BY activo DESC, nombre ASC')->fetchAll();
     }
 
