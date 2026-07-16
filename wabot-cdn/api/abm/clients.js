@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { getClient, setClient, deleteClient, getAllClients, saveClientsIndex, normalizeDomain } = require('../_lib/kv');
+const { normalizeCapabilities } = require('../_lib/capabilities');
 
 function auth(req, res) {
   const header = req.headers['authorization'] || '';
@@ -56,13 +57,18 @@ async function handleGet(req, res) {
   const full = {};
   for (const [key] of Object.entries(clients)) {
     const client = await getClient(key);
-    if (client) full[key] = client;
+    if (client) {
+      full[key] = {
+        ...client,
+        capabilities: normalizeCapabilities(client.capabilities, { legacyEnabled: true })
+      };
+    }
   }
   res.json({ success: true, clients: full });
 }
 
 async function handlePost(req, res) {
-  const { api_key, name, client_url, authorized_domain, enabled, rate_limits } = req.body || {};
+  const { api_key, name, client_url, authorized_domain, enabled, rate_limits, capabilities } = req.body || {};
   const normalizedDomain = authorized_domain === undefined ? undefined : normalizeDomain(authorized_domain);
 
   if (authorized_domain !== undefined && !normalizedDomain) {
@@ -83,7 +89,10 @@ async function handlePost(req, res) {
       client_url: client_url !== undefined ? client_url : existing.client_url,
       authorized_domain: normalizedDomain !== undefined ? normalizedDomain : existing.authorized_domain,
       enabled: enabled !== undefined ? enabled : existing.enabled,
-      rate_limits: rate_limits || existing.rate_limits || { chat: 60, transcribe: 6 }
+      rate_limits: rate_limits || existing.rate_limits || { chat: 60, transcribe: 6 },
+      capabilities: capabilities !== undefined
+        ? normalizeCapabilities(capabilities)
+        : normalizeCapabilities(existing.capabilities, { legacyEnabled: true })
     };
 
     await setClient(api_key, updated);
@@ -107,6 +116,7 @@ async function handlePost(req, res) {
     license_key: licenseKey,
     api_key: key,
     rate_limits: rate_limits || { chat: 60, transcribe: 6 },
+    capabilities: normalizeCapabilities(capabilities),
     created_at: new Date().toISOString()
   };
 
