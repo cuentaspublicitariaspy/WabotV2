@@ -91,3 +91,10 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 - Agenda móvil: al tocar cualquier tarjeta de cita se abre directamente la Ficha de agendamiento como modal. Debe mostrar cliente, contacto, horario, servicio/agenda y contexto; las acciones son Reagendar y Cancelar (Confirmar solo si la cita aún está pendiente).
 
 - Identidad transversal: todo WC relaciona prospectos, conversaciones y citas exclusivamente por teléfono o correo normalizados. El nombre es informativo y nunca se usa para fusionar personas. Al coincidir un teléfono/correo, Agenda enlaza el prospecto existente y Conversaciones muestra esa identidad automáticamente.
+
+
+## Identidad transversal por contacto — 15/07/2026
+- WC trata como la misma persona los teléfonos paraguayos `+595981966664`, `0981966664`, `981966664` y la forma abreviada `81966664`: la identidad interna se normaliza a `595981966664`.
+- La unión entre Agenda, Prospectos y Chatbot se hace solamente por teléfono o correo electrónico; nunca por nombre.
+- Conversaciones ya existentes con teléfono/correo se reconcilian al cargar la lista, sin analizar el texto de los mensajes.
+- El Chatbot no accede a contactos ni a datos del navegador: un teléfono solo llega desde el texto enviado por la persona o por una integración explícita del sitio.
