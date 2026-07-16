@@ -88,3 +88,4 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 - Móvil: no se permite scroll horizontal de la página, Dashboard ni Prospectos. En pantallas pequeñas se muestran solo las columnas útiles; las tablas no deben obligar a desplazar lateralmente.
 - Móvil: la barra inferior no puede tapar las últimas filas ni acciones de Prospectos. Toda pantalla debe dejar margen de desplazamiento final equivalente a la barra fija.
 - Móvil: la lista de Conversaciones debe conservar altura útil y renderizar sus chats; si no hay registros, debe verse explícitamente el estado vacío. Nunca puede quedar un panel blanco sin contenido.
+- Agenda móvil: al tocar cualquier tarjeta de cita se abre directamente la Ficha de agendamiento como modal. Debe mostrar cliente, contacto, horario, servicio/agenda y contexto; las acciones son Reagendar y Cancelar (Confirmar solo si la cita aún está pendiente).
