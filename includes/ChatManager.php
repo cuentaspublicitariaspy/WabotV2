@@ -151,32 +151,45 @@ class ChatManager
      * escritos por el visitante y aplica nombres explícitos a la conversación
      * y a su ficha. Nunca lee respuestas de IA como fuente de identidad.
      */
+    /**
+     * Vincula chats ya existentes por teléfono/correo con su ficha local.
+     * No examina texto de mensajes ni usa el nombre como criterio de unión.
+     */
     private function reconciliarIdentidadesChatbot(?int $soloChatId = null): void
     {
         try {
-            $sql = "SELECT id FROM widget_chats WHERE (visitor_name IS NULL OR visitor_name = '' OR visitor_name IN ('Visitante web', 'Sin nombre', 'Unknown'))";
+            $sql = "SELECT id, visitor_name, visitor_email, visitor_phone FROM widget_chats WHERE (visitor_phone <> '' OR visitor_email <> '')";
             $params = [];
             if ($soloChatId !== null) { $sql .= ' AND id = ?'; $params[] = $soloChatId; }
-            $sql .= ' LIMIT 100';
+            $sql .= ' ORDER BY id DESC LIMIT 200';
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
-            $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
-            if (!$ids) return;
+            $chats = $stmt->fetchAll();
+            if (!$chats) return;
 
             $prospectos = new ProspectManager();
-            $mensajes = $this->db->prepare("SELECT content FROM widget_messages WHERE chat_id = ? AND role = 'visitor' ORDER BY id ASC");
             $actualizarChat = $this->db->prepare("UPDATE widget_chats SET visitor_name = ? WHERE id = ?");
-            foreach ($ids as $id) {
-                $mensajes->execute([(int) $id]);
-                $nombre = '';
-                foreach ($mensajes->fetchAll(PDO::FETCH_COLUMN) as $contenido) {
-                    $datos = $prospectos->detectarDatosBasicos((string) $contenido);
-                    if (!empty($datos['nombre'])) { $nombre = trim((string) $datos['nombre']); break; }
+            foreach ($chats as $chat) {
+                $prospectoId = $prospectos->resolverIdentidad([
+                    'email' => (string)$chat['visitor_email'],
+                    'whatsapp' => (string)$chat['visitor_phone'],
+                ], false);
+                if (!$prospectoId) continue;
+
+                $prospecto = $prospectos->obtener($prospectoId);
+                if (!$prospecto) continue;
+
+                $prospectos->vincular('chatbot', (string)$chat['id'], [
+                    'email' => (string)$chat['visitor_email'],
+                    'whatsapp' => (string)$chat['visitor_phone'],
+                ]);
+
+                $nombreActual = mb_strtolower(trim((string)$chat['visitor_name']), 'UTF-8');
+                $sinNombre = $nombreActual === '' || in_array($nombreActual, ['visitante web', 'sin nombre', 'unknown'], true);
+                $nombre = trim((string)($prospecto['nombre'] ?? ''));
+                if ($sinNombre && $nombre !== '') {
+                    $actualizarChat->execute([$nombre, (int)$chat['id']]);
                 }
-                if ($nombre === '') continue;
-                $actualizarChat->execute([$nombre, (int) $id]);
-                $prospectoId = $prospectos->vincular('chatbot', (string) $id);
-                $prospectos->actualizar($prospectoId, ['nombre' => $nombre]);
             }
         } catch (Throwable $e) {
             error_log('Wabot chatbot identity reconciliation failed: ' . $e->getMessage());
