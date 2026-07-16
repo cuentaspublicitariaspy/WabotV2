@@ -1,7 +1,9 @@
 <?php
 require_once __DIR__.'/includes/Auth.php';
+require_once __DIR__.'/includes/License.php';
 require_once __DIR__.'/includes/AppointmentManager.php';
 requireLogin();
+License::requireCapability('agenda');
 
 $date = $_GET['date'] ?? date('Y-m-d');
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) $date = date('Y-m-d');
