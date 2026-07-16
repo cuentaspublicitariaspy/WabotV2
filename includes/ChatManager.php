@@ -182,9 +182,12 @@ class ChatManager
                 $prospecto = $prospectoId ? $prospectos->obtener($prospectoId) : null;
 
                 // Una cita existente es fuente local y determinística de
-                // identidad. Sirve de respaldo para instalaciones previas que
-                // aún no tenían prospecto_id enlazado.
-                if (!$prospecto && ($datos['whatsapp'] !== '' || $datos['email'] !== '')) {
+                // identidad. También completa fichas antiguas que ya estaban
+                // vinculadas por contacto pero todavía no tenían nombre.
+                $nombreProspecto = mb_strtolower(trim((string)($prospecto['nombre'] ?? '')), 'UTF-8');
+                $prospectoAnonimo = !$prospecto || $nombreProspecto === ''
+                    || in_array($nombreProspecto, ['visitante web', 'sin nombre', 'unknown'], true);
+                if ($prospectoAnonimo && ($datos['whatsapp'] !== '' || $datos['email'] !== '')) {
                     $where = []; $citaParams = [];
                     $variantes = $prospectos->variantesTelefono($datos['whatsapp']);
                     if ($variantes) {
