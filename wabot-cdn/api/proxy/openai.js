@@ -203,6 +203,7 @@ module.exports = async (req, res) => {
     clearTimeout(timeout);
     res.status(400).json({ success: false, error: 'acción no válida' });
   } catch (err) {
+    console.error('[proxy/openai] request failed', err?.stack || err);
     if (err.name === 'AbortError') {
       res.status(504).json({ success: false, error: 'Tiempo de espera agotado' });
       return;
