@@ -116,13 +116,28 @@ $esAdminOrSuper = in_array($user['rol'], ['super_admin', 'admin']);
         </aside>
 
         <!-- MAIN CONTENT -->
-        <main class="flex-1 min-w-0 w-full bg-white overflow-auto wc-mobile-scroll <?= isset($fullHeight) && $fullHeight ? 'flex flex-col overflow-hidden' : 'p-4 md:p-6' ?>">
-            <div class="sticky top-0 z-30 -mx-4 -mt-4 mb-4 flex items-center justify-between border-b border-slate-100 bg-white/95 px-4 py-3 backdrop-blur md:hidden">
-                <a href="index.php" class="flex items-center gap-2 font-bold text-slate-900"><span class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-sm text-white">W</span>Wabot</a>
+        <main class="flex-1 min-w-0 w-full bg-white overflow-auto wc-mobile-scroll pb-20 md:pb-0 <?= isset($fullHeight) && $fullHeight ? 'flex flex-col overflow-hidden' : 'p-4 md:p-6' ?>">
+            <div class="sticky top-0 z-30 -mx-4 -mt-4 mb-4 flex items-center gap-3 border-b border-slate-100 bg-white/95 px-4 py-3 backdrop-blur md:hidden">
                 <button id="wc-mobile-menu" type="button" aria-label="Abrir menú" aria-expanded="false" class="rounded-xl border border-slate-200 p-2.5 text-slate-700"><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+                <a href="index.php" class="flex items-center gap-2 font-bold text-slate-900"><span class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-sm text-white">W</span>Wabot</a>
             </div>
             <?= $mainContent ?>
         </main>
+
+        <nav class="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-slate-200 bg-white/95 px-1 py-1.5 shadow-[0_-8px_24px_rgba(15,23,42,.08)] backdrop-blur md:hidden" aria-label="Navegación principal">
+            <?php
+            $mobileLinks = [
+                'dashboard' => ['Dashboard', 'index.php', 'bi-grid'],
+                'conversaciones' => ['Chats', 'conversaciones.php', 'bi-chat-dots'],
+                'prospectos' => ['Prospectos', 'prospectos.php', 'bi-people'],
+                'agenda' => ['Agenda', 'agenda.php', 'bi-calendar3'],
+            ];
+            foreach ($mobileLinks as $key => [$label, $href, $icon]): ?>
+                <a href="<?= $href ?>" class="flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-semibold <?= $activePage === $key ? 'bg-emerald-50 text-emerald-700' : 'text-slate-500' ?>">
+                    <i class="bi <?= $icon ?> text-lg leading-none"></i><span><?= $label ?></span>
+                </a>
+            <?php endforeach; ?>
+        </nav>
     </div>
 
     <!-- Profile Modal -->
