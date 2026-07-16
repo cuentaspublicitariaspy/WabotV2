@@ -136,3 +136,11 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 - Los horarios pertenecen a la Agenda y se aplican a todos sus servicios. Nunca deben duplicarse por servicio.
 - La IA debe resolver agenda y servicio como una pareja coherente. Si el servicio identifica su agenda, no puede combinarlo con otra agenda.
 - Prueba obligatoria de regresión: pedir una cita con David, elegir su servicio, pedir el lunes, recibir horarios reales y completar la reserva sin mensajes genéricos de error.
+# Agenda: consistencia e idempotencia
+
+- Una cita existente determina su agenda y su servicio. Para consultar alternativas o reagendar, WC no debe volver a pedir esos datos ni depender de que WS repita sus identificadores.
+- Una reserva repetida con el mismo contacto, agenda, servicio, fecha y hora es idempotente: devuelve la cita ya registrada en vez de informar falsamente que el horario dejó de estar disponible.
+- Los teléfonos paraguayos se localizan por sus últimos ocho dígitos para reconocer variantes como `+595981966664`, `0981966664` y `81966664`.
+- En una conversación se ofrecen como máximo dos alternativas por fecha. La agenda manual conserva la lista completa.
+- No usar respuestas prefabricadas repetitivas como “Lamentablemente, no tengo disponibilidad”. La respuesta debe describir naturalmente la búsqueda real y, ante una duda del visitante, volver a consultar antes de repetirla.
+- Las fechas relativas deben concordar con `America/Asuncion`: no llamar “mañana” a la fecha actual ni inventar fechas.
