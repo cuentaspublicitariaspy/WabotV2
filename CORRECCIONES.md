@@ -81,3 +81,6 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 - WC se diseña y prueba primero para móvil. En pantallas pequeñas el menú lateral nunca queda fijo ni empuja el contenido: se abre como cajón superpuesto mediante un botón visible, con fondo de cierre.
 - El contenido no puede producir desborde horizontal de la página. Tablas y cronogramas extensos se desplazan dentro de su propio contenedor; formularios, modales, botones y acciones deben caber y ser táctiles.
 - Las acciones frecuentes deben quedar accesibles sin depender de hover, puntero o un ancho de escritorio. Los modales ocupan el ancho útil y respetan el alto visible del teléfono.
+
+- En móvil, Conversaciones se comporta como una lista. Al elegir un chat, el detalle se abre como una superficie modal a pantalla completa, con un control visible para volver a la lista. El estado de escritorio “Seleccioná una conversación…” no debe ocupar espacio en móvil.
+- Navegación móvil: botón hamburguesa arriba a la izquierda y barra inferior fija con, como mínimo, Dashboard, Chats, Prospectos y Agenda.
