@@ -64,6 +64,9 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 
 ## Conversación y agenda
 
+- WC marca cada resultado de disponibilidad como consulta finalizada e indica a WS que debe responder usando esas opciones, sin volver a llamar la agenda en el mismo turno.
+- Al presentar alternativas, la conversación debe priorizar como máximo las dos primeras horas válidas que WC devolvió; jamás inventa horarios.
+
 - La IA debe conocer siempre el canal exacto de la conversación (**WhatsApp**, **Chatbot web** u otro) y adaptar su conducta: en WhatsApp no debe pedir un número que Meta ya entregó; en Chatbot solo solicita contacto cuando sea indispensable para completar la gestión.
 - La confirmación de una cita se interpreta por intención conversacional, no por una palabra obligatoria. Afirmaciones, aceptación implícita o la repetición de la hora propuesta pueden confirmar una reserva; una negativa o pedido de cambio nunca lo hace.
 - La IA nunca puede ofrecer ni confirmar un horario que el motor determinístico de agenda no haya devuelto como disponible en la misma interacción.
@@ -133,4 +136,3 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 - Los horarios pertenecen a la Agenda y se aplican a todos sus servicios. Nunca deben duplicarse por servicio.
 - La IA debe resolver agenda y servicio como una pareja coherente. Si el servicio identifica su agenda, no puede combinarlo con otra agenda.
 - Prueba obligatoria de regresión: pedir una cita con David, elegir su servicio, pedir el lunes, recibir horarios reales y completar la reserva sin mensajes genéricos de error.
-
