@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/Database.php';
+require_once __DIR__ . '/ProspectManager.php';
 
 /** Motor determinístico de agenda. La IA interpreta; esta clase decide. */
 class AppointmentManager
@@ -11,6 +12,36 @@ class AppointmentManager
     {
         $this->db = Database::getConnection();
         $this->ensureTables();
+        $this->reconciliarIdentidadesDeCitas();
+    }
+
+    /**
+     * Enlaza citas existentes al perfil comercial por teléfono/correo, sin
+     * fusionar ni decidir por nombre. Es idempotente y conserva la agenda.
+     */
+    private function reconciliarIdentidadesDeCitas(): void
+    {
+        $rows = $this->db->query("SELECT id,nombre_cliente,telefono,email FROM citas WHERE (prospecto_id IS NULL OR prospecto_id=0) AND (telefono<>'' OR email<>'') ORDER BY id ASC LIMIT 500")->fetchAll();
+        if (!$rows) return;
+        $prospectos = new ProspectManager();
+        $update = $this->db->prepare('UPDATE citas SET prospecto_id=? WHERE id=?');
+        foreach ($rows as $row) {
+            $id = $prospectos->resolverIdentidad(['nombre'=>$row['nombre_cliente'],'telefono'=>$row['telefono'],'email'=>$row['email']]);
+            if ($id) $update->execute([$id,(int)$row['id']]);
+        }
+    }
+
+    private function resolverProspectoDeCita(array $data): int
+    {
+        $telefono = preg_replace('/\D+/', '', (string)($data['telefono'] ?? $data['whatsapp'] ?? ''));
+        $email = strtolower(trim((string)($data['email'] ?? '')));
+        if ($telefono === '' && $email === '') return (int)($data['prospecto_id'] ?? 0);
+        $prospectos = new ProspectManager();
+        return $prospectos->resolverIdentidad([
+            'nombre' => trim((string)($data['nombre_cliente'] ?? $data['nombre'] ?? '')),
+            'telefono' => $telefono,
+            'email' => $email,
+        ]);
     }
 
     private function ensureTables(): void
@@ -316,13 +347,14 @@ class AppointmentManager
         // configurados. La disponibilidad es la fuente determinística única.
         $horas = $this->availability(['servicio_id'=>$serviceId,'agenda_id'=>$agendaId,'fecha'=>$inicio->format('Y-m-d')]);
         if (!in_array($inicio->format('H:i'), $horas, true)) throw new RuntimeException('Ese horario no está disponible según las reglas de agenda.');
+        $prospectoId = $this->resolverProspectoDeCita($data);
         $this->db->beginTransaction();
         try {
             if(!$this->isFree($inicio,$fin,$agendaId)) throw new RuntimeException('Ese horario ya no está disponible.');
             $status=!empty($service['requiere_aprobacion'])?'pendiente_confirmacion':'confirmada';
             $history=json_encode([['at'=>date('c'),'action'=>'creada','by'=>$actor]],JSON_UNESCAPED_UNICODE);
             $stmt=$this->db->prepare('INSERT INTO citas(agenda_id,prospecto_id,nombre_cliente,telefono,email,servicio_id,sucursal_id,inicio,fin,estado,motivo,observaciones,canal,creado_por,historial) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
-            $stmt->execute([$agendaId,(int)($data['prospecto_id']??0)?:null,trim((string)($data['nombre_cliente']??'')),preg_replace('/\D+/','',(string)($data['telefono']??'')),trim((string)($data['email']??'')),$serviceId,$branch,$inicio->format('Y-m-d H:i:s'),$fin->format('Y-m-d H:i:s'),$status,trim((string)($data['motivo']??'')),trim((string)($data['observaciones']??'')),$data['canal']??'manual',$actor,$history]);
+            $stmt->execute([$agendaId,$prospectoId?:null,trim((string)($data['nombre_cliente']??'')),preg_replace('/\D+/','',(string)($data['telefono']??'')),trim((string)($data['email']??'')),$serviceId,$branch,$inicio->format('Y-m-d H:i:s'),$fin->format('Y-m-d H:i:s'),$status,trim((string)($data['motivo']??'')),trim((string)($data['observaciones']??'')),$data['canal']??'manual',$actor,$history]);
             $id=(int)$this->db->lastInsertId();$this->db->commit();return $id;
         }catch(Throwable $e){if($this->db->inTransaction())$this->db->rollBack();throw $e;}
     }
