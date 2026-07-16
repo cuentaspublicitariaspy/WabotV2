@@ -32,6 +32,13 @@ if (!License::check()) {
 
 $kb = new KnowledgeManager();
 $systemPrompt = $kb->getSystemPrompt();
+$photo = trim((string)($config['agent_photo'] ?? ''));
+if ($photo !== '' && !preg_match('#^https?://#i', $photo)) {
+    $forwarded = trim(explode(',', (string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]);
+    $scheme = $forwarded !== '' ? $forwarded : (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http');
+    $basePath = rtrim(str_replace('\\', '/', dirname(dirname((string)($_SERVER['SCRIPT_NAME'] ?? '/')))), '/');
+    $photo = $scheme.'://'.($_SERVER['HTTP_HOST'] ?? '').$basePath.'/'.ltrim($photo, '/');
+}
 
 echo json_encode([
     'success' => true,
@@ -40,6 +47,8 @@ echo json_encode([
         'secondary_color' => $config['secondary_color'],
         'welcome_title' => $config['welcome_title'],
         'welcome_subtitle' => $config['welcome_subtitle'],
+        'agent_name' => $config['agent_name'] ?? $config['welcome_title'],
+        'agent_photo' => $photo,
         'response_mode' => $config['response_mode'],
     ],
     'knowledge_base' => $systemPrompt,
