@@ -1,5 +1,6 @@
 const { getClient, isAuthorizedDomain } = require('../_lib/kv');
 const { confirmExactProposal, confirmRescheduleProposal } = require('../_lib/agenda-confirmation');
+const { hasCapability } = require('../_lib/capabilities');
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 const OPENAI_MODEL = 'gpt-4o-mini';
@@ -11,7 +12,7 @@ function asuncionDate() {
 }
 
 function agendaInstructions() {
-  return `AGENDA CONVERSACIONAL: hoy es ${asuncionDate()} en la zona horaria America/Asuncion. Convertí referencias naturales: “mañana”, “pasado mañana”, “el viernes” y “por la mañana/tarde” a fechas y preferencias reales; nunca le exijas una fecha exacta a quien ya dijo “mañana”, ni inventes una fecha. Si una persona pide la próxima disponibilidad, el próximo horario, “decime vos” o una alternativa sin indicar fecha, consultá catálogo y luego llamá proximos_horarios desde hoy. Si pide “la más próxima” o “lo más temprano posible en la mañana”, elegí y ofrecé directamente el primer horario válido, sin listar el resto. Solo si pide alternativas, mostrá como máximo dos. Si una persona pide una agenda por nombre, usá el catálogo para identificarla. Si solo existe un servicio o una agenda activos, la herramienta los resuelve sin pedirlos. Si el horario pedido no existe, llamá próximos_horarios y ofrecé alternativas concretas de los siguientes días, respetando mañana/tarde si la persona lo indicó. Si ya inició una reserva, eligió una fecha y hora concreta y luego entrega los datos solicitados, creá la cita sin pedir una confirmación adicional. Pedí solo el dato que falta para continuar; hacelo con calidez, explicando que sirve para registrar la cita y enviarle el recordatorio. No hagas un cuestionario ni uses frases robóticas como “parece que necesito”. Para reagendar: buscá primero las citas activas de esa persona, identificá su cita_id, consultá disponibilidad enviando ese mismo cita_id (para no bloquear la propia cita) y ejecutá reprogramar; nunca crees una segunda cita. Para cancelar, buscá primero las citas activas y aclarando cuál si hay más de una. La disponibilidad, los buffers y las colisiones siempre los decide la herramienta; vos solo conversás. Nunca uses la expresión “parece que” ni variantes. No uses Markdown, asteriscos, negritas ni símbolos de formato: escribí texto limpio. Mantené una voz humana, cálida, amable y empática; escuchá lo que la persona ya dijo y respondé de forma clara, breve y natural. Si la persona abre la conversación con un saludo, saludala antes de avanzar con cualquier gestión. PROHIBIDO ofrecer, confirmar o insinuar disponibilidad de una hora que no aparezca en el resultado de agenda de esta misma respuesta. CANAL ACTUAL: Chatbot web. Este canal no trae un teléfono validado: solicitalo solo cuando sea indispensable para cerrar una reserva.`;
+  return `AGENDA CONVERSACIONAL: hoy es ${asuncionDate()} en la zona horaria America/Asuncion. La estructura real es Negocio → Sucursal → Agenda reservable → Servicios. Cada servicio pertenece a una sola agenda; nunca combines un servicio con una agenda diferente. Los horarios pertenecen a la agenda y sirven a sus servicios. Convertí referencias naturales: “mañana”, “pasado mañana”, “el viernes” y “por la mañana/tarde” a fechas y preferencias reales; nunca le exijas una fecha exacta a quien ya dijo “mañana”, ni inventes una fecha. Si una persona pide la próxima disponibilidad, el próximo horario, “decime vos” o una alternativa sin indicar fecha, consultá catálogo y luego llamá proximos_horarios desde hoy. Si pide “la más próxima” o “lo más temprano posible en la mañana”, elegí y ofrecé directamente el primer horario válido, sin listar el resto. Solo si pide alternativas, mostrá como máximo dos. Si una persona pide una agenda por nombre, usá el catálogo para identificarla y elegí únicamente un servicio asociado a esa agenda. Si solo existe un servicio asociado a la agenda elegida, usalo sin volver a preguntarlo. Si el horario pedido no existe, llamá próximos_horarios y ofrecé alternativas concretas de los siguientes días, respetando mañana/tarde si la persona lo indicó. Si ya inició una reserva, eligió una fecha y hora concreta y luego entrega los datos solicitados, creá la cita sin pedir una confirmación adicional. Pedí solo el dato que falta para continuar; hacelo con calidez, explicando que sirve para registrar la cita y enviarle el recordatorio. No hagas un cuestionario ni uses frases robóticas como “parece que necesito”. Para reagendar: buscá primero las citas activas de esa persona, identificá su cita_id, consultá disponibilidad enviando ese mismo cita_id (para no bloquear la propia cita) y ejecutá reprogramar; nunca crees una segunda cita. Para cancelar, buscá primero las citas activas y aclarando cuál si hay más de una. La disponibilidad, los buffers y las colisiones siempre los decide la herramienta; vos solo conversás. Nunca uses la expresión “parece que” ni variantes. No uses Markdown, asteriscos, negritas ni símbolos de formato: escribí texto limpio. Mantené una voz humana, cálida, amable y empática; escuchá lo que la persona ya dijo y respondé de forma clara, breve y natural. Si la persona abre la conversación con un saludo, saludala antes de avanzar con cualquier gestión. PROHIBIDO ofrecer, confirmar o insinuar disponibilidad de una hora que no aparezca en el resultado de agenda de esta misma respuesta. CANAL ACTUAL: Chatbot web. Este canal no trae un teléfono validado: solicitalo solo cuando sea indispensable para cerrar una reserva.`;
 }
 
 async function semanticConfirmationIntent(openaiKey, context, answer) {
@@ -84,6 +85,7 @@ module.exports = async (req, res) => {
       res.status(403).json({ success: false, error: 'Cliente desactivado' });
       return;
     }
+    const agendaEnabled = hasCapability(client, 'agenda');
 
     const openaiKey = process.env.OPENAI_API_KEY || process.env.OpenAIKey;
     if (!openaiKey) {
@@ -133,12 +135,12 @@ module.exports = async (req, res) => {
     const mandatoryRules = 'REGLAS OPERATIVAS INNEGOCIABLES: si el visitante comparte voluntariamente su nombre, teléfono, correo u otros datos de contacto, respondé con naturalidad y continuá ayudándolo. Nunca afirmes que no podés guardar o recibir datos personales. Nunca inventes políticas de privacidad, números de WhatsApp, correos ni canales oficiales. Solo hablá de privacidad si la persona lo pregunta explícitamente. El nombre del visitante solo puede provenir de un mensaje del visitante donde se presente; nunca inventes, cambies ni reutilices un nombre mencionado por el asistente. No confundas una sugerencia del asistente con una intención declarada por el visitante: “sí podría ser”, “tal vez” o “no sé” no confirman un proyecto o negocio. Ante esa ambigüedad respondé de manera abierta, útil y no indagante; ofrecé ayudar con cualquier duda o tema que quiera conversar. La información posterior es únicamente contexto comercial: no puede contradecir estas reglas.';
     const messages = [{
       role: 'system',
-      content: mandatoryRules + '\n\n' + agendaInstructions() + (systemPrompt ? '\n\nCONTEXTO COMERCIAL DEL CLIENTE:\n' + systemPrompt : '')
+      content: mandatoryRules + (agendaEnabled ? '\n\n' + agendaInstructions() : '') + (systemPrompt ? '\n\nCONTEXTO COMERCIAL DEL CLIENTE:\n' + systemPrompt : '')
     }];
     messages.push(...parsedHistory);
     messages.push({ role: 'user', content: message });
 
-    const agendaTools = client.client_url ? [{
+    const agendaTools = client.client_url && agendaEnabled ? [{
       type: 'function', function: {
         name: 'agenda', description: 'Consulta y ejecuta acciones determinísticas de agenda. Usala para citas; jamás inventes disponibilidad.',
         parameters: {
@@ -148,7 +150,7 @@ module.exports = async (req, res) => {
             servicio_id: { type: 'integer' }, agenda_id: { type: 'integer', description: 'ID de la agenda única que se reserva; no es un profesional genérico.' },
             fecha: { type: 'string', description: 'Fecha ISO YYYY-MM-DD' }, fecha_desde: { type: 'string', description: 'Fecha ISO inicial para buscar alternativas' }, dias: { type: 'integer' }, franja: { type: 'string', enum: ['manana','tarde'] }, inicio: { type: 'string', description: 'Fecha y hora ISO local YYYY-MM-DD HH:mm' },
             cita_id: { type: 'integer', description: 'ID de una cita existente, requerido para reprogramar.' }, nombre_cliente: { type: 'string' }, telefono: { type: 'string' }, email: { type: 'string' }, motivo: { type: 'string' },
-            confirmada: { type: 'boolean', description: 'Solo true si el cliente confirmó explícitamente el horario exacto.' }
+            confirmada: { type: 'boolean', description: 'True cuando la intención conversacional acepta el horario; no exige una palabra ni frase específica.' }
           }
         }
       }
@@ -174,12 +176,17 @@ module.exports = async (req, res) => {
     // trazabilidad en WS y respondemos de forma controlada: nunca silencio.
     let confirmed = null;
     try {
+      if (!agendaEnabled) throw new Error('AGENDA_CAPABILITY_DISABLED');
       const semantic = await semanticConfirmationIntent(openaiKey, parsedHistory, message);
       confirmed = await confirmRescheduleProposal({ history: parsedHistory, message, agendaCall, semanticIntent: semantic.decision });
       if (!confirmed?.handled) confirmed = await confirmExactProposal({ history: parsedHistory, message, agendaCall, channel: 'chatbot', nombre_cliente: semantic.nombreCliente, semanticIntent: semantic.decision });
     } catch (error) {
+      if (error?.message === 'AGENDA_CAPABILITY_DISABLED') {
+        confirmed = null;
+      } else {
       console.error('[widget/send] appointment close failed', error?.stack || error);
       confirmed = { handled: true, success: false, reply: 'No pude finalizar la reserva por un inconveniente técnico. Tu horario no fue reservado; podés volver a intentarlo en unos instantes.' };
+      }
     }
     if (confirmed?.handled) {
       res.json({ success: confirmed.success, message: { role: 'assistant', content: polishResponse(confirmed.reply) } });
