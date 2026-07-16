@@ -47,17 +47,44 @@ class ProspectManager
     }
 
     /**
+     * Identidad canónica paraguaya para unir canales sin usar el nombre.
+     * Acepta +595981966664, 0981966664, 981966664 y 81966664.
+     * Otros formatos se conservan como dígitos para no asumir países ajenos.
+     */
+    public function normalizarTelefono(string $telefono): string
+    {
+        $digits = preg_replace('/\D+/', '', $telefono);
+        if ($digits === '') return '';
+
+        if (str_starts_with($digits, '595') && strlen($digits) >= 11) return $digits;
+        if (strlen($digits) === 10 && str_starts_with($digits, '09')) return '595' . substr($digits, 1);
+        if (strlen($digits) === 9 && str_starts_with($digits, '9')) return '595' . $digits;
+        if (strlen($digits) === 8) return '5959' . $digits;
+        return $digits;
+    }
+
+    /**
      * Identidad transversal de WC. El nombre no une registros: la coincidencia
      * se resuelve únicamente por teléfono o correo normalizados.
      */
     public function resolverIdentidad(array $datos, bool $crear = true): int
     {
-        $telefono = preg_replace('/\D+/', '', (string)($datos['whatsapp'] ?? $datos['telefono'] ?? ''));
+        $telefonoOriginal = (string)($datos['whatsapp'] ?? $datos['telefono'] ?? '');
+        $telefono = $this->normalizarTelefono($telefonoOriginal);
         $email = strtolower(trim((string)($datos['email'] ?? '')));
         if ($telefono === '' && $email === '') return 0;
 
         $where = []; $params = [];
-        if ($telefono !== '') { $where[] = 'whatsapp = ?'; $params[] = $telefono; }
+        if ($telefono !== '') {
+            $variantes = array_values(array_unique(array_filter([
+                $telefono,
+                preg_replace('/\D+/', '', $telefonoOriginal),
+                str_starts_with($telefono, '595') ? '0' . substr($telefono, 3) : '',
+                str_starts_with($telefono, '5959') ? substr($telefono, 4) : '',
+            ])));
+            $where[] = 'whatsapp IN (' . implode(',', array_fill(0, count($variantes), '?')) . ')';
+            array_push($params, ...$variantes);
+        }
         if ($email !== '') { $where[] = 'LOWER(email) = ?'; $params[] = $email; }
         $stmt = $this->db->prepare('SELECT id FROM prospectos WHERE '.implode(' OR ', $where).' ORDER BY id ASC LIMIT 1');
         $stmt->execute($params);
@@ -87,7 +114,7 @@ class ProspectManager
         $id = (int) $stmt->fetchColumn();
 
         $email = strtolower(trim((string) ($datos['email'] ?? '')));
-        $whatsapp = preg_replace('/\D+/', '', (string) ($datos['whatsapp'] ?? ''));
+        $whatsapp = $this->normalizarTelefono((string) ($datos['whatsapp'] ?? ''));
         if (!$id) $id = $this->resolverIdentidad($datos);
         if (!$id) {
             $this->db->prepare('INSERT INTO prospectos (nombre, email, whatsapp) VALUES (?, ?, ?)')
@@ -99,7 +126,7 @@ class ProspectManager
         $sets = []; $values = [];
         foreach ($fields as $field) {
             $value = trim((string) ($datos[$field] ?? ''));
-            if ($field === 'whatsapp') $value = preg_replace('/\D+/', '', $value);
+            if ($field === 'whatsapp') $value = $this->normalizarTelefono($value);
             if ($value !== '') { $sets[] = "$field = ?"; $values[] = $value; }
         }
         if ($sets) { $values[] = $id; $this->db->prepare('UPDATE prospectos SET ' . implode(', ', $sets) . ' WHERE id = ?')->execute($values); }
@@ -121,7 +148,7 @@ class ProspectManager
         $sets = []; $values = [];
         foreach ($fields as $field) {
             $value = trim((string) ($analisis[$field] ?? ''));
-            if ($field === 'whatsapp') $value = preg_replace('/\D+/', '', $value);
+            if ($field === 'whatsapp') $value = $this->normalizarTelefono($value);
             if ($value !== '') { $sets[] = "$field = ?"; $values[] = $value; }
         }
         if ($sets) { $values[] = $id; $this->db->prepare('UPDATE prospectos SET ' . implode(', ', $sets) . ' WHERE id = ?')->execute($values); }
@@ -157,7 +184,7 @@ class ProspectManager
         foreach ($campos as $campo) {
             if (!array_key_exists($campo, $datos)) continue;
             $valor = trim((string)$datos[$campo]);
-            if ($campo === 'whatsapp') $valor = preg_replace('/\D+/', '', $valor);
+            if ($campo === 'whatsapp') $valor = $this->normalizarTelefono($valor);
             if ($campo === 'nivel_interes' && !in_array($valor, ['bajo','medio','alto'], true)) $valor='medio';
             if ($campo === 'temperatura' && !in_array($valor, ['frio','tibio','caliente','muy_caliente'], true)) $valor='tibio';
             if ($campo === 'estado' && !in_array($valor, ['nuevo','contactado','seguimiento','cerrado'], true)) $valor='nuevo';
@@ -297,7 +324,7 @@ class ProspectManager
         // Si un visitante web y uno de WhatsApp declararon el mismo correo o
         // teléfono, pasan a ser un único prospecto local.
         $email = $limpios['email'] ?? '';
-        $whatsapp = isset($limpios['whatsapp']) ? preg_replace('/\D+/', '', $limpios['whatsapp']) : '';
+        $whatsapp = isset($limpios['whatsapp']) ? $this->normalizarTelefono($limpios['whatsapp']) : '';
         if ($email !== '' || $whatsapp !== '') {
             $where = []; $params = [$id];
             if ($email !== '') { $where[] = 'email = ?'; $params[] = $email; }
