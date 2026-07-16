@@ -121,3 +121,16 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 - Si el prospecto vinculado ya tiene un nombre válido, se conserva. Si está anónimo y existe una cita activa coincidente, se actualizan la ficha de Prospectos y el nombre visible del chat.
 - El diagnóstico administrativo revisa todos los chats y muestra su prospecto enlazado, aunque `widget_chats` no contenga contacto.
 - Verificación ejecutada: sintaxis PHP y escenario crítico chat sin contacto directo → prospecto anónimo vinculado → cita coincidente → nombre `Jorge`.
+# Correcciones 16/07/2026 · Chatbot y agenda reservable
+
+- El Chatbot no debe producir desplazamiento horizontal bajo ninguna resolución. Su host, panel, mensajes, burbujas y caja de escritura quedan contenidos al ancho visible.
+- El Chatbot no muestra frases sugeridas ni botones de respuestas rápidas: la persona escribe libremente.
+- La configuración del Chatbot permite definir el nombre visible del asistente y subir una foto JPG, PNG o WebP. La foto se utiliza en cabecera, mensajes y animación de escritura.
+- La estructura canónica de reservas es Negocio → Sucursal → Agenda → Servicios.
+- Una Agenda representa cualquier recurso reservable: persona, médico, peluquero, sala, box, cancha, vehículo, estudio, máquina o asesor.
+- Cada Agenda administra nombre, sucursal, color, duración por defecto, buffer anterior, buffer posterior, horarios, excepciones, servicios y estado.
+- Los servicios pertenecen a una Agenda, no directamente a la sucursal.
+- Los horarios pertenecen a la Agenda y se aplican a todos sus servicios. Nunca deben duplicarse por servicio.
+- La IA debe resolver agenda y servicio como una pareja coherente. Si el servicio identifica su agenda, no puede combinarlo con otra agenda.
+- Prueba obligatoria de regresión: pedir una cita con David, elegir su servicio, pedir el lunes, recibir horarios reales y completar la reserva sin mensajes genéricos de error.
+
