@@ -71,11 +71,13 @@ try {
     }
     if($action==='disponibilidad'){
         $input=resolveUnambiguousAgendaSelection($agenda,$input);
+        $slots=$agenda->availability($input);
         echo json_encode([
             'success'=>true,
-            'slots'=>$agenda->availability($input),
+            'slots'=>array_slice($slots,0,2),
+            'total_disponibles'=>count($slots),
             'consulta_finalizada'=>true,
-            'instruccion'=>'La consulta ya terminó. Respondé ahora con estos horarios reales y no vuelvas a llamar la herramienta de agenda en este turno. Mencioná la fecha exacta; usá “mañana” solamente si coincide realmente con el día siguiente en America/Asuncion.'
+            'instruccion'=>'La consulta ya terminó. Ofrecé únicamente los horarios incluidos en slots, como máximo dos. No enumeres el resto ni vuelvas a llamar la herramienta en este turno. Mencioná la fecha exacta; usá “mañana” solamente si coincide realmente con el día siguiente en America/Asuncion.'
         ]);exit;
     }
     if($action==='proximos_horarios'){
@@ -101,7 +103,8 @@ try {
         // WS llama esta acción cuando la intención conversacional autoriza la
         // reserva. WC vuelve
         // a validar disponibilidad y evita doble reserva dentro de la transacción.
-        if(empty($input['confirmada']))throw new RuntimeException('La reserva todavía no fue autorizada por la intención del cliente.');
+        // Si WS emite la acción crear con cita completa, la intención ya fue
+        // interpretada. No se exige una palabra o confirmación adicional.
         $input=resolveUnambiguousAgendaSelection($agenda,$input);
         if(empty($input['servicio_id']) || empty($input['agenda_id']))throw new RuntimeException('Hace falta identificar la agenda y su servicio antes de reservar.');
         $data=$input; $data['canal']=in_array(($input['canal']??''),['whatsapp','chatbot'],true)?$input['canal']:'chatbot';
@@ -112,10 +115,31 @@ try {
         echo json_encode(['success'=>true]);exit;
     }
     if($action==='reprogramar'){
-        if(empty($input['confirmada']))throw new RuntimeException('La reprogramación todavía no fue autorizada por la intención del cliente.');
+        // La propia acción con cita_id e inicio expresa la intención ya
+        // comprendida por WS. WC valida reglas y disponibilidad, no frases.
         $input=resolveUnambiguousAgendaSelection($agenda,$input);
-        $agenda->reschedule((int)($input['cita_id']??0),$input,'IA:'.($input['canal']??'chatbot'));
-        echo json_encode(['success'=>true,'consulta_finalizada'=>true,'instruccion'=>'La cita fue reprogramada. Informá la nueva fecha y hora con naturalidad y no vuelvas a pedir confirmación.']);exit;
+        try{
+            $agenda->reschedule((int)($input['cita_id']??0),$input,'IA:'.($input['canal']??'chatbot'));
+            echo json_encode(['success'=>true,'consulta_finalizada'=>true,'instruccion'=>'La cita fue reprogramada. Informá la nueva fecha y hora con naturalidad y no vuelvas a pedir confirmación.']);exit;
+        }catch(Throwable $changeError){
+            $start=(string)($input['inicio']??'');
+            $hour=preg_match('/\s(\d{2}):\d{2}/',$start,$m)?(int)$m[1]:null;
+            $alternatives=$agenda->nextAvailability([
+                'agenda_id'=>$input['agenda_id']??0,
+                'servicio_id'=>$input['servicio_id']??0,
+                'cita_id'=>$input['cita_id']??0,
+                'fecha_desde'=>preg_match('/^\d{4}-\d{2}-\d{2}/',$start,$d)?$d[0]:date('Y-m-d'),
+                'dias'=>14,
+                'franja'=>$hour===null?'':($hour<12?'manana':'tarde')
+            ]);
+            echo json_encode([
+                'success'=>false,
+                'error'=>$changeError->getMessage(),
+                'opciones'=>$alternatives,
+                'consulta_finalizada'=>true,
+                'instruccion'=>'No pidas ninguna confirmación adicional. Explicá con claridad la regla o colisión indicada en error y ofrecé solamente las dos opciones reales incluidas. No uses respuestas prefabricadas.'
+            ]);exit;
+        }
     }
     if($action==='cancelar'){
         if(empty($input['confirmada']))throw new RuntimeException('La cancelación todavía no fue autorizada por la intención del cliente.');
