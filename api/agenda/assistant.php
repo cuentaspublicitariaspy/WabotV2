@@ -20,6 +20,16 @@ $agenda=new AppointmentManager();$action=$input['action']??'';
 function resolveUnambiguousAgendaSelection(AppointmentManager $agenda, array $input): array {
     $services=array_values(array_filter($agenda->list('servicios'),static fn($item)=>!empty($item['activo'])));
     $agendas=array_values(array_filter($agenda->list('agendas'),static fn($item)=>!empty($item['activo'])));
+    // Una cita existente ya determina sin ambigüedad su agenda y servicio.
+    // Es esencial para consultar alternativas o reagendar sin pedir de nuevo
+    // información que WC ya conoce.
+    if(!empty($input['cita_id'])){
+        $context=$agenda->appointmentContext((int)$input['cita_id']);
+        if($context){
+            if(empty($input['agenda_id']))$input['agenda_id']=(int)$context['agenda_id'];
+            if(empty($input['servicio_id']))$input['servicio_id']=(int)$context['servicio_id'];
+        }
+    }
     // Un servicio ya identifica de forma determinística su agenda.
     if(!empty($input['servicio_id']) && empty($input['agenda_id'])){
         foreach($services as $service){
@@ -65,7 +75,7 @@ try {
             'success'=>true,
             'slots'=>$agenda->availability($input),
             'consulta_finalizada'=>true,
-            'instruccion'=>'La consulta ya terminó. Respondé ahora con estos horarios reales y no vuelvas a llamar la herramienta de agenda en este turno.'
+            'instruccion'=>'La consulta ya terminó. Respondé ahora con estos horarios reales y no vuelvas a llamar la herramienta de agenda en este turno. Mencioná la fecha exacta; usá “mañana” solamente si coincide realmente con el día siguiente en America/Asuncion.'
         ]);exit;
     }
     if($action==='proximos_horarios'){
@@ -81,7 +91,7 @@ try {
             'agenda_id'=>(int)$input['agenda_id'],
             'servicio_id'=>(int)$input['servicio_id'],
             'consulta_finalizada'=>true,
-            'instruccion'=>'La consulta ya terminó. Respondé ahora usando exclusivamente estas opciones. No vuelvas a llamar la herramienta de agenda en este turno. Si no hay opciones, informalo con amabilidad y pedí otra fecha o franja.'
+            'instruccion'=>'La consulta ya terminó. Respondé ahora usando exclusivamente estas opciones y como máximo dos alternativas. No vuelvas a llamar la herramienta de agenda en este turno. Mencioná la fecha exacta; usá “mañana” solamente si coincide realmente con el día siguiente en America/Asuncion. No repitas frases prefabricadas como “Lamentablemente, no tengo disponibilidad”. Si no hay opciones, explicá con naturalidad qué franja se consultó y ofrecé buscar otra fecha. Si la persona cuestiona el resultado, volvé a consultar antes de repetir la respuesta.'
         ]);exit;
     }
     if($action==='citas_cliente'){
@@ -92,8 +102,10 @@ try {
         // reserva. WC vuelve
         // a validar disponibilidad y evita doble reserva dentro de la transacción.
         if(empty($input['confirmada']))throw new RuntimeException('La reserva todavía no fue autorizada por la intención del cliente.');
+        $input=resolveUnambiguousAgendaSelection($agenda,$input);
+        if(empty($input['servicio_id']) || empty($input['agenda_id']))throw new RuntimeException('Hace falta identificar la agenda y su servicio antes de reservar.');
         $data=$input; $data['canal']=in_array(($input['canal']??''),['whatsapp','chatbot'],true)?$input['canal']:'chatbot';
-        echo json_encode(['success'=>true,'cita_id'=>$agenda->create($data,'IA:'.$data['canal'])]);exit;
+        echo json_encode(['success'=>true,'cita_id'=>$agenda->create($data,'IA:'.$data['canal']),'consulta_finalizada'=>true,'instruccion'=>'La reserva quedó registrada. Confirmala una sola vez con un mensaje humano, amable y sin frases prefabricadas.']);exit;
     }
     if($action==='estado'){
         $agenda->changeStatus((int)($input['cita_id']??0),(string)($input['estado']??''),'IA:'.($input['canal']??'chatbot'));
@@ -101,8 +113,9 @@ try {
     }
     if($action==='reprogramar'){
         if(empty($input['confirmada']))throw new RuntimeException('La reprogramación todavía no fue autorizada por la intención del cliente.');
+        $input=resolveUnambiguousAgendaSelection($agenda,$input);
         $agenda->reschedule((int)($input['cita_id']??0),$input,'IA:'.($input['canal']??'chatbot'));
-        echo json_encode(['success'=>true]);exit;
+        echo json_encode(['success'=>true,'consulta_finalizada'=>true,'instruccion'=>'La cita fue reprogramada. Informá la nueva fecha y hora con naturalidad y no vuelvas a pedir confirmación.']);exit;
     }
     if($action==='cancelar'){
         if(empty($input['confirmada']))throw new RuntimeException('La cancelación todavía no fue autorizada por la intención del cliente.');
