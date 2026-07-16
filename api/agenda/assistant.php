@@ -1,9 +1,11 @@
 <?php
 /** Puente privado para WS: devuelve solo resultados determinísticos de agenda. */
 require_once __DIR__ . '/../../includes/config.php';
+require_once __DIR__ . '/../../includes/License.php';
 require_once __DIR__ . '/../../includes/Database.php';
 require_once __DIR__ . '/../../includes/AppointmentManager.php';
 header('Content-Type: application/json; charset=utf-8');
+License::requireCapability('agenda', true);
 
 $input=json_decode(file_get_contents('php://input'),true)?:[];
 $key=trim((string)($input['api_key']??''));
