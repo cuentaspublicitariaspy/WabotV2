@@ -46,22 +46,49 @@ class ProspectManager
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     }
 
+    /**
+     * Identidad transversal de WC. El nombre no une registros: la coincidencia
+     * se resuelve únicamente por teléfono o correo normalizados.
+     */
+    public function resolverIdentidad(array $datos, bool $crear = true): int
+    {
+        $telefono = preg_replace('/\D+/', '', (string)($datos['whatsapp'] ?? $datos['telefono'] ?? ''));
+        $email = strtolower(trim((string)($datos['email'] ?? '')));
+        if ($telefono === '' && $email === '') return 0;
+
+        $where = []; $params = [];
+        if ($telefono !== '') { $where[] = 'whatsapp = ?'; $params[] = $telefono; }
+        if ($email !== '') { $where[] = 'LOWER(email) = ?'; $params[] = $email; }
+        $stmt = $this->db->prepare('SELECT id FROM prospectos WHERE '.implode(' OR ', $where).' ORDER BY id ASC LIMIT 1');
+        $stmt->execute($params);
+        $id = (int)$stmt->fetchColumn();
+
+        if (!$id && !$crear) return 0;
+        if (!$id) {
+            $nombre = trim((string)($datos['nombre'] ?? ''));
+            if (in_array(mb_strtolower($nombre, 'UTF-8'), ['visitante web','sin nombre','unknown'], true)) $nombre = '';
+            $this->db->prepare('INSERT INTO prospectos(nombre,email,whatsapp) VALUES(?,?,?)')->execute([$nombre,$email,$telefono]);
+            $id = (int)$this->db->lastInsertId();
+        }
+
+        $actualizar = $datos;
+        $actualizar['email'] = $email;
+        $actualizar['whatsapp'] = $telefono;
+        $nombre = trim((string)($actualizar['nombre'] ?? ''));
+        if (in_array(mb_strtolower($nombre, 'UTF-8'), ['visitante web','sin nombre','unknown'], true)) unset($actualizar['nombre']);
+        $this->actualizar($id, $actualizar);
+        return $id;
+    }
+
     public function vincular(string $canal, string $referencia, array $datos = []): int
     {
         $stmt = $this->db->prepare('SELECT prospecto_id FROM prospecto_referencias WHERE canal = ? AND referencia = ?');
         $stmt->execute([$canal, $referencia]);
         $id = (int) $stmt->fetchColumn();
 
-        $email = trim((string) ($datos['email'] ?? ''));
+        $email = strtolower(trim((string) ($datos['email'] ?? '')));
         $whatsapp = preg_replace('/\D+/', '', (string) ($datos['whatsapp'] ?? ''));
-        if (!$id && ($email !== '' || $whatsapp !== '')) {
-            $where = []; $params = [];
-            if ($email !== '') { $where[] = 'email = ?'; $params[] = $email; }
-            if ($whatsapp !== '') { $where[] = 'whatsapp = ?'; $params[] = $whatsapp; }
-            $stmt = $this->db->prepare('SELECT id FROM prospectos WHERE ' . implode(' OR ', $where) . ' ORDER BY id LIMIT 1');
-            $stmt->execute($params);
-            $id = (int) $stmt->fetchColumn();
-        }
+        if (!$id) $id = $this->resolverIdentidad($datos);
         if (!$id) {
             $this->db->prepare('INSERT INTO prospectos (nombre, email, whatsapp) VALUES (?, ?, ?)')
                 ->execute([trim((string) ($datos['nombre'] ?? '')), $email, $whatsapp]);
