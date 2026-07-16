@@ -99,6 +99,8 @@ CREATE TABLE IF NOT EXISTS widget_config (
     secondary_color VARCHAR(7) DEFAULT '#F3F4F6',
     welcome_title VARCHAR(255) DEFAULT 'Asistente',
     welcome_subtitle VARCHAR(255) DEFAULT 'Online',
+    agent_name VARCHAR(120) DEFAULT 'Asistente',
+    agent_photo VARCHAR(255) DEFAULT '',
     whatsapp_number VARCHAR(30) DEFAULT '',
     license_key VARCHAR(64) DEFAULT '',
     response_mode ENUM('ai','human') DEFAULT 'ai',
