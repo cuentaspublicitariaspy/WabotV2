@@ -48,6 +48,14 @@ $esAdminOrSuper = in_array($user['rol'], ['super_admin', 'admin']);
         ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius:4px; }
         ::-webkit-scrollbar-thumb:hover { background: #64748b; }
         .modal-overlay { background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(2px); }
+        html, body { max-width: 100%; overflow-x: hidden; }
+        .wc-mobile-overlay { background: rgba(15,23,42,.55); backdrop-filter: blur(2px); }
+        @media (max-width: 767px) {
+            .wc-mobile-scroll { -webkit-overflow-scrolling: touch; }
+            .table-responsive { border: 0; }
+            .table-responsive > .table { min-width: 640px; }
+            input, select, textarea, button { max-width: 100%; }
+        }
         <?= $extraStyle ?? '' ?>
     </style>
 </head>
@@ -55,7 +63,8 @@ $esAdminOrSuper = in_array($user['rol'], ['super_admin', 'admin']);
 
     <div class="flex h-full">
         <!-- SIDEBAR -->
-        <aside class="w-64 bg-slate-900 text-slate-300 flex flex-col py-6 shrink-0 shadow-xl">
+        <div id="wc-mobile-overlay" class="hidden fixed inset-0 z-40 wc-mobile-overlay md:hidden"></div>
+        <aside id="wc-sidebar" class="fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 text-slate-300 flex flex-col py-6 shadow-xl transform -translate-x-full transition-transform duration-200 ease-out md:static md:w-64 md:translate-x-0 md:shrink-0">
             <div class="px-6 mb-8">
                 <a href="index.php" class="text-white font-bold text-xl flex items-center gap-2">
                     <span class="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white text-sm shadow-lg shadow-emerald-900/50">W</span>
@@ -66,7 +75,7 @@ $esAdminOrSuper = in_array($user['rol'], ['super_admin', 'admin']);
             <nav class="flex-1 px-4 space-y-8 overflow-y-auto">
                 <div class="space-y-1">
                     <?php foreach ($navLinks as $key => $link): ?>
-                    <a href="<?= $link['href'] ?>" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all <?= $activePage === $key ? 'bg-emerald-600 text-white font-medium shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white' ?>">
+                    <a href="<?= $link['href'] ?>" data-mobile-close class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all <?= $activePage === $key ? 'bg-emerald-600 text-white font-medium shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white' ?>">
                         <?= $link['icon'] ?>
                         <span><?= $link['label'] ?></span>
                     </a>
@@ -76,13 +85,13 @@ $esAdminOrSuper = in_array($user['rol'], ['super_admin', 'admin']);
                 <div class="space-y-1">
                     <h3 class="px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Administración</h3>
                     <?php foreach ($adminNavLinks as $key => $link): ?>
-                    <a href="<?= $link['href'] ?>" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all <?= $activePage === $key ? 'bg-emerald-600 text-white font-medium shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white' ?>">
+                    <a href="<?= $link['href'] ?>" data-mobile-close class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all <?= $activePage === $key ? 'bg-emerald-600 text-white font-medium shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white' ?>">
                         <?= $link['icon'] ?>
                         <span><?= $link['label'] ?></span>
                     </a>
                     <?php endforeach; ?>
                     <?php if (in_array($user['rol'], ['super_admin', 'admin'])): ?>
-                    <a href="settings.php" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all <?= $activePage === 'settings' ? 'bg-emerald-600 text-white font-medium shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white' ?>">
+                    <a href="settings.php" data-mobile-close class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all <?= $activePage === 'settings' ? 'bg-emerald-600 text-white font-medium shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white' ?>">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path></svg>
                         <span>Configuración</span>
                     </a>
@@ -99,7 +108,7 @@ $esAdminOrSuper = in_array($user['rol'], ['super_admin', 'admin']);
                         <p class="text-xs text-emerald-400">● Online</p>
                     </div>
                 </div>
-                <a href="logout.php" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-slate-400 hover:bg-slate-800 hover:text-white">
+                <a href="logout.php" data-mobile-close class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-slate-400 hover:bg-slate-800 hover:text-white">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
                     <span>Cerrar Sesión</span>
                 </a>
@@ -107,7 +116,11 @@ $esAdminOrSuper = in_array($user['rol'], ['super_admin', 'admin']);
         </aside>
 
         <!-- MAIN CONTENT -->
-        <main class="flex-1 bg-white overflow-auto <?= isset($fullHeight) && $fullHeight ? 'flex flex-col overflow-hidden' : 'p-6' ?>">
+        <main class="flex-1 min-w-0 w-full bg-white overflow-auto wc-mobile-scroll <?= isset($fullHeight) && $fullHeight ? 'flex flex-col overflow-hidden' : 'p-4 md:p-6' ?>">
+            <div class="sticky top-0 z-30 -mx-4 -mt-4 mb-4 flex items-center justify-between border-b border-slate-100 bg-white/95 px-4 py-3 backdrop-blur md:hidden">
+                <a href="index.php" class="flex items-center gap-2 font-bold text-slate-900"><span class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-sm text-white">W</span>Wabot</a>
+                <button id="wc-mobile-menu" type="button" aria-label="Abrir menú" aria-expanded="false" class="rounded-xl border border-slate-200 p-2.5 text-slate-700"><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+            </div>
             <?= $mainContent ?>
         </main>
     </div>
@@ -182,7 +195,25 @@ $esAdminOrSuper = in_array($user['rol'], ['super_admin', 'admin']);
     </div>
 
     <script>
-        const BASE_PATH = '<?= $basePath ?>';
+        const sidebar = document.getElementById('wc-sidebar');
+        const mobileMenu = document.getElementById('wc-mobile-menu');
+        const mobileOverlay = document.getElementById('wc-mobile-overlay');
+        function closeMobileMenu() {
+            sidebar.classList.add('-translate-x-full');
+            mobileOverlay.classList.add('hidden');
+            mobileMenu?.setAttribute('aria-expanded', 'false');
+        }
+        function openMobileMenu() {
+            sidebar.classList.remove('-translate-x-full');
+            mobileOverlay.classList.remove('hidden');
+            mobileMenu?.setAttribute('aria-expanded', 'true');
+        }
+        mobileMenu?.addEventListener('click', () => sidebar.classList.contains('-translate-x-full') ? openMobileMenu() : closeMobileMenu());
+        mobileOverlay?.addEventListener('click', closeMobileMenu);
+        document.querySelectorAll('[data-mobile-close]').forEach((link) => link.addEventListener('click', closeMobileMenu));
+        window.addEventListener('resize', () => { if (window.innerWidth >= 768) closeMobileMenu(); });
+
+                const BASE_PATH = '<?= $basePath ?>';
         const profileModal = document.getElementById('profile-modal');
         const trigger = document.getElementById('profile-area');
         if (trigger) {
