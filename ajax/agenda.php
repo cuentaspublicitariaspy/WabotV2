@@ -1,7 +1,9 @@
 <?php
 require_once __DIR__ . '/../includes/Auth.php';
+require_once __DIR__ . '/../includes/License.php';
 require_once __DIR__ . '/../includes/AppointmentManager.php';
 requireLogin();
+License::requireCapability('agenda', true);
 header('Content-Type: application/json; charset=utf-8');
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); echo json_encode(['success'=>false]); exit; }
 $input=json_decode(file_get_contents('php://input'),true) ?: $_POST;
