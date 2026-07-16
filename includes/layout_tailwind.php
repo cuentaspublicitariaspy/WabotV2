@@ -1,6 +1,7 @@
 <?php
 if (!isset($user) || $user === null) return;
 require_once __DIR__ . '/Database.php';
+require_once __DIR__ . '/License.php';
 $activePage = $activePage ?? '';
 $pageTitle = $pageTitle ?? 'Wabot';
 $userName = htmlspecialchars($user['nombre']);
@@ -25,10 +26,12 @@ $navLinks = [
     'prospectos' => ['label' => 'Prospectos', 'icon' => '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"></path></svg>', 'href' => 'prospectos.php'],
     'agenda' => ['label' => 'Agenda', 'icon' => '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3M5 11h14M5 5h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z"></path></svg>', 'href' => 'agenda.php'],
 ];
+if (!License::hasCapability('agenda')) {
+    unset($navLinks['agenda']);
+}
 $adminNavLinks = [
     'estadisticas' => ['label' => 'Estadísticas', 'icon' => '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>', 'href' => 'estadisticas.php'],
 
-    'pruebas' => ['label' => 'Pruebas', 'icon' => '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 3v6.75l-4.5 7.794A3 3 0 007.848 22h8.304a3 3 0 002.598-4.456l-4.5-7.794V3m-4.5 0h4.5M8 14h8"></path></svg>', 'href' => 'pruebas.php'],
     'usuarios' => ['label' => 'Usuarios', 'icon' => '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>', 'href' => 'usuarios.php'],
 ];
 $esAdminOrSuper = in_array($user['rol'], ['super_admin', 'admin']);
@@ -48,21 +51,6 @@ $esAdminOrSuper = in_array($user['rol'], ['super_admin', 'admin']);
         ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius:4px; }
         ::-webkit-scrollbar-thumb:hover { background: #64748b; }
         .modal-overlay { background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(2px); }
-        html, body { max-width: 100%; overflow-x: hidden; }
-        .wc-mobile-overlay { background: rgba(15,23,42,.55); backdrop-filter: blur(2px); }
-        @media (max-width: 767px) {
-            html, body, main { overflow-x: hidden !important; }
-            .wc-mobile-scroll {
-                -webkit-overflow-scrolling: touch;
-                overflow-x: hidden !important;
-                padding-bottom: calc(6rem + env(safe-area-inset-bottom)) !important;
-                scroll-padding-bottom: calc(6rem + env(safe-area-inset-bottom));
-            }
-            .wc-mobile-scroll > * { max-width: 100%; }
-            .table-responsive { border: 0; overflow-x: hidden !important; }
-            .table-responsive > .table { min-width: 100%; table-layout: fixed; }
-            input, select, textarea, button { max-width: 100%; }
-        }
         <?= $extraStyle ?? '' ?>
     </style>
 </head>
@@ -70,8 +58,7 @@ $esAdminOrSuper = in_array($user['rol'], ['super_admin', 'admin']);
 
     <div class="flex h-full">
         <!-- SIDEBAR -->
-        <div id="wc-mobile-overlay" class="hidden fixed inset-0 z-40 wc-mobile-overlay md:hidden"></div>
-        <aside id="wc-sidebar" class="fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 text-slate-300 flex flex-col py-6 shadow-xl transform -translate-x-full transition-transform duration-200 ease-out md:static md:w-64 md:translate-x-0 md:shrink-0">
+        <aside class="w-64 bg-slate-900 text-slate-300 flex flex-col py-6 shrink-0 shadow-xl">
             <div class="px-6 mb-8">
                 <a href="index.php" class="text-white font-bold text-xl flex items-center gap-2">
                     <span class="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white text-sm shadow-lg shadow-emerald-900/50">W</span>
@@ -82,7 +69,7 @@ $esAdminOrSuper = in_array($user['rol'], ['super_admin', 'admin']);
             <nav class="flex-1 px-4 space-y-8 overflow-y-auto">
                 <div class="space-y-1">
                     <?php foreach ($navLinks as $key => $link): ?>
-                    <a href="<?= $link['href'] ?>" data-mobile-close class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all <?= $activePage === $key ? 'bg-emerald-600 text-white font-medium shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white' ?>">
+                    <a href="<?= $link['href'] ?>" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all <?= $activePage === $key ? 'bg-emerald-600 text-white font-medium shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white' ?>">
                         <?= $link['icon'] ?>
                         <span><?= $link['label'] ?></span>
                     </a>
@@ -92,13 +79,13 @@ $esAdminOrSuper = in_array($user['rol'], ['super_admin', 'admin']);
                 <div class="space-y-1">
                     <h3 class="px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Administración</h3>
                     <?php foreach ($adminNavLinks as $key => $link): ?>
-                    <a href="<?= $link['href'] ?>" data-mobile-close class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all <?= $activePage === $key ? 'bg-emerald-600 text-white font-medium shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white' ?>">
+                    <a href="<?= $link['href'] ?>" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all <?= $activePage === $key ? 'bg-emerald-600 text-white font-medium shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white' ?>">
                         <?= $link['icon'] ?>
                         <span><?= $link['label'] ?></span>
                     </a>
                     <?php endforeach; ?>
                     <?php if (in_array($user['rol'], ['super_admin', 'admin'])): ?>
-                    <a href="settings.php" data-mobile-close class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all <?= $activePage === 'settings' ? 'bg-emerald-600 text-white font-medium shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white' ?>">
+                    <a href="settings.php" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all <?= $activePage === 'settings' ? 'bg-emerald-600 text-white font-medium shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white' ?>">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path></svg>
                         <span>Configuración</span>
                     </a>
@@ -115,7 +102,7 @@ $esAdminOrSuper = in_array($user['rol'], ['super_admin', 'admin']);
                         <p class="text-xs text-emerald-400">● Online</p>
                     </div>
                 </div>
-                <a href="logout.php" data-mobile-close class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-slate-400 hover:bg-slate-800 hover:text-white">
+                <a href="logout.php" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-slate-400 hover:bg-slate-800 hover:text-white">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
                     <span>Cerrar Sesión</span>
                 </a>
@@ -123,28 +110,9 @@ $esAdminOrSuper = in_array($user['rol'], ['super_admin', 'admin']);
         </aside>
 
         <!-- MAIN CONTENT -->
-        <main class="flex-1 min-w-0 w-full bg-white overflow-auto wc-mobile-scroll pb-20 md:pb-0 <?= isset($fullHeight) && $fullHeight ? 'flex flex-col overflow-hidden' : 'p-4 md:p-6' ?>">
-            <div class="sticky top-0 z-30 -mx-4 -mt-4 mb-4 flex items-center gap-3 border-b border-slate-100 bg-white/95 px-4 py-3 backdrop-blur md:hidden">
-                <button id="wc-mobile-menu" type="button" aria-label="Abrir menú" aria-expanded="false" class="rounded-xl border border-slate-200 p-2.5 text-slate-700"><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg></button>
-                <a href="index.php" class="flex items-center gap-2 font-bold text-slate-900"><span class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-sm text-white">W</span>Wabot</a>
-            </div>
+        <main class="flex-1 bg-white overflow-auto <?= isset($fullHeight) && $fullHeight ? 'flex flex-col overflow-hidden' : 'p-6' ?>">
             <?= $mainContent ?>
         </main>
-
-        <nav class="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-slate-200 bg-white/95 px-1 py-1.5 shadow-[0_-8px_24px_rgba(15,23,42,.08)] backdrop-blur md:hidden" aria-label="Navegación principal">
-            <?php
-            $mobileLinks = [
-                'dashboard' => ['Dashboard', 'index.php', 'bi-grid'],
-                'conversaciones' => ['Chats', 'conversaciones.php', 'bi-chat-dots'],
-                'prospectos' => ['Prospectos', 'prospectos.php', 'bi-people'],
-                'agenda' => ['Agenda', 'agenda.php', 'bi-calendar3'],
-            ];
-            foreach ($mobileLinks as $key => [$label, $href, $icon]): ?>
-                <a href="<?= $href ?>" class="flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-semibold <?= $activePage === $key ? 'bg-emerald-50 text-emerald-700' : 'text-slate-500' ?>">
-                    <i class="bi <?= $icon ?> text-lg leading-none"></i><span><?= $label ?></span>
-                </a>
-            <?php endforeach; ?>
-        </nav>
     </div>
 
     <!-- Profile Modal -->
@@ -217,25 +185,7 @@ $esAdminOrSuper = in_array($user['rol'], ['super_admin', 'admin']);
     </div>
 
     <script>
-        const sidebar = document.getElementById('wc-sidebar');
-        const mobileMenu = document.getElementById('wc-mobile-menu');
-        const mobileOverlay = document.getElementById('wc-mobile-overlay');
-        function closeMobileMenu() {
-            sidebar.classList.add('-translate-x-full');
-            mobileOverlay.classList.add('hidden');
-            mobileMenu?.setAttribute('aria-expanded', 'false');
-        }
-        function openMobileMenu() {
-            sidebar.classList.remove('-translate-x-full');
-            mobileOverlay.classList.remove('hidden');
-            mobileMenu?.setAttribute('aria-expanded', 'true');
-        }
-        mobileMenu?.addEventListener('click', () => sidebar.classList.contains('-translate-x-full') ? openMobileMenu() : closeMobileMenu());
-        mobileOverlay?.addEventListener('click', closeMobileMenu);
-        document.querySelectorAll('[data-mobile-close]').forEach((link) => link.addEventListener('click', closeMobileMenu));
-        window.addEventListener('resize', () => { if (window.innerWidth >= 768) closeMobileMenu(); });
-
-                const BASE_PATH = '<?= $basePath ?>';
+        const BASE_PATH = '<?= $basePath ?>';
         const profileModal = document.getElementById('profile-modal');
         const trigger = document.getElementById('profile-area');
         if (trigger) {
