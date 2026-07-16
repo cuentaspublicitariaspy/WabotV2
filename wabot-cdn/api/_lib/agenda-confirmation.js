@@ -67,8 +67,12 @@ function parseProposal(value) {
 function phoneFrom(messages) {
   for (let i = messages.length - 1; i >= 0; i--) {
     if (messages[i]?.role !== 'user') continue;
-    const match = text(messages[i].content).match(/(?:\+?595\s*|0)(?:\d[\s-]*){8,10}/);
-    if (match) return match[0].replace(/\D/g, '');
+    const candidates = text(messages[i].content).match(/\+?\d[\d\s().-]{6,}\d/g) || [];
+    for (const candidate of candidates) {
+      const digits = candidate.replace(/\D/g, '');
+      // Paraguay: internacional, nacional, sin cero y abreviado a 8 dígitos.
+      if (/^595\d{9}$/.test(digits) || /^0\d{9}$/.test(digits) || /^\d{9}$/.test(digits) || /^\d{8}$/.test(digits)) return digits;
+    }
   }
   return '';
 }
