@@ -103,3 +103,7 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 ## Respaldo Agenda → Conversaciones — 15/07/2026
 - Si un Chatbot tiene teléfono o correo y aún no posee una ficha vinculada, WC consulta las citas activas del cliente usando las variantes normalizadas del contacto.
 - Al encontrar una cita, crea/reutiliza la ficha local, enlaza el chat y muestra el nombre de la reserva. No lee textos de mensajes para lograrlo.
+
+
+## Corrección de ficha anónima ya existente — 16/07/2026
+- Si el teléfono/correo ya estaba vinculado a un prospecto sin nombre, WC no se detiene allí: consulta la cita coincidente y completa el nombre en Prospectos y Conversaciones.
