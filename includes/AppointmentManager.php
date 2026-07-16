@@ -66,7 +66,9 @@ class AppointmentManager
         // sala, un consultorio o cualquier capacidad única del negocio.
         $this->db->exec("CREATE TABLE IF NOT EXISTS agenda_agendas (
             id INT AUTO_INCREMENT PRIMARY KEY, sucursal_id INT NOT NULL, nombre VARCHAR(150) NOT NULL,
-            descripcion VARCHAR(255) NOT NULL DEFAULT '', buffer_minutes SMALLINT NOT NULL DEFAULT 0,
+            descripcion VARCHAR(255) NOT NULL DEFAULT '', color VARCHAR(7) NOT NULL DEFAULT '#10B981',
+            duracion_defecto SMALLINT NOT NULL DEFAULT 30, buffer_antes SMALLINT NOT NULL DEFAULT 0,
+            buffer_despues SMALLINT NOT NULL DEFAULT 0, buffer_minutes SMALLINT NOT NULL DEFAULT 0,
             activo TINYINT(1) NOT NULL DEFAULT 1, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_agenda_sucursal (sucursal_id, activo)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
@@ -107,6 +109,12 @@ class AppointmentManager
         $this->ensureColumn('agenda_horarios', 'agenda_id', 'INT NULL AFTER id');
         $this->ensureColumn('agenda_bloqueos', 'agenda_id', 'INT NULL AFTER id');
         $this->ensureColumn('citas', 'agenda_id', 'INT NULL AFTER id');
+        $this->ensureColumn('agenda_agendas', 'color', "VARCHAR(7) NOT NULL DEFAULT '#10B981' AFTER descripcion");
+        $this->ensureColumn('agenda_agendas', 'duracion_defecto', 'SMALLINT NOT NULL DEFAULT 30 AFTER color');
+        $this->ensureColumn('agenda_agendas', 'buffer_antes', 'SMALLINT NOT NULL DEFAULT 0 AFTER duracion_defecto');
+        $this->ensureColumn('agenda_agendas', 'buffer_despues', 'SMALLINT NOT NULL DEFAULT 0 AFTER buffer_antes');
+        // Compatibilidad con agendas creadas antes de separar ambos buffers.
+        $this->db->exec('UPDATE agenda_agendas SET buffer_antes=buffer_minutes,buffer_despues=buffer_minutes WHERE buffer_minutes>0 AND buffer_antes=0 AND buffer_despues=0');
         // Migración de instalaciones previas: cada profesional configurado se
         // transforma en una agenda de su sucursal para no perder datos.
         $this->migrateLegacyProfessionals();
@@ -132,8 +140,8 @@ class AppointmentManager
         $this->db->prepare('UPDATE agenda_sucursales SET negocio_id=? WHERE negocio_id IS NULL OR negocio_id=0')->execute([$businessId]);
         $singleAgenda = (int)($this->db->query('SELECT id FROM agenda_agendas WHERE activo=1 ORDER BY id LIMIT 1')->fetchColumn() ?: 0);
         if ($singleAgenda) $this->db->prepare('UPDATE agenda_servicios SET agenda_id=? WHERE agenda_id IS NULL OR agenda_id=0')->execute([$singleAgenda]);
-        $singleService = (int)($this->db->query('SELECT id FROM agenda_servicios WHERE activo=1 ORDER BY id LIMIT 1')->fetchColumn() ?: 0);
-        if ($singleService) $this->db->prepare('UPDATE agenda_horarios SET servicio_id=? WHERE servicio_id IS NULL OR servicio_id=0')->execute([$singleService]);
+        // Los horarios pertenecen al recurso reservable (agenda), no a cada
+        // servicio. Se conserva servicio_id solo por compatibilidad histórica.
     }
 
     private function migrateLegacyProfessionals(): void
@@ -175,7 +183,7 @@ class AppointmentManager
         $tables = ['negocios'=>'agenda_negocios','servicios'=>'agenda_servicios','profesionales'=>'agenda_profesionales','sucursales'=>'agenda_sucursales','agendas'=>'agenda_agendas'];
         if (!isset($tables[$entity])) return [];
         if ($entity === 'sucursales') return $this->db->query('SELECT s.*,n.nombre negocio FROM agenda_sucursales s LEFT JOIN agenda_negocios n ON n.id=s.negocio_id ORDER BY s.activo DESC,n.nombre,s.nombre')->fetchAll();
-        if ($entity === 'agendas') return $this->db->query('SELECT a.*,s.nombre sucursal,n.nombre negocio FROM agenda_agendas a LEFT JOIN agenda_sucursales s ON s.id=a.sucursal_id LEFT JOIN agenda_negocios n ON n.id=s.negocio_id ORDER BY a.activo DESC,n.nombre,s.nombre,a.nombre')->fetchAll();
+        if ($entity === 'agendas') return $this->db->query('SELECT a.*,s.nombre sucursal,n.nombre negocio,(SELECT COUNT(*) FROM agenda_servicios v WHERE v.agenda_id=a.id) servicios_total,(SELECT COUNT(*) FROM agenda_horarios h WHERE h.agenda_id=a.id AND h.activo=1) horarios_total,(SELECT COUNT(*) FROM agenda_bloqueos b WHERE b.agenda_id=a.id AND b.fin>=NOW()) excepciones_total FROM agenda_agendas a LEFT JOIN agenda_sucursales s ON s.id=a.sucursal_id LEFT JOIN agenda_negocios n ON n.id=s.negocio_id ORDER BY a.activo DESC,n.nombre,s.nombre,a.nombre')->fetchAll();
         if ($entity === 'servicios') return $this->db->query('SELECT v.*,a.nombre agenda,s.nombre sucursal,n.nombre negocio FROM agenda_servicios v LEFT JOIN agenda_agendas a ON a.id=v.agenda_id LEFT JOIN agenda_sucursales s ON s.id=a.sucursal_id LEFT JOIN agenda_negocios n ON n.id=s.negocio_id ORDER BY v.activo DESC,n.nombre,s.nombre,a.nombre,v.nombre')->fetchAll();
         return $this->db->query('SELECT * FROM '.$tables[$entity].' ORDER BY activo DESC, nombre ASC')->fetchAll();
     }
@@ -206,11 +214,15 @@ class AppointmentManager
             if ($id) { $values[]=$id; $this->db->prepare('UPDATE agenda_sucursales SET negocio_id=?,nombre=?,direccion=?,activo=? WHERE id=?')->execute($values); return $id; }
             $this->db->prepare('INSERT INTO agenda_sucursales(negocio_id,nombre,direccion,activo) VALUES(?,?,?,?)')->execute($values);
         } elseif ($entity === 'agendas') {
-            $values=[(int)($data['sucursal_id']??0),trim((string)($data['nombre']??'')),trim((string)($data['descripcion']??'')),max(0,min(240,(int)($data['buffer_minutes']??0))),!empty($data['activo'])?1:0];
+            $color=strtoupper(trim((string)($data['color']??'#10B981')));
+            if(!preg_match('/^#[0-9A-F]{6}$/',$color))$color='#10B981';
+            $before=max(0,min(240,(int)($data['buffer_antes']??$data['buffer_minutes']??0)));
+            $after=max(0,min(240,(int)($data['buffer_despues']??$data['buffer_minutes']??0)));
+            $values=[(int)($data['sucursal_id']??0),trim((string)($data['nombre']??'')),trim((string)($data['descripcion']??'')),$color,max(5,min(1440,(int)($data['duracion_defecto']??30))),$before,$after,max($before,$after),!empty($data['activo'])?1:0];
             if (!$values[0]) throw new InvalidArgumentException('Elegí la sucursal de esta agenda.');
             if ($values[1]==='') throw new InvalidArgumentException('La agenda necesita un nombre.');
-            if ($id) { $values[]=$id; $this->db->prepare('UPDATE agenda_agendas SET sucursal_id=?,nombre=?,descripcion=?,buffer_minutes=?,activo=? WHERE id=?')->execute($values); return $id; }
-            $this->db->prepare('INSERT INTO agenda_agendas(sucursal_id,nombre,descripcion,buffer_minutes,activo) VALUES(?,?,?,?,?)')->execute($values);
+            if ($id) { $values[]=$id; $this->db->prepare('UPDATE agenda_agendas SET sucursal_id=?,nombre=?,descripcion=?,color=?,duracion_defecto=?,buffer_antes=?,buffer_despues=?,buffer_minutes=?,activo=? WHERE id=?')->execute($values); return $id; }
+            $this->db->prepare('INSERT INTO agenda_agendas(sucursal_id,nombre,descripcion,color,duracion_defecto,buffer_antes,buffer_despues,buffer_minutes,activo) VALUES(?,?,?,?,?,?,?,?,?)')->execute($values);
         } else throw new InvalidArgumentException('Entidad no válida.');
         return (int)$this->db->lastInsertId();
     }
@@ -241,10 +253,8 @@ class AppointmentManager
         if ($entity==='agendas') {
             $stmt=$this->db->prepare('SELECT COUNT(*) FROM citas WHERE agenda_id=?');$stmt->execute([$id]);
             if ((int)$stmt->fetchColumn()) throw new RuntimeException('No podés eliminar una agenda con citas registradas.');
-        }
-        if ($entity==='servicios') {
-            $stmt=$this->db->prepare('SELECT COUNT(*) FROM agenda_horarios WHERE servicio_id=?');$stmt->execute([$id]);
-            if ((int)$stmt->fetchColumn()) throw new RuntimeException('No podés eliminar un servicio que todavía tiene horarios.');
+            $stmt=$this->db->prepare('SELECT (SELECT COUNT(*) FROM agenda_horarios WHERE agenda_id=?)+(SELECT COUNT(*) FROM agenda_bloqueos WHERE agenda_id=?)');$stmt->execute([$id,$id]);
+            if ((int)$stmt->fetchColumn()) throw new RuntimeException('No podés eliminar una agenda que todavía tiene horarios o excepciones.');
         }
         $this->db->prepare('DELETE FROM '.$table.' WHERE id=?')->execute([$id]);
     }
@@ -252,23 +262,22 @@ class AppointmentManager
     public function saveHours(array $data): void
     {
         $agendaId=(int)($data['agenda_id']??0);
-        $serviceId=(int)($data['servicio_id']??0);
-        if (!$agendaId || !$serviceId) throw new InvalidArgumentException('Elegí el servicio y la agenda a los que pertenece este horario.');
-        $owner=$this->db->prepare('SELECT COUNT(*) FROM agenda_servicios WHERE id=? AND agenda_id=? AND activo=1');$owner->execute([$serviceId,$agendaId]);
-        if(!(int)$owner->fetchColumn()) throw new InvalidArgumentException('El servicio no pertenece a esa agenda.');
+        if (!$agendaId) throw new InvalidArgumentException('Elegí la agenda a la que pertenece este horario.');
+        $owner=$this->db->prepare('SELECT COUNT(*) FROM agenda_agendas WHERE id=? AND activo=1');$owner->execute([$agendaId]);
+        if(!(int)$owner->fetchColumn()) throw new InvalidArgumentException('La agenda no está activa.');
         $day=(int)($data['dia_semana']??0); $from=(string)($data['hora_inicio']??''); $to=(string)($data['hora_fin']??'');
         if ($day<0 || $day>6 || !preg_match('/^\d\d:\d\d$/',$from) || !preg_match('/^\d\d:\d\d$/',$to) || $from >= $to) throw new InvalidArgumentException('Horario inválido.');
         $id=(int)($data['id']??0);
         if($id){
-            $this->db->prepare('UPDATE agenda_horarios SET servicio_id=?, agenda_id=?, dia_semana=?, hora_inicio=?, hora_fin=? WHERE id=?')->execute([$serviceId,$agendaId,$day,$from,$to,$id]);
+            $this->db->prepare('UPDATE agenda_horarios SET servicio_id=NULL, agenda_id=?, dia_semana=?, hora_inicio=?, hora_fin=?, activo=? WHERE id=?')->execute([$agendaId,$day,$from,$to,!empty($data['activo'])?1:0,$id]);
         }else{
-            $this->db->prepare('INSERT INTO agenda_horarios(servicio_id,agenda_id,dia_semana,hora_inicio,hora_fin) VALUES(?,?,?,?,?)')->execute([$serviceId,$agendaId,$day,$from,$to]);
+            $this->db->prepare('INSERT INTO agenda_horarios(servicio_id,agenda_id,dia_semana,hora_inicio,hora_fin,activo) VALUES(NULL,?,?,?,?,?)')->execute([$agendaId,$day,$from,$to,!isset($data['activo'])||!empty($data['activo'])?1:0]);
         }
     }
 
     public function hours(): array
     {
-        return $this->db->query("SELECT h.*, v.nombre servicio, a.nombre agenda, s.nombre sucursal, n.nombre negocio FROM agenda_horarios h LEFT JOIN agenda_servicios v ON v.id=h.servicio_id LEFT JOIN agenda_agendas a ON a.id=h.agenda_id LEFT JOIN agenda_sucursales s ON s.id=a.sucursal_id LEFT JOIN agenda_negocios n ON n.id=s.negocio_id WHERE h.activo=1 ORDER BY n.nombre,s.nombre,a.nombre,v.nombre,h.dia_semana,h.hora_inicio")->fetchAll();
+        return $this->db->query("SELECT h.*, a.nombre agenda, s.nombre sucursal, n.nombre negocio FROM agenda_horarios h LEFT JOIN agenda_agendas a ON a.id=h.agenda_id LEFT JOIN agenda_sucursales s ON s.id=a.sucursal_id LEFT JOIN agenda_negocios n ON n.id=s.negocio_id ORDER BY h.activo DESC,n.nombre,s.nombre,a.nombre,h.dia_semana,h.hora_inicio")->fetchAll();
     }
 
     public function availability(array $filter): array
@@ -285,13 +294,13 @@ class AppointmentManager
         $target=new DateTimeImmutable($date, $tz); $today=new DateTimeImmutable('today',$tz);
         if ($target<$today || $target>$today->modify('+'.(int)$settings['max_advance_days'].' days')) return [];
         $weekday=(int)$target->format('w');
-        $q='SELECT hora_inicio,hora_fin FROM agenda_horarios WHERE activo=1 AND dia_semana=? AND agenda_id=? AND servicio_id=? ORDER BY hora_inicio';
-        $params=[$weekday,$agendaId,$serviceId];
+        $q='SELECT DISTINCT hora_inicio,hora_fin FROM agenda_horarios WHERE activo=1 AND dia_semana=? AND agenda_id=? ORDER BY hora_inicio';
+        $params=[$weekday,$agendaId];
         $stmt=$this->db->prepare($q); $stmt->execute($params); $ranges=$stmt->fetchAll();
-        $slots=[]; $step=max(5,(int)$settings['slot_minutes']); $buffer=(int)$agenda['buffer_minutes'];
+        $slots=[]; $step=max(5,(int)$settings['slot_minutes']);
         foreach($ranges as $range) {
             $cursor=new DateTimeImmutable($date.' '.$range['hora_inicio'],$tz); $end=new DateTimeImmutable($date.' '.$range['hora_fin'],$tz);
-            while($cursor->modify('+'.($duration+$buffer).' minutes') <= $end) {
+            while($cursor->modify('+'.$duration.' minutes') <= $end) {
                 $ignoreId = !empty($filter['cita_id']) ? (int)$filter['cita_id'] : null;
                 if ($cursor >= new DateTimeImmutable('+'.(int)$settings['min_notice_hours'].' hours',$tz) && $this->isFree($cursor,$cursor->modify('+'.$duration.' minutes'),$agendaId,$ignoreId)) $slots[]=$cursor->format('H:i');
                 $cursor=$cursor->modify('+'.$step.' minutes');
@@ -319,10 +328,12 @@ class AppointmentManager
 
     private function isFree(DateTimeImmutable $start, DateTimeImmutable $end, int $agendaId, ?int $ignoreId = null): bool
     {
-        $bufferStmt=$this->db->prepare('SELECT buffer_minutes FROM agenda_agendas WHERE id=?');$bufferStmt->execute([$agendaId]);
-        $buffer=max(0,(int)$bufferStmt->fetchColumn());
-        $checkStart=$start->modify('-'.$buffer.' minutes');
-        $checkEnd=$end->modify('+'.$buffer.' minutes');
+        $bufferStmt=$this->db->prepare('SELECT buffer_antes,buffer_despues,buffer_minutes FROM agenda_agendas WHERE id=?');$bufferStmt->execute([$agendaId]);
+        $buffers=$bufferStmt->fetch()?:[];
+        $before=max(0,(int)($buffers['buffer_antes']??$buffers['buffer_minutes']??0));
+        $after=max(0,(int)($buffers['buffer_despues']??$buffers['buffer_minutes']??0));
+        $checkStart=$start->modify('-'.$before.' minutes');
+        $checkEnd=$end->modify('+'.$after.' minutes');
         $sql="SELECT COUNT(*) FROM citas WHERE estado NOT IN ('cancelada_cliente','cancelada_negocio','no_asistio') AND inicio < ? AND fin > ?";
         $params=[$checkEnd->format('Y-m-d H:i:s'),$checkStart->format('Y-m-d H:i:s')];
         $sql.=' AND agenda_id=?';$params[]=$agendaId;
@@ -450,16 +461,13 @@ class AppointmentManager
         if (in_array($existing['estado'], ['cancelada_cliente','cancelada_negocio','no_asistio','completada'], true)) throw new RuntimeException('Esa cita ya no puede reprogramarse.');
         $agendaId=(int)($data['agenda_id'] ?? $existing['agenda_id']);
         $serviceId=(int)($data['servicio_id'] ?? $existing['servicio_id']);
-        $service=$this->db->prepare('SELECT duracion_minutos FROM agenda_servicios WHERE id=? AND activo=1');$service->execute([$serviceId]);$duration=(int)$service->fetchColumn();
+        $service=$this->db->prepare('SELECT duracion_minutos FROM agenda_servicios WHERE id=? AND agenda_id=? AND activo=1');$service->execute([$serviceId,$agendaId]);$duration=(int)$service->fetchColumn();
         if (!$duration || !$agendaId) throw new InvalidArgumentException('Indicá servicio y agenda válidos.');
         $tz=new DateTimeZone(($this->settings()['timezone']??'America/Asuncion'));
         try {$start=new DateTimeImmutable((string)($data['inicio']??''),$tz);} catch(Throwable $e) { throw new InvalidArgumentException('Nueva fecha y hora inválidas.'); }
         $end=$start->modify('+'.$duration.' minutes');
-        $day=(int)$start->format('w');
-        $hours=$this->db->prepare('SELECT hora_inicio,hora_fin FROM agenda_horarios WHERE agenda_id=? AND dia_semana=? AND activo=1');$hours->execute([$agendaId,$day]);
-        $fits=false;foreach($hours->fetchAll() as $range){$from=new DateTimeImmutable($start->format('Y-m-d').' '.$range['hora_inicio'],$tz);$to=new DateTimeImmutable($start->format('Y-m-d').' '.$range['hora_fin'],$tz);if($start>=$from&&$end<=$to){$fits=true;break;}}
-        if(!$fits) throw new RuntimeException('El nuevo horario está fuera de la disponibilidad de esa agenda.');
-        if(!$this->isFree($start,$end,$agendaId,$id)) throw new RuntimeException('El nuevo horario se superpone con otra cita o bloqueo.');
+        $slots=$this->availability(['servicio_id'=>$serviceId,'agenda_id'=>$agendaId,'fecha'=>$start->format('Y-m-d'),'cita_id'=>$id]);
+        if(!in_array($start->format('H:i'),$slots,true)) throw new RuntimeException('El nuevo horario no está disponible según las reglas de esa agenda.');
         $branch=$this->db->prepare('SELECT sucursal_id FROM agenda_agendas WHERE id=? AND activo=1');$branch->execute([$agendaId]);$branch=$branch->fetchColumn();if(!$branch)throw new InvalidArgumentException('La agenda seleccionada no está disponible.');
         $history=json_decode($existing['historial']??'[]',true)?:[];$history[]=['at'=>date('c'),'action'=>'reprogramada','by'=>$actor,'from'=>$existing['inicio'],'to'=>$start->format('Y-m-d H:i:s')];
         $this->db->prepare('UPDATE citas SET agenda_id=?,sucursal_id=?,servicio_id=?,inicio=?,fin=?,estado="reprogramada",historial=? WHERE id=?')->execute([$agendaId,$branch,$serviceId,$start->format('Y-m-d H:i:s'),$end->format('Y-m-d H:i:s'),json_encode($history,JSON_UNESCAPED_UNICODE),$id]);
