@@ -157,3 +157,5 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 - Los clientes anteriores al sistema de capacidades conservan Agenda activa durante la migración. En clientes nuevos, Agenda debe habilitarse explícitamente desde WS.
 - Chatbot, WhatsApp y operadores humanos solo pueden ejecutar Agenda cuando el manifiesto de WS la autoriza.
 - La licencia y el manifiesto se validan en el servidor; nunca se confía en un indicador enviado por el navegador.
+- Con Agenda deshabilitada, la IA no puede improvisar un agendamiento manual: no solicita datos para una cita, no promete pasar información o coordinar un contacto y no simula reservas, derivaciones ni seguimientos. Comunica con naturalidad que la gestión de citas no está disponible y continúa ayudando con otras consultas.
+- La protección conversacional de una capacidad deshabilitada se valida semánticamente antes de entregar la respuesta; no depende de que la persona use frases o palabras clave determinadas.
