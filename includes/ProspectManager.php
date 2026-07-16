@@ -56,9 +56,9 @@ class ProspectManager
         $digits = preg_replace('/\D+/', '', $telefono);
         if ($digits === '') return '';
 
-        if (str_starts_with($digits, '595') && strlen($digits) >= 11) return $digits;
-        if (strlen($digits) === 10 && str_starts_with($digits, '09')) return '595' . substr($digits, 1);
-        if (strlen($digits) === 9 && str_starts_with($digits, '9')) return '595' . $digits;
+        if (substr($digits, 0, 3) === '595' && strlen($digits) >= 11) return $digits;
+        if (strlen($digits) === 10 && substr($digits, 0, 2) === '09') return '595' . substr($digits, 1);
+        if (strlen($digits) === 9 && substr($digits, 0, 1) === '9') return '595' . $digits;
         if (strlen($digits) === 8) return '5959' . $digits;
         return $digits;
     }
@@ -72,9 +72,9 @@ class ProspectManager
         return array_values(array_unique(array_filter([
             $canonico,
             $digits,
-            str_starts_with($canonico, '595') ? '0' . substr($canonico, 3) : '',
-            str_starts_with($canonico, '595') ? substr($canonico, 3) : '',
-            str_starts_with($canonico, '5959') ? substr($canonico, 4) : '',
+            substr($canonico, 0, 3) === '595' ? '0' . substr($canonico, 3) : '',
+            substr($canonico, 0, 3) === '595' ? substr($canonico, 3) : '',
+            substr($canonico, 0, 4) === '5959' ? substr($canonico, 4) : '',
         ])));
     }
 
