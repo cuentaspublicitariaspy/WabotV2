@@ -25,6 +25,7 @@ if ($user !== null) {
 
     $activePage = 'dashboard';
     $pageTitle = 'Dashboard';
+    $extraStyle = '@media (max-width:767px){.dashboard-conversations-table{table-layout:fixed}.dashboard-conversations-table th:nth-child(n+3),.dashboard-conversations-table td:nth-child(n+3){display:none}.dashboard-conversations-table th,.dashboard-conversations-table td{padding:.75rem}.dashboard-conversations-table td:nth-child(2){white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}';
     ob_start();
     ?>
     <!-- Stats Bar -->
@@ -71,13 +72,13 @@ if ($user !== null) {
     </div>
 
     <!-- Recent conversations -->
-    <div class="flex-1 px-6 pb-5 overflow-hidden flex flex-col">
+    <div class="flex-1 px-4 md:px-6 pb-6 md:pb-5 overflow-hidden flex flex-col">
         <div class="flex items-center justify-between mb-3">
             <h4 class="text-sm font-semibold text-slate-700">Conversaciones Recientes</h4>
             <a href="conversaciones.php" class="text-xs text-emerald-600 hover:text-emerald-700 font-medium">Ver todas</a>
         </div>
-        <div class="flex-1 overflow-auto border border-slate-100 rounded-2xl bg-white">
-            <table class="w-full text-sm">
+        <div class="flex-1 overflow-y-auto overflow-x-hidden border border-slate-100 rounded-2xl bg-white">
+            <table class="w-full text-sm dashboard-conversations-table">
                 <thead class="bg-slate-50 text-left text-xs text-slate-500">
                     <tr>
                         <th class="px-4 py-3 font-medium">Cliente</th>
