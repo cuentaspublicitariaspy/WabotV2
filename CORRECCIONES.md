@@ -107,3 +107,9 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 
 ## Corrección de ficha anónima ya existente — 16/07/2026
 - Si el teléfono/correo ya estaba vinculado a un prospecto sin nombre, WC no se detiene allí: consulta la cita coincidente y completa el nombre en Prospectos y Conversaciones.
+
+
+## Resolución directa y pruebas de identidad — 16/07/2026
+- Conversaciones calcula el nombre visible directamente desde la cita activa por teléfono/correo canónico; no depende de que una actualización previa de la ficha haya funcionado.
+- Se eliminó la dependencia de `str_starts_with` para mantener compatibilidad con versiones anteriores de PHP usadas en algunos hostings.
+- Se probaron: sintaxis PHP de ambos archivos, cinco formatos del mismo teléfono, prospecto existente sin nombre, prevención de fusiones falsas, conservación de nombres verificados, coincidencia por correo y exclusión de citas canceladas.
