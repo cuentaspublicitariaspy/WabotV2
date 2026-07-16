@@ -50,11 +50,23 @@ function resolveUnambiguousAgendaSelection(AppointmentManager $agenda, array $in
 }
 try {
     if($action==='catalogo'){
-        echo json_encode(['success'=>true,'servicios'=>$agenda->list('servicios'),'agendas'=>$agenda->list('agendas'),'sucursales'=>$agenda->list('sucursales'),'reglas'=>$agenda->settings()]);exit;
+        echo json_encode([
+            'success'=>true,
+            'servicios'=>$agenda->list('servicios'),
+            'agendas'=>$agenda->list('agendas'),
+            'sucursales'=>$agenda->list('sucursales'),
+            'reglas'=>$agenda->settings(),
+            'instruccion'=>'Relacioná el nombre pedido por la persona con una agenda y elegí solamente servicios asociados a esa agenda. Si tiene un solo servicio activo, continuá sin pedir que lo confirme.'
+        ]);exit;
     }
     if($action==='disponibilidad'){
         $input=resolveUnambiguousAgendaSelection($agenda,$input);
-        echo json_encode(['success'=>true,'slots'=>$agenda->availability($input)]);exit;
+        echo json_encode([
+            'success'=>true,
+            'slots'=>$agenda->availability($input),
+            'consulta_finalizada'=>true,
+            'instruccion'=>'La consulta ya terminó. Respondé ahora con estos horarios reales y no vuelvas a llamar la herramienta de agenda en este turno.'
+        ]);exit;
     }
     if($action==='proximos_horarios'){
         $input=resolveUnambiguousAgendaSelection($agenda,$input);
@@ -63,7 +75,14 @@ try {
         }
         if(empty($input['fecha_desde']))$input['fecha_desde']=date('Y-m-d');
         if(empty($input['dias']))$input['dias']=14;
-        echo json_encode(['success'=>true,'opciones'=>$agenda->nextAvailability($input),'agenda_id'=>(int)$input['agenda_id'],'servicio_id'=>(int)$input['servicio_id']]);exit;
+        echo json_encode([
+            'success'=>true,
+            'opciones'=>$agenda->nextAvailability($input),
+            'agenda_id'=>(int)$input['agenda_id'],
+            'servicio_id'=>(int)$input['servicio_id'],
+            'consulta_finalizada'=>true,
+            'instruccion'=>'La consulta ya terminó. Respondé ahora usando exclusivamente estas opciones. No vuelvas a llamar la herramienta de agenda en este turno. Si no hay opciones, informalo con amabilidad y pedí otra fecha o franja.'
+        ]);exit;
     }
     if($action==='citas_cliente'){
         echo json_encode(['success'=>true,'citas'=>$agenda->findUpcoming($input)]);exit;
