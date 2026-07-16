@@ -74,3 +74,10 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 
 - Agenda: al elegir un horario propuesto para reagendar, la IA debe completar el cambio sin pasos redundantes; la reserva manual debe mostrar horarios reales y abrir el formulario al hacer clic.
 - Estilo: evitar Markdown visual (en especial `**`); tono siempre cálido, amable y humano, incluyendo un saludo cuando la persona abre con uno.
+
+
+## Diseño móvil
+
+- WC se diseña y prueba primero para móvil. En pantallas pequeñas el menú lateral nunca queda fijo ni empuja el contenido: se abre como cajón superpuesto mediante un botón visible, con fondo de cierre.
+- El contenido no puede producir desborde horizontal de la página. Tablas y cronogramas extensos se desplazan dentro de su propio contenedor; formularios, modales, botones y acciones deben caber y ser táctiles.
+- Las acciones frecuentes deben quedar accesibles sin depender de hover, puntero o un ancho de escritorio. Los modales ocupan el ancho útil y respetan el alto visible del teléfono.
