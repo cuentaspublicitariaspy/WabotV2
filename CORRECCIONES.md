@@ -113,3 +113,11 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 - Conversaciones calcula el nombre visible directamente desde la cita activa por teléfono/correo canónico; no depende de que una actualización previa de la ficha haya funcionado.
 - Se eliminó la dependencia de `str_starts_with` para mantener compatibilidad con versiones anteriores de PHP usadas en algunos hostings.
 - Se probaron: sintaxis PHP de ambos archivos, cinco formatos del mismo teléfono, prospecto existente sin nombre, prevención de fusiones falsas, conservación de nombres verificados, coincidencia por correo y exclusión de citas canceladas.
+
+
+## Ruta real Chatbot → Prospecto → Cita — 16/07/2026
+- El diagnóstico de producción demostró que `widget_chats` no tenía teléfonos ni correos: el contacto visible provenía de la ficha enlazada mediante `prospecto_referencias`.
+- Conversaciones resuelve ahora la identidad por la ruta real: chat de Chatbot → prospecto vinculado → teléfono/correo canónico → cita activa → nombre del cliente.
+- Si el prospecto vinculado ya tiene un nombre válido, se conserva. Si está anónimo y existe una cita activa coincidente, se actualizan la ficha de Prospectos y el nombre visible del chat.
+- El diagnóstico administrativo revisa todos los chats y muestra su prospecto enlazado, aunque `widget_chats` no contenga contacto.
+- Verificación ejecutada: sintaxis PHP y escenario crítico chat sin contacto directo → prospecto anónimo vinculado → cita coincidente → nombre `Jorge`.
