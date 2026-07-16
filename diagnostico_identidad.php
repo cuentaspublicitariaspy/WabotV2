@@ -36,8 +36,18 @@ function genericName(string $name): bool
 
 $chats = diagRows($db, "SELECT id, visitor_name, visitor_email, visitor_phone, updated_at
     FROM widget_chats
-    WHERE visitor_phone <> '' OR visitor_email <> ''
     ORDER BY updated_at DESC, id DESC LIMIT 100", $errors, 'widget_chats');
+
+$references = diagRows($db, "SELECT r.referencia, p.id, p.nombre, p.whatsapp, p.email, p.updated_at
+    FROM prospecto_referencias r
+    INNER JOIN prospectos p ON p.id = r.prospecto_id
+    WHERE r.canal = 'chatbot'
+    ORDER BY p.updated_at DESC, p.id DESC", $errors, 'prospecto_referencias');
+
+$prospectByChat = [];
+foreach ($references as $reference) {
+    $prospectByChat[(string)$reference['referencia']] = $reference;
+}
 
 $appointments = diagRows($db, "SELECT id, prospecto_id, nombre_cliente, telefono, email, estado, inicio, updated_at
     FROM citas
@@ -68,18 +78,30 @@ foreach ($prospects as $prospect) {
 
 $report = [];
 foreach ($chats as $chat) {
-    $phone = $prospectManager->normalizarTelefono((string)$chat['visitor_phone']);
+    // Fuente primaria real: Chatbot -> prospecto_referencias -> Prospecto.
+    $linkedProspect = $prospectByChat[(string)$chat['id']] ?? null;
+    $phoneOriginal = trim((string)$chat['visitor_phone']);
+    if ($phoneOriginal === '' && $linkedProspect) $phoneOriginal = trim((string)$linkedProspect['whatsapp']);
     $email = strtolower(trim((string)$chat['visitor_email']));
+    if ($email === '' && $linkedProspect) $email = strtolower(trim((string)$linkedProspect['email']));
+    $phone = $prospectManager->normalizarTelefono($phoneOriginal);
+
     $appointment = $phone !== '' ? ($appointmentByPhone[$phone] ?? null) : null;
     if (!$appointment && $email !== '') $appointment = $appointmentByEmail[$email] ?? null;
-    $prospect = $phone !== '' ? ($prospectByPhone[$phone] ?? null) : null;
-    if (!$prospect && $email !== '') $prospect = $prospectByEmail[$email] ?? null;
+
+    $prospect = $linkedProspect;
+    if (!$prospect) {
+        $prospect = $phone !== '' ? ($prospectByPhone[$phone] ?? null) : null;
+        if (!$prospect && $email !== '') $prospect = $prospectByEmail[$email] ?? null;
+    }
 
     $expected = '';
     $source = 'sin coincidencia';
     if ($prospect && !genericName((string)$prospect['nombre'])) {
         $expected = (string)$prospect['nombre'];
-        $source = 'prospecto #' . $prospect['id'];
+        $source = $linkedProspect
+            ? 'prospecto vinculado #' . $prospect['id']
+            : 'prospecto por contacto #' . $prospect['id'];
     } elseif ($appointment && !genericName((string)$appointment['nombre_cliente'])) {
         $expected = (string)$appointment['nombre_cliente'];
         $source = 'cita #' . $appointment['id'];
@@ -88,14 +110,16 @@ foreach ($chats as $chat) {
     $report[] = [
         'chat_id' => $chat['id'],
         'actual' => $chat['visitor_name'],
-        'telefono_original' => $chat['visitor_phone'],
+        'telefono_original' => $phoneOriginal,
         'telefono_canonico' => $phone,
-        'email' => $chat['visitor_email'],
+        'email' => $email,
         'prospecto' => $prospect ? ('#' . $prospect['id'] . ' · ' . $prospect['nombre'] . ' · ' . $prospect['whatsapp']) : '—',
         'cita' => $appointment ? ('#' . $appointment['id'] . ' · ' . $appointment['nombre_cliente'] . ' · ' . $appointment['telefono'] . ' · ' . $appointment['estado']) : '—',
         'esperado' => $expected,
         'fuente' => $source,
-        'resultado' => $expected === '' ? 'Sin identidad encontrada' : (trim((string)$chat['visitor_name']) === $expected ? 'Correcto' : 'Debe actualizarse'),
+        'resultado' => $expected === ''
+            ? 'Sin identidad encontrada'
+            : (trim((string)$chat['visitor_name']) === $expected ? 'Correcto' : 'Debe actualizarse'),
     ];
 }
 ?>
@@ -114,7 +138,7 @@ body{font-family:Inter,system-ui,sans-serif;margin:0;background:#f8fafc;color:#0
 <p>Lectura administrativa. No modifica datos ni inspecciona mensajes.</p>
 <p><a href="conversaciones.php">← Volver a Conversaciones</a></p>
 <?php if ($errors): ?><div class="card error"><strong>Errores reales detectados</strong><ul><?php foreach ($errors as $error): ?><li><?=h($error)?></li><?php endforeach ?></ul></div><?php endif ?>
-<div class="card"><strong>Resumen:</strong> <?=count($chats)?> chats con contacto · <?=count($prospects)?> prospectos revisados · <?=count($appointments)?> citas revisadas.</div>
+<div class="card"><strong>Resumen:</strong> <?=count($chats)?> chats revisados · <?=count($prospects)?> prospectos revisados · <?=count($appointments)?> citas revisadas.</div>
 <div class="card table"><table>
 <thead><tr><th>Chat</th><th>Nombre actual</th><th>Teléfono recibido</th><th>Canónico</th><th>Prospecto coincidente</th><th>Cita coincidente</th><th>Nombre esperado</th><th>Fuente</th><th>Resultado</th></tr></thead>
 <tbody>
@@ -131,6 +155,6 @@ body{font-family:Inter,system-ui,sans-serif;margin:0;background:#f8fafc;color:#0
 <td class="<?=$row['resultado']==='Correcto'?'ok':'bad'?>"><?=h($row['resultado'])?></td>
 </tr>
 <?php endforeach ?>
-<?php if (!$report): ?><tr><td colspan="9">No hay chats con teléfono o correo para diagnosticar.</td></tr><?php endif ?>
+<?php if (!$report): ?><tr><td colspan="9">No hay chats para diagnosticar.</td></tr><?php endif ?>
 </tbody></table></div>
 </main></body></html>
