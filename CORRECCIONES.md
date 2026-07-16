@@ -147,3 +147,13 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 - La acción estructurada `crear` o `reprogramar`, acompañada por los datos completos, ya representa la intención comprendida por WS. WC valida reglas y disponibilidad; nunca exige una “confirmación adicional”, explícita ni una frase determinada.
 - Si un horario está libre de colisiones pero queda dentro de la anticipación mínima, la IA debe explicar esa regla exacta. Nunca debe atribuir el rechazo a falta de autorización.
 - La conversación muestra como máximo dos horarios en total, no dos por cada fecha ni la jornada completa.
+# Arquitectura modular de capacidades (WS → WC)
+
+- La base permanente de Wabot es CRM + Conversaciones + Prospectos + Chatbot web + WhatsApp.
+- Las funciones adicionales se denominan **Capacidades**. Agenda es la primera; Stock, Cobros u otras podrán incorporarse después sin acoplarse al núcleo.
+- WS es la única autoridad que habilita o deshabilita capacidades para cada cliente.
+- WC debe ocultar del menú toda capacidad no autorizada y bloquear también sus páginas, APIs y herramientas de IA. Ocultar solamente la interfaz nunca es suficiente.
+- Al deshabilitar una capacidad, WC conserva íntegramente sus tablas, configuración y datos. Volver a habilitarla debe restaurar su operación sin pérdida.
+- Los clientes anteriores al sistema de capacidades conservan Agenda activa durante la migración. En clientes nuevos, Agenda debe habilitarse explícitamente desde WS.
+- Chatbot, WhatsApp y operadores humanos solo pueden ejecutar Agenda cuando el manifiesto de WS la autoriza.
+- La licencia y el manifiesto se validan en el servidor; nunca se confía en un indicador enviado por el navegador.
