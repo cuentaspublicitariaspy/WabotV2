@@ -155,6 +155,10 @@ class ChatManager
      * Vincula chats ya existentes por teléfono/correo con su ficha local.
      * No examina texto de mensajes ni usa el nombre como criterio de unión.
      */
+    /**
+     * Vincula chats ya existentes por teléfono/correo con Prospectos y Citas.
+     * No examina texto de mensajes ni usa el nombre como criterio de unión.
+     */
     private function reconciliarIdentidadesChatbot(?int $soloChatId = null): void
     {
         try {
@@ -170,19 +174,44 @@ class ChatManager
             $prospectos = new ProspectManager();
             $actualizarChat = $this->db->prepare("UPDATE widget_chats SET visitor_name = ? WHERE id = ?");
             foreach ($chats as $chat) {
-                $prospectoId = $prospectos->resolverIdentidad([
+                $datos = [
                     'email' => (string)$chat['visitor_email'],
                     'whatsapp' => (string)$chat['visitor_phone'],
-                ], false);
-                if (!$prospectoId) continue;
+                ];
+                $prospectoId = $prospectos->resolverIdentidad($datos, false);
+                $prospecto = $prospectoId ? $prospectos->obtener($prospectoId) : null;
 
-                $prospecto = $prospectos->obtener($prospectoId);
+                // Una cita existente es fuente local y determinística de
+                // identidad. Sirve de respaldo para instalaciones previas que
+                // aún no tenían prospecto_id enlazado.
+                if (!$prospecto && ($datos['whatsapp'] !== '' || $datos['email'] !== '')) {
+                    $where = []; $citaParams = [];
+                    $variantes = $prospectos->variantesTelefono($datos['whatsapp']);
+                    if ($variantes) {
+                        $where[] = 'telefono IN (' . implode(',', array_fill(0, count($variantes), '?')) . ')';
+                        array_push($citaParams, ...$variantes);
+                    }
+                    if ($datos['email'] !== '') {
+                        $where[] = 'LOWER(email) = ?';
+                        $citaParams[] = strtolower($datos['email']);
+                    }
+                    if ($where) {
+                        $cita = $this->db->prepare('SELECT nombre_cliente, telefono, email FROM citas WHERE (' . implode(' OR ', $where) . ") AND estado NOT IN ('cancelada_cliente','cancelada_negocio') ORDER BY updated_at DESC, id DESC LIMIT 1");
+                        $cita->execute($citaParams);
+                        $encontrada = $cita->fetch();
+                        if ($encontrada) {
+                            $prospectoId = $prospectos->resolverIdentidad([
+                                'nombre' => (string)$encontrada['nombre_cliente'],
+                                'email' => (string)($datos['email'] ?: $encontrada['email']),
+                                'whatsapp' => (string)($datos['whatsapp'] ?: $encontrada['telefono']),
+                            ]);
+                            $prospecto = $prospectos->obtener($prospectoId);
+                        }
+                    }
+                }
+
                 if (!$prospecto) continue;
-
-                $prospectos->vincular('chatbot', (string)$chat['id'], [
-                    'email' => (string)$chat['visitor_email'],
-                    'whatsapp' => (string)$chat['visitor_phone'],
-                ]);
+                $prospectos->vincular('chatbot', (string)$chat['id'], $datos);
 
                 $nombreActual = mb_strtolower(trim((string)$chat['visitor_name']), 'UTF-8');
                 $sinNombre = $nombreActual === '' || in_array($nombreActual, ['visitante web', 'sin nombre', 'unknown'], true);
