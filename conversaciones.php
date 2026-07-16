@@ -11,8 +11,8 @@ $pageTitle = 'Conversaciones';
 $fullHeight = true;
 ob_start();
 ?>
-<div id="conversations-shell" class="d-flex flex-fill h-100 overflow-hidden">
-  <div id="conversation-panel" class="w-full md:w-[28rem] border-r border-slate-100 d-flex flex-column bg-white shrink-0">
+<div id="conversations-shell" class="d-flex flex-fill min-w-0 overflow-hidden" style="flex:1 1 0;min-height:0;">
+  <div id="conversation-panel" class="w-full md:w-[28rem] border-r border-slate-100 d-flex flex-column bg-white shrink-0" style="min-height:0;">
     <div class="p-4 border-b border-slate-100">
       <input type="text" id="search-input" class="w-full border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Buscar conversación..." oninput="loadConversations()">
     </div>
@@ -53,8 +53,9 @@ $userIdJs = (int)$user['id'];
 $extraScripts = <<<'EOS'
 <style>
 @media (max-width: 767px) {
-#conversations-shell { display:block !important; overflow:hidden !important; }
-#conversation-panel { width:100% !important; border-right:0 !important; }
+#conversations-shell { display:flex !important; flex:1 1 0 !important; min-height:0 !important; height:auto !important; max-width:100%; overflow:hidden !important; }
+#conversation-panel { width:100% !important; border-right:0 !important; flex:1 1 0 !important; min-height:0 !important; height:auto !important; }
+#conversation-list { flex:1 1 0 !important; min-height:0 !important; }
 #chat-placeholder { display:none !important; }
 #chat-view:not(.d-none) { position:fixed; inset:0; z-index:60; display:flex !important; background:#fff; height:100dvh !important; }
 #mobile-chat-close { display:inline-flex !important; align-items:center; justify-content:center; }
