@@ -1,4 +1,5 @@
 const { getClient, getAllClients } = require('../_lib/kv');
+const { createCapabilityManifest, normalizeCapabilities } = require('../_lib/capabilities');
 
 module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') {
@@ -39,12 +40,16 @@ module.exports = async (req, res) => {
 
     const activo = foundClient.enabled === true || foundClient.enabled === '1' || foundClient.enabled === 1;
 
+    const signed = createCapabilityManifest(foundClient, foundClient.license_key);
     res.json({
       success: true,
       activo,
       nombre: foundClient.name || '',
       api_key: foundApiKey,
-      client_url: foundClient.client_url || ''
+      client_url: foundClient.client_url || '',
+      capabilities: normalizeCapabilities(foundClient.capabilities, { legacyEnabled: true }),
+      capability_manifest: signed.manifest,
+      capability_signature: signed.signature
     });
   } catch (err) {
     res.status(500).json({ success: false, error: 'Error interno del servidor' });
