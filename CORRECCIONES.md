@@ -98,3 +98,8 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 - La unión entre Agenda, Prospectos y Chatbot se hace solamente por teléfono o correo electrónico; nunca por nombre.
 - Conversaciones ya existentes con teléfono/correo se reconcilian al cargar la lista, sin analizar el texto de los mensajes.
 - El Chatbot no accede a contactos ni a datos del navegador: un teléfono solo llega desde el texto enviado por la persona o por una integración explícita del sitio.
+
+
+## Respaldo Agenda → Conversaciones — 15/07/2026
+- Si un Chatbot tiene teléfono o correo y aún no posee una ficha vinculada, WC consulta las citas activas del cliente usando las variantes normalizadas del contacto.
+- Al encontrar una cita, crea/reutiliza la ficha local, enlaza el chat y muestra el nombre de la reserva. No lee textos de mensajes para lograrlo.
