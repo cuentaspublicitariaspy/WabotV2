@@ -11,8 +11,8 @@ $pageTitle = 'Conversaciones';
 $fullHeight = true;
 ob_start();
 ?>
-<div class="d-flex flex-fill h-100 overflow-hidden">
-  <div class="w-[28rem] border-r border-slate-100 d-flex flex-column bg-white shrink-0">
+<div id="conversations-shell" class="d-flex flex-fill h-100 overflow-hidden">
+  <div id="conversation-panel" class="w-full md:w-[28rem] border-r border-slate-100 d-flex flex-column bg-white shrink-0">
     <div class="p-4 border-b border-slate-100">
       <input type="text" id="search-input" class="w-full border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Buscar conversación..." oninput="loadConversations()">
     </div>
@@ -35,7 +35,7 @@ ob_start();
       <p class="text-sm text-slate-400 mt-1">Hacé clic en un chat de la izquierda para ver los mensajes</p>
     </div>
     <div id="chat-view" class="d-none d-flex flex-column" style="flex:1 1 0;min-height:0">
-      <div id="chat-header" class="px-4 py-3 border-b border-slate-100 d-flex align-items-center" style="min-height:50px;background:#fff;"></div>
+      <div id="chat-header" class="px-4 py-3 border-b border-slate-100 d-flex align-items-center gap-2" style="min-height:50px;background:#fff;"><button id="mobile-chat-close" type="button" onclick="closeMobileChat()" class="d-none rounded-lg border border-slate-200 px-2 py-1 text-slate-600" aria-label="Volver a conversaciones">←</button><div id="chat-header-content"></div></div>
       <div id="prospect-card" class="d-none px-4 py-2 border-b border-slate-100 bg-amber-50 text-sm"></div>
       <div id="chat-messages" class="overflow-auto p-4" style="flex:1 1 0;min-height:0;background:#f8fafc" onscroll="maybeLoadMore(this)"></div>
       <div class="px-4 py-3 border-t border-slate-100 d-flex gap-2 align-items-center bg-white">
@@ -52,6 +52,14 @@ ob_start();
 $userIdJs = (int)$user['id'];
 $extraScripts = <<<'EOS'
 <style>
+@media (max-width: 767px) {
+#conversations-shell { display:block !important; overflow:hidden !important; }
+#conversation-panel { width:100% !important; border-right:0 !important; }
+#chat-placeholder { display:none !important; }
+#chat-view:not(.d-none) { position:fixed; inset:0; z-index:60; display:flex !important; background:#fff; height:100dvh !important; }
+#mobile-chat-close { display:inline-flex !important; align-items:center; justify-content:center; }
+#chat-messages .msg-in, #chat-messages .msg-out { max-width:88%; }
+}
 #chat-messages .msg-in, #chat-messages .msg-out { max-width:75%; margin-bottom:4px; clear:both; }
 #chat-messages .msg-in { float:left; }
 #chat-messages .msg-out { float:right; }
@@ -144,7 +152,7 @@ function loadConversations() {
 }
 function loadMessages(canal, id) {
     fetch('ajax/poll.php?canal='+encodeURIComponent(canal)+'&conversacion_id='+id).then(function(r){return r.json();}).then(function(data){
-        var c = document.getElementById('chat-messages'), h = document.getElementById('chat-header');
+        var c = document.getElementById('chat-messages'), h = document.getElementById('chat-header-content');
         document.getElementById('chat-placeholder').classList.remove('d-flex');
         document.getElementById('chat-placeholder').classList.add('d-none');
         document.getElementById('chat-view').classList.remove('d-none');
@@ -189,6 +197,13 @@ function analyzeProspect(){
         if(!data.success){alert(data.error||'No se pudo analizar el prospecto');}
         loadProspect(currentCanal,currentConversacionId);
     }).catch(function(){alert('No se pudo analizar el prospecto');loadProspect(currentCanal,currentConversacionId);});
+}
+function closeMobileChat(){
+    if (window.innerWidth >= 768) return;
+    document.getElementById('chat-view').classList.add('d-none');
+    document.getElementById('chat-placeholder').classList.remove('d-none');
+    document.getElementById('chat-placeholder').classList.add('d-flex');
+    currentConversacionId=null;
 }
 function selectConversacion(canal, id) { currentCanal=canal; currentConversacionId=id; loadMessages(canal,id); loadConversations(); if(canal==='whatsapp') document.getElementById('reply-input').focus(); }
 function sendReply() {
