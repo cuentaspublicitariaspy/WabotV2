@@ -47,12 +47,21 @@ $db->exec("CREATE TABLE IF NOT EXISTS widget_config (
   secondary_color VARCHAR(7) DEFAULT '#F3F4F6',
   welcome_title VARCHAR(255) DEFAULT 'Asistente',
   welcome_subtitle VARCHAR(255) DEFAULT 'Online',
+  agent_name VARCHAR(120) DEFAULT 'Asistente',
+  agent_photo VARCHAR(255) DEFAULT '',
   whatsapp_number VARCHAR(30) DEFAULT '',
   license_key VARCHAR(64) DEFAULT '',
   response_mode ENUM('ai','human') DEFAULT 'ai',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+function ensureWidgetConfigColumn(PDO $db, string $column, string $definition): void {
+    $stmt = $db->prepare('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?');
+    $stmt->execute(['widget_config', $column]);
+    if (!(int)$stmt->fetchColumn()) $db->exec('ALTER TABLE widget_config ADD COLUMN '.$column.' '.$definition);
+}
+ensureWidgetConfigColumn($db, 'agent_name', "VARCHAR(120) DEFAULT 'Asistente' AFTER welcome_subtitle");
+ensureWidgetConfigColumn($db, 'agent_photo', "VARCHAR(255) DEFAULT '' AFTER agent_name");
 try {
     // Las versiones anteriores creaban una clave temporal wgt_. WC debe esperar la wak_ emitida por WS.
     $db->exec("ALTER TABLE widget_config MODIFY api_key VARCHAR(64) NULL");
@@ -66,7 +75,7 @@ if (!$config) {
     $config = $db->query("SELECT * FROM widget_config ORDER BY id DESC LIMIT 1")->fetch();
 }
 $chatbotApiKey = EnvWriter::get('CHATBOT_API_KEY');
-if ($chatbotApiKey === '' && !empty($config['api_key']) && str_starts_with($config['api_key'], 'wgt_')) {
+if ($chatbotApiKey === '' && !empty($config['api_key']) && substr((string)$config['api_key'], 0, 4) === 'wgt_') {
     $db->prepare("UPDATE widget_config SET api_key=NULL WHERE id=?")->execute([$config['id']]);
     $config = $db->query("SELECT * FROM widget_config ORDER BY id DESC LIMIT 1")->fetch();
 }
@@ -153,15 +162,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $primaryColor = trim($_POST['primary_color'] ?? '#2F63E9');
         $welcomeTitle = trim($_POST['welcome_title'] ?? 'Asistente');
         $welcomeSubtitle = trim($_POST['welcome_subtitle'] ?? 'Online');
-        $stmt = $db->prepare("UPDATE widget_config SET primary_color=?, welcome_title=?, welcome_subtitle=? WHERE id=?");
-        $stmt->execute([$primaryColor, $welcomeTitle, $welcomeSubtitle, $config['id']]);
+        $agentName = trim($_POST['agent_name'] ?? 'Asistente');
+        if ($agentName === '') $agentName = 'Asistente';
+        $agentPhoto = (string)($config['agent_photo'] ?? '');
+        if (!empty($_POST['remove_agent_photo'])) {
+            if ($agentPhoto !== '' && substr($agentPhoto, 0, 16) === 'uploads/chatbot/' && is_file(__DIR__.'/'.$agentPhoto)) @unlink(__DIR__.'/'.$agentPhoto);
+            $agentPhoto = '';
+        }
+        if (isset($_FILES['agent_photo']) && $_FILES['agent_photo']['error'] !== UPLOAD_ERR_NO_FILE) {
+            if ($_FILES['agent_photo']['error'] !== UPLOAD_ERR_OK) {
+                $msg = 'No se pudo subir la foto del Chatbot';
+                $msgType = 'error';
+            } elseif ((int)$_FILES['agent_photo']['size'] > 3 * 1024 * 1024) {
+                $msg = 'La foto del Chatbot no puede superar 3 MB';
+                $msgType = 'error';
+            } else {
+                $mime = function_exists('finfo_open')
+                    ? (new finfo(FILEINFO_MIME_TYPE))->file($_FILES['agent_photo']['tmp_name'])
+                    : mime_content_type($_FILES['agent_photo']['tmp_name']);
+                $extensions = ['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp'];
+                if (!isset($extensions[$mime])) {
+                    $msg = 'La foto debe ser JPG, PNG o WebP';
+                    $msgType = 'error';
+                } else {
+                    $directory = __DIR__.'/uploads/chatbot';
+                    if (!is_dir($directory)) mkdir($directory, 0755, true);
+                    $fileName = 'agente_'.(int)$config['id'].'_'.bin2hex(random_bytes(6)).'.'.$extensions[$mime];
+                    if (!move_uploaded_file($_FILES['agent_photo']['tmp_name'], $directory.'/'.$fileName)) {
+                        $msg = 'No se pudo guardar la foto del Chatbot';
+                        $msgType = 'error';
+                    } else {
+                        if ($agentPhoto !== '' && substr($agentPhoto, 0, 16) === 'uploads/chatbot/' && is_file(__DIR__.'/'.$agentPhoto)) @unlink(__DIR__.'/'.$agentPhoto);
+                        $agentPhoto = 'uploads/chatbot/'.$fileName;
+                    }
+                }
+            }
+        }
+        if ($msgType !== 'error') {
+            $stmt = $db->prepare("UPDATE widget_config SET primary_color=?, welcome_title=?, welcome_subtitle=?, agent_name=?, agent_photo=? WHERE id=?");
+            $stmt->execute([$primaryColor, $welcomeTitle, $welcomeSubtitle, $agentName, $agentPhoto, $config['id']]);
+        }
         if ($licenseKey) {
             EnvWriter::set('LICENSE_KEY', $licenseKey);
             $db->prepare("UPDATE widget_config SET license_key=? WHERE id=?")->execute([$licenseKey, $config['id']]);
         }
         $config = $db->query("SELECT * FROM widget_config ORDER BY id DESC LIMIT 1")->fetch();
-        $msg = 'Chatbot guardado';
-        $msgType = 'success';
+        if ($msgType !== 'error') {
+            $msg = 'Chatbot guardado';
+            $msgType = 'success';
+        }
     }
 
     if ($section === 'knowledge') {
@@ -367,7 +416,7 @@ ob_start();
         </div>
         <p class="text-xs text-slate-500 mb-4">En tu app de Meta Developers → WhatsApp → API Setup, copiá y pegá estos datos.</p>
 
-        <form method="POST" class="space-y-4">
+        <form method="POST" enctype="multipart/form-data" class="space-y-4">
           <input type="hidden" name="section" value="whatsapp">
           <input type="hidden" name="action" value="save_connection">
           <div>
@@ -395,9 +444,14 @@ ob_start();
       <div class="bg-white border border-slate-100 rounded-2xl p-6 mb-5">
         <h2 class="text-lg font-bold text-slate-700 mb-1">Chatbot</h2>
         <p class="text-sm text-slate-500 mb-5">Configuración del chatbot para incrustar en sitios web.</p>
-        <form method="POST" class="space-y-4">
+        <form method="POST" enctype="multipart/form-data" class="space-y-4">
           <input type="hidden" name="section" value="widget">
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Nombre del asistente</label>
+              <input type="text" name="agent_name" maxlength="120" value="<?= htmlspecialchars($config['agent_name'] ?? 'Asistente') ?>" placeholder="Valentina, Ana, Asistente de Rodas AI…" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500">
+              <p class="mt-1 text-xs text-slate-400">Se muestra en la cabecera del Chatbot.</p>
+            </div>
             <div>
               <label class="block text-sm font-medium text-slate-700 mb-1">Color primario</label>
               <div class="flex gap-2 max-w-xs">
@@ -406,7 +460,7 @@ ob_start();
               </div>
             </div>
           </div>
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid sm:grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-medium text-slate-700 mb-1">Título de bienvenida</label>
               <input type="text" name="welcome_title" value="<?= htmlspecialchars($config['welcome_title'] ?? 'Asistente') ?>" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500">
@@ -414,6 +468,23 @@ ob_start();
             <div>
               <label class="block text-sm font-medium text-slate-700 mb-1">Subtítulo</label>
               <input type="text" name="welcome_subtitle" value="<?= htmlspecialchars($config['welcome_subtitle'] ?? 'Online') ?>" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500">
+            </div>
+          </div>
+          <div class="rounded-2xl border border-slate-200 p-4">
+            <label class="block text-sm font-medium text-slate-700 mb-2">Foto del asistente</label>
+            <div class="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div class="w-16 h-16 shrink-0 rounded-full overflow-hidden bg-slate-100 grid place-items-center text-slate-400">
+                <?php if (!empty($config['agent_photo'])): ?>
+                  <img src="<?= htmlspecialchars($config['agent_photo']) ?>" alt="" class="w-full h-full object-cover">
+                <?php else: ?>
+                  <span class="text-xl font-bold"><?= htmlspecialchars(mb_substr($config['agent_name'] ?? 'A', 0, 1, 'UTF-8')) ?></span>
+                <?php endif; ?>
+              </div>
+              <div class="flex-1">
+                <input type="file" name="agent_photo" accept="image/jpeg,image/png,image/webp" class="block w-full text-sm text-slate-500 file:mr-3 file:rounded-xl file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-700">
+                <p class="mt-1 text-xs text-slate-400">JPG, PNG o WebP. Máximo 3 MB.</p>
+                <?php if (!empty($config['agent_photo'])): ?><label class="mt-2 flex items-center gap-2 text-xs text-red-600"><input type="checkbox" name="remove_agent_photo" value="1"> Quitar foto actual</label><?php endif; ?>
+              </div>
             </div>
           </div>
           <div class="flex justify-start pt-2"><button type="submit" class="px-5 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 transition shadow-lg">Guardar chatbot</button></div>
