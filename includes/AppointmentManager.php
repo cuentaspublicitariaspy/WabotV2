@@ -317,16 +317,20 @@ class AppointmentManager
         if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$from))throw new InvalidArgumentException('Fecha inicial inválida.');
         $days=max(1,min(30,(int)($filter['dias']??7)));
         $period=(string)($filter['franja']??'');
-        $options=[];
+        $options=[];$totalSlots=0;
         $first=new DateTimeImmutable($from,$tz);
-        for($i=0;$i<$days&&count($options)<5;$i++){
+        for($i=0;$i<$days&&$totalSlots<2;$i++){
             $date=$first->modify('+'.$i.' day')->format('Y-m-d');
             $slots=$this->availability(['servicio_id'=>$filter['servicio_id']??0,'agenda_id'=>$filter['agenda_id']??0,'fecha'=>$date,'cita_id'=>$filter['cita_id']??null]);
             if($period==='manana')$slots=array_values(array_filter($slots,static fn($slot)=>$slot<'12:00'));
             if($period==='tarde')$slots=array_values(array_filter($slots,static fn($slot)=>$slot>='12:00'));
-            // En conversación ofrecemos pocas alternativas claras. La vista
-            // manual sigue usando availability() y conserva todos los turnos.
-            if($slots)$options[]=['fecha'=>$date,'horarios'=>array_slice($slots,0,2)];
+            // En conversación ofrecemos como máximo dos alternativas en
+            // total. La vista manual usa availability() y conserva todas.
+            if($slots){
+                $chosen=array_slice($slots,0,2-$totalSlots);
+                $options[]=['fecha'=>$date,'horarios'=>$chosen];
+                $totalSlots+=count($chosen);
+            }
         }
         return $options;
     }
@@ -364,6 +368,7 @@ class AppointmentManager
         // Con teléfono/correo inequívocos devolvemos la cita ya registrada.
         $duplicate=$this->findEquivalentReservation($data,$agendaId,$serviceId,$inicio);
         if($duplicate)return $duplicate;
+        $this->assertMinimumNotice($inicio,'reservar');
         // Ni un humano ni la IA pueden reservar fuera de los horarios y reglas
         // configurados. La disponibilidad es la fuente determinística única.
         $horas = $this->availability(['servicio_id'=>$serviceId,'agenda_id'=>$agendaId,'fecha'=>$inicio->format('Y-m-d')]);
@@ -492,6 +497,19 @@ class AppointmentManager
         return (int)($stmt->fetchColumn()?:0);
     }
 
+    /** Explica la regla real; nunca la disfraza de falta de confirmación. */
+    private function assertMinimumNotice(DateTimeImmutable $start,string $action): void
+    {
+        $settings=$this->settings();
+        $hours=max(0,(int)($settings['min_notice_hours']??0));
+        if(!$hours)return;
+        $tz=new DateTimeZone($settings['timezone']?:'America/Asuncion');
+        $limit=(new DateTimeImmutable('now',$tz))->modify('+'.$hours.' hours');
+        if($start<$limit){
+            throw new RuntimeException('Ese horario no está habilitado para '.$action.' ahora: la agenda exige '.$hours.' horas de anticipación mínima.');
+        }
+    }
+
     public function reschedule(int $id, array $data, string $actor='manual'): void
     {
         $existing=$this->db->prepare('SELECT * FROM citas WHERE id=?');$existing->execute([$id]);$existing=$existing->fetch();
@@ -503,6 +521,7 @@ class AppointmentManager
         if (!$duration || !$agendaId) throw new InvalidArgumentException('Indicá servicio y agenda válidos.');
         $tz=new DateTimeZone(($this->settings()['timezone']??'America/Asuncion'));
         try {$start=new DateTimeImmutable((string)($data['inicio']??''),$tz);} catch(Throwable $e) { throw new InvalidArgumentException('Nueva fecha y hora inválidas.'); }
+        $this->assertMinimumNotice($start,'reprogramar');
         $end=$start->modify('+'.$duration.' minutes');
         $slots=$this->availability(['servicio_id'=>$serviceId,'agenda_id'=>$agendaId,'fecha'=>$start->format('Y-m-d'),'cita_id'=>$id]);
         if(!in_array($start->format('H:i'),$slots,true)) throw new RuntimeException('El nuevo horario no está disponible según las reglas de esa agenda.');
