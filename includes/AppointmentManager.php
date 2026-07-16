@@ -311,17 +311,22 @@ class AppointmentManager
 
     public function nextAvailability(array $filter): array
     {
-        $from=(string)($filter['fecha_desde']??date('Y-m-d'));
+        $settings=$this->settings();
+        $tz=new DateTimeZone($settings['timezone'] ?: 'America/Asuncion');
+        $from=(string)($filter['fecha_desde']??(new DateTimeImmutable('today',$tz))->format('Y-m-d'));
         if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$from))throw new InvalidArgumentException('Fecha inicial inválida.');
         $days=max(1,min(30,(int)($filter['dias']??7)));
         $period=(string)($filter['franja']??'');
         $options=[];
+        $first=new DateTimeImmutable($from,$tz);
         for($i=0;$i<$days&&count($options)<5;$i++){
-            $date=date('Y-m-d',strtotime($from.' +'.$i.' day'));
+            $date=$first->modify('+'.$i.' day')->format('Y-m-d');
             $slots=$this->availability(['servicio_id'=>$filter['servicio_id']??0,'agenda_id'=>$filter['agenda_id']??0,'fecha'=>$date,'cita_id'=>$filter['cita_id']??null]);
             if($period==='manana')$slots=array_values(array_filter($slots,static fn($slot)=>$slot<'12:00'));
             if($period==='tarde')$slots=array_values(array_filter($slots,static fn($slot)=>$slot>='12:00'));
-            if($slots)$options[]=['fecha'=>$date,'horarios'=>array_slice($slots,0,4)];
+            // En conversación ofrecemos pocas alternativas claras. La vista
+            // manual sigue usando availability() y conserva todos los turnos.
+            if($slots)$options[]=['fecha'=>$date,'horarios'=>array_slice($slots,0,2)];
         }
         return $options;
     }
@@ -354,6 +359,11 @@ class AppointmentManager
         if (!$agendaId) throw new InvalidArgumentException('Elegí una agenda para reservar.');
         $agendaStmt=$this->db->prepare('SELECT sucursal_id FROM agenda_agendas WHERE id=? AND activo=1');$agendaStmt->execute([$agendaId]);$branch=$agendaStmt->fetchColumn();
         if (!$branch) throw new InvalidArgumentException('La agenda seleccionada no está disponible.');
+        // Una repetición de la misma orden conversacional no debe convertir
+        // una reserva recién creada en un falso “horario no disponible”.
+        // Con teléfono/correo inequívocos devolvemos la cita ya registrada.
+        $duplicate=$this->findEquivalentReservation($data,$agendaId,$serviceId,$inicio);
+        if($duplicate)return $duplicate;
         // Ni un humano ni la IA pueden reservar fuera de los horarios y reglas
         // configurados. La disponibilidad es la fuente determinística única.
         $horas = $this->availability(['servicio_id'=>$serviceId,'agenda_id'=>$agendaId,'fecha'=>$inicio->format('Y-m-d')]);
@@ -449,9 +459,37 @@ class AppointmentManager
         $name=trim((string)($filter['nombre_cliente']??''));
         if(!$phone&&!$email&&!$name)throw new InvalidArgumentException('Hace falta teléfono, correo o nombre para localizar la cita.');
         $where=['c.inicio>=NOW()','c.estado NOT IN ("cancelada_cliente","cancelada_negocio","no_asistio","completada")'];$params=[];
-        if($phone){$where[]='c.telefono=?';$params[]=$phone;}elseif($email){$where[]='c.email=?';$params[]=$email;}else{$where[]='c.nombre_cliente LIKE ?';$params[]='%'.$name.'%';}
+        if($phone){
+            if(strlen($phone)>=8){$where[]='RIGHT(c.telefono,8)=?';$params[]=substr($phone,-8);}
+            else{$where[]='c.telefono=?';$params[]=$phone;}
+        }elseif($email){$where[]='LOWER(c.email)=LOWER(?)';$params[]=$email;}else{$where[]='c.nombre_cliente LIKE ?';$params[]='%'.$name.'%';}
         $stmt=$this->db->prepare('SELECT c.id,c.nombre_cliente,c.telefono,c.inicio,c.fin,c.estado,s.nombre servicio,a.nombre agenda FROM citas c LEFT JOIN agenda_servicios s ON s.id=c.servicio_id LEFT JOIN agenda_agendas a ON a.id=c.agenda_id WHERE '.implode(' AND ',$where).' ORDER BY c.inicio ASC LIMIT 5');
         $stmt->execute($params);return $stmt->fetchAll();
+    }
+
+    /** Contexto determinístico de una cita para consultar o reprogramar. */
+    public function appointmentContext(int $id): array
+    {
+        if(!$id)return [];
+        $stmt=$this->db->prepare('SELECT id,agenda_id,servicio_id,sucursal_id,inicio,fin,estado,nombre_cliente,telefono,email FROM citas WHERE id=?');
+        $stmt->execute([$id]);
+        return $stmt->fetch()?:[];
+    }
+
+    private function findEquivalentReservation(array $data,int $agendaId,int $serviceId,DateTimeImmutable $start): int
+    {
+        $phone=preg_replace('/\D+/','',(string)($data['telefono']??''));
+        $email=strtolower(trim((string)($data['email']??'')));
+        $identity=[];$params=[$agendaId,$serviceId,$start->format('Y-m-d H:i:s')];
+        if($phone!==''){
+            if(strlen($phone)>=8){$identity[]='RIGHT(telefono,8)=?';$params[]=substr($phone,-8);}
+            else{$identity[]='telefono=?';$params[]=$phone;}
+        }
+        if($email!==''){$identity[]='LOWER(email)=?';$params[]=$email;}
+        if(!$identity)return 0;
+        $stmt=$this->db->prepare("SELECT id FROM citas WHERE agenda_id=? AND servicio_id=? AND inicio=? AND estado NOT IN ('cancelada_cliente','cancelada_negocio','no_asistio') AND (".implode(' OR ',$identity).') ORDER BY id DESC LIMIT 1');
+        $stmt->execute($params);
+        return (int)($stmt->fetchColumn()?:0);
     }
 
     public function reschedule(int $id, array $data, string $actor='manual'): void
