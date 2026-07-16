@@ -1,6 +1,7 @@
 const { getClient, getAllClients } = require('../_lib/kv');
 const { confirmExactProposal } = require('../_lib/agenda-confirmation');
 const { hasCapability } = require('../_lib/capabilities');
+const { disabledAgendaInstructions, enforceDisabledAgendaResponse } = require('../_lib/capability-conversation');
 
 const OPENAI_CHAT_URL = 'https://api.openai.com/v1/chat/completions';
 const OPENAI_TRANSCRIBE_URL = 'https://api.openai.com/v1/audio/transcriptions';
@@ -114,7 +115,7 @@ module.exports = async (req, res) => {
         },
         body: JSON.stringify({
           model: model || 'gpt-4o-mini',
-          messages: agendaEnabled ? [{ role: 'system', content: agendaInstructions() }, ...messages] : messages,
+          messages: [{ role: 'system', content: agendaEnabled ? agendaInstructions() : disabledAgendaInstructions('whatsapp') }, ...messages],
           tools: agendaTools.length ? agendaTools : undefined,
           tool_choice: agendaTools.length ? 'auto' : undefined,
           max_tokens: 1024,
@@ -135,7 +136,7 @@ module.exports = async (req, res) => {
 
       let toolCalls = data?.choices?.[0]?.message?.tool_calls || [];
       let toolRound = 0;
-      const toolMessages = agendaEnabled ? [{ role: 'system', content: agendaInstructions() }, ...messages] : [...messages];
+      const toolMessages = [{ role: 'system', content: agendaEnabled ? agendaInstructions() : disabledAgendaInstructions('whatsapp') }, ...messages];
       while (toolCalls.length && toolRound < 4) {
         toolMessages.push(data.choices[0].message);
         for (const call of toolCalls) {
@@ -155,6 +156,17 @@ module.exports = async (req, res) => {
       }
       if (!content) {
         res.status(502).json({ success: false, error: 'No se pudo consultar los próximos horarios. Probá de nuevo en unos segundos.' }); return;
+      }
+
+      if (!agendaEnabled) {
+        content = await enforceDisabledAgendaResponse({
+          openaiKey,
+          model: model || 'gpt-4o-mini',
+          history: messages.slice(0, -1),
+          userMessage: latestUser?.content || '',
+          draft: content,
+          channel: 'whatsapp'
+        });
       }
 
       // Contrato estable para WC. No se filtra la respuesta completa de OpenAI.
