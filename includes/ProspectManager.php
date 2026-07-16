@@ -63,6 +63,21 @@ class ProspectManager
         return $digits;
     }
 
+    /** Variantes equivalentes aceptadas al buscar una identidad local. */
+    public function variantesTelefono(string $telefono): array
+    {
+        $digits = preg_replace('/\D+/', '', $telefono);
+        $canonico = $this->normalizarTelefono($digits);
+        if ($canonico === '') return [];
+        return array_values(array_unique(array_filter([
+            $canonico,
+            $digits,
+            str_starts_with($canonico, '595') ? '0' . substr($canonico, 3) : '',
+            str_starts_with($canonico, '595') ? substr($canonico, 3) : '',
+            str_starts_with($canonico, '5959') ? substr($canonico, 4) : '',
+        ])));
+    }
+
     /**
      * Identidad transversal de WC. El nombre no une registros: la coincidencia
      * se resuelve únicamente por teléfono o correo normalizados.
@@ -76,12 +91,7 @@ class ProspectManager
 
         $where = []; $params = [];
         if ($telefono !== '') {
-            $variantes = array_values(array_unique(array_filter([
-                $telefono,
-                preg_replace('/\D+/', '', $telefonoOriginal),
-                str_starts_with($telefono, '595') ? '0' . substr($telefono, 3) : '',
-                str_starts_with($telefono, '5959') ? substr($telefono, 4) : '',
-            ])));
+            $variantes = $this->variantesTelefono($telefonoOriginal);
             $where[] = 'whatsapp IN (' . implode(',', array_fill(0, count($variantes), '?')) . ')';
             array_push($params, ...$variantes);
         }
