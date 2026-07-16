@@ -51,9 +51,16 @@ $esAdminOrSuper = in_array($user['rol'], ['super_admin', 'admin']);
         html, body { max-width: 100%; overflow-x: hidden; }
         .wc-mobile-overlay { background: rgba(15,23,42,.55); backdrop-filter: blur(2px); }
         @media (max-width: 767px) {
-            .wc-mobile-scroll { -webkit-overflow-scrolling: touch; }
-            .table-responsive { border: 0; }
-            .table-responsive > .table { min-width: 640px; }
+            html, body, main { overflow-x: hidden !important; }
+            .wc-mobile-scroll {
+                -webkit-overflow-scrolling: touch;
+                overflow-x: hidden !important;
+                padding-bottom: calc(6rem + env(safe-area-inset-bottom)) !important;
+                scroll-padding-bottom: calc(6rem + env(safe-area-inset-bottom));
+            }
+            .wc-mobile-scroll > * { max-width: 100%; }
+            .table-responsive { border: 0; overflow-x: hidden !important; }
+            .table-responsive > .table { min-width: 100%; table-layout: fixed; }
             input, select, textarea, button { max-width: 100%; }
         }
         <?= $extraStyle ?? '' ?>
