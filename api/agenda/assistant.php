@@ -20,8 +20,31 @@ $agenda=new AppointmentManager();$action=$input['action']??'';
 function resolveUnambiguousAgendaSelection(AppointmentManager $agenda, array $input): array {
     $services=array_values(array_filter($agenda->list('servicios'),static fn($item)=>!empty($item['activo'])));
     $agendas=array_values(array_filter($agenda->list('agendas'),static fn($item)=>!empty($item['activo'])));
-    if(empty($input['servicio_id']) && count($services)===1)$input['servicio_id']=(int)$services[0]['id'];
+    // Un servicio ya identifica de forma determinística su agenda.
+    if(!empty($input['servicio_id']) && empty($input['agenda_id'])){
+        foreach($services as $service){
+            if((int)$service['id']===(int)$input['servicio_id']){$input['agenda_id']=(int)$service['agenda_id'];break;}
+        }
+    }
+    // Si primero se eligió una agenda (por ejemplo "David"), solo se
+    // consideran los servicios que realmente pertenecen a ese recurso.
+    if(!empty($input['agenda_id']) && empty($input['servicio_id'])){
+        $own=array_values(array_filter($services,static fn($service)=>(int)$service['agenda_id']===(int)$input['agenda_id']));
+        if(count($own)===1)$input['servicio_id']=(int)$own[0]['id'];
+    }
+    if(empty($input['servicio_id']) && count($services)===1){
+        $input['servicio_id']=(int)$services[0]['id'];
+        $input['agenda_id']=(int)$services[0]['agenda_id'];
+    }
     if(empty($input['agenda_id']) && count($agendas)===1)$input['agenda_id']=(int)$agendas[0]['id'];
+    // Nunca se consulta una pareja agenda/servicio incoherente.
+    if(!empty($input['servicio_id']) && !empty($input['agenda_id'])){
+        $valid=false;
+        foreach($services as $service){
+            if((int)$service['id']===(int)$input['servicio_id'] && (int)$service['agenda_id']===(int)$input['agenda_id']){$valid=true;break;}
+        }
+        if(!$valid)unset($input['servicio_id']);
+    }
     $input['_selection']=['servicios'=>$services,'agendas'=>$agendas];
     return $input;
 }
@@ -46,9 +69,10 @@ try {
         echo json_encode(['success'=>true,'citas'=>$agenda->findUpcoming($input)]);exit;
     }
     if($action==='crear'){
-        // WS solo llama esta acción tras una confirmación explícita. WC vuelve
+        // WS llama esta acción cuando la intención conversacional autoriza la
+        // reserva. WC vuelve
         // a validar disponibilidad y evita doble reserva dentro de la transacción.
-        if(empty($input['confirmada']))throw new RuntimeException('La cita aún requiere confirmación del cliente.');
+        if(empty($input['confirmada']))throw new RuntimeException('La reserva todavía no fue autorizada por la intención del cliente.');
         $data=$input; $data['canal']=in_array(($input['canal']??''),['whatsapp','chatbot'],true)?$input['canal']:'chatbot';
         echo json_encode(['success'=>true,'cita_id'=>$agenda->create($data,'IA:'.$data['canal'])]);exit;
     }
@@ -57,12 +81,12 @@ try {
         echo json_encode(['success'=>true]);exit;
     }
     if($action==='reprogramar'){
-        if(empty($input['confirmada']))throw new RuntimeException('La reprogramación aún requiere confirmación explícita del cliente.');
+        if(empty($input['confirmada']))throw new RuntimeException('La reprogramación todavía no fue autorizada por la intención del cliente.');
         $agenda->reschedule((int)($input['cita_id']??0),$input,'IA:'.($input['canal']??'chatbot'));
         echo json_encode(['success'=>true]);exit;
     }
     if($action==='cancelar'){
-        if(empty($input['confirmada']))throw new RuntimeException('La cancelación aún requiere confirmación explícita del cliente.');
+        if(empty($input['confirmada']))throw new RuntimeException('La cancelación todavía no fue autorizada por la intención del cliente.');
         $agenda->changeStatus((int)($input['cita_id']??0),'cancelada_cliente','IA:'.($input['canal']??'chatbot'));
         echo json_encode(['success'=>true]);exit;
     }
