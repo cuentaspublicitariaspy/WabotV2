@@ -61,6 +61,18 @@ test('WhatsApp y Chatbot no reciben herramientas Agenda si está deshabilitada',
   }
 });
 
+test('Agenda deshabilitada inyecta una regla prioritaria y una guardia semántica', () => {
+  for (const file of ['wabot-cdn/api/proxy/openai.js', 'wabot-cdn/api/widget/send.js']) {
+    const source = read(file);
+    assert.match(source, /disabledAgendaInstructions/);
+    assert.match(source, /enforceDisabledAgendaResponse/);
+  }
+  const guard = read('wabot-cdn/api/_lib/capability-conversation.js');
+  assert.match(guard, /solicita_gestion_de_cita/);
+  assert.match(guard, /No pidas nombre, teléfono, correo/);
+  assert.match(guard, /No prometas que alguien se comunicará/);
+});
+
 test('deshabilitar capacidades nunca borra estructura ni datos de Agenda', () => {
   const capabilitySources = [
     read('includes/License.php'),
