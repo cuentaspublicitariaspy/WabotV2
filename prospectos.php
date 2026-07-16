@@ -27,12 +27,13 @@ $nuevo = ($_GET['mode'] ?? '') === 'nuevo';
 $seleccionado = isset($_GET['id']) ? $manager->obtener((int)$_GET['id']) : null;
 if ($nuevo) $seleccionado = ['id'=>0,'nombre'=>'','email'=>'','whatsapp'=>'','empresa'=>'','ocupacion'=>'','sitio_web'=>'','direccion'=>'','ciudad'=>'','pais'=>'','estado'=>'nuevo','nivel_interes'=>'medio','temperatura'=>'tibio','puntaje'=>0,'intencion'=>'','resumen'=>'','notas'=>''];
 $activePage='prospectos'; $pageTitle='Prospectos';
+$extraStyle = '@media (max-width:767px){.prospects-table{table-layout:fixed}.prospects-table .prospect-origin-col,.prospects-table .prospect-date-col{display:none}.prospects-table th,.prospects-table td{padding-left:.75rem;padding-right:.75rem}.prospects-table .prospect-contact-action{display:none}.prospects-table .prospect-actions{gap:.25rem;white-space:nowrap}.prospects-table .prospect-name{overflow-wrap:anywhere}}';
 ob_start();
 ?>
-<div class="max-w-[1600px] mx-auto min-h-full bg-white">
-  <div class="h-16 px-5 border-b border-slate-200 flex items-center justify-between gap-4">
+<div class="max-w-[1600px] mx-auto min-h-full bg-white pb-24 md:pb-0 overflow-x-hidden">
+  <div class="min-h-16 h-auto py-3 px-5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
     <div><h1 class="text-sm font-bold text-slate-800">Prospectos</h1><p class="text-xs text-slate-400">Perfiles unificados de WhatsApp y Chatbot</p></div>
-    <div class="flex items-center gap-3"><span class="bg-slate-100 text-slate-500 text-xs px-2.5 py-1 rounded-full font-bold"><?= count($prospectos) ?></span><a href="prospectos.php?mode=nuevo&search=<?= urlencode($search) ?>&heat=<?= urlencode($heat) ?>" class="bg-slate-900 text-white px-3 py-2 rounded-lg text-xs font-semibold shadow-sm hover:bg-slate-800">+ Añadir</a><a href="conversaciones.php" class="bg-emerald-600 text-white px-3 py-2 rounded-lg text-xs font-semibold shadow-sm hover:bg-emerald-700">Ver conversaciones</a></div>
+    <div class="flex w-full sm:w-auto items-center justify-end gap-2"><span class="bg-slate-100 text-slate-500 text-xs px-2.5 py-1 rounded-full font-bold"><?= count($prospectos) ?></span><a href="prospectos.php?mode=nuevo&search=<?= urlencode($search) ?>&heat=<?= urlencode($heat) ?>" class="bg-slate-900 text-white px-3 py-2 rounded-lg text-xs font-semibold shadow-sm hover:bg-slate-800">+ Añadir</a><a href="conversaciones.php" class="bg-emerald-600 text-white px-3 py-2 rounded-lg text-xs font-semibold shadow-sm hover:bg-emerald-700">Ver conversaciones</a></div>
   </div>
   <?php if (isset($_GET['saved'])): ?><div class="rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 px-4 py-3 text-sm font-medium">✓ Prospecto guardado.</div><?php endif; ?>
   <?php if (isset($_GET['deleted'])): ?><div class="rounded-xl border border-slate-200 bg-slate-50 text-slate-600 px-4 py-3 text-sm font-medium">Prospecto eliminado.</div><?php endif; ?>
@@ -43,7 +44,7 @@ ob_start();
     <a href="prospectos.php" class="rounded-lg px-3 py-2 text-slate-400 hover:text-emerald-600" title="Limpiar filtros">×</a>
   </form>
   <div class="border border-slate-200 overflow-hidden bg-white">
-      <div class="overflow-x-auto"><table class="w-full text-sm"><thead class="bg-slate-50 text-left text-xs text-slate-500"><tr><th class="px-4 py-3">Nombre</th><th class="px-4 py-3">Origen</th><th class="px-4 py-3">Fecha de ingreso</th><th class="px-4 py-3">Estado</th><th class="px-4 py-3 text-right">Acciones</th></tr></thead><tbody class="divide-y divide-slate-100">
+      <div class="overflow-x-hidden"><table class="w-full text-sm prospects-table"><thead class="bg-slate-50 text-left text-xs text-slate-500"><tr><th class="px-4 py-3">Nombre</th><th class="px-4 py-3 prospect-origin-col">Origen</th><th class="px-4 py-3 prospect-date-col">Fecha de ingreso</th><th class="px-4 py-3">Estado</th><th class="px-4 py-3 text-right">Acciones</th></tr></thead><tbody class="divide-y divide-slate-100">
       <?php foreach($prospectos as $p):
         $selected=(int)($seleccionado['id']??0)===(int)$p['id'];
         $tone=$p['temperatura']==='muy_caliente'?'red':($p['temperatura']==='caliente'?'orange':($p['temperatura']==='tibio'?'amber':'sky'));
@@ -52,12 +53,12 @@ ob_start();
         $telefono=preg_replace('/\D+/', '', (string)$p['whatsapp']);
       ?>
       <tr class="hover:bg-slate-50 <?= $selected?'bg-emerald-50':'' ?>">
-        <td class="px-4 py-3"><div class="flex items-center gap-3"><span class="w-1.5 h-8 rounded-full bg-<?= $tone ?>-500"></span><div><p class="font-semibold text-slate-800"><?= htmlspecialchars($p['nombre']?:'Sin nombre') ?></p><p class="text-xs text-slate-400"><?= htmlspecialchars($p['empresa']?:($p['email']?:$p['whatsapp'])) ?></p></div></div></td>
-        <td class="px-4 py-3"><span class="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full"><?= htmlspecialchars($p['canales']?:'—') ?></span></td>
-        <td class="px-4 py-3 text-xs text-slate-500"><?= date('d/m/Y',strtotime($p['created_at'])) ?></td>
+        <td class="px-4 py-3"><div class="flex items-center gap-3"><span class="w-1.5 h-8 rounded-full bg-<?= $tone ?>-500"></span><div><p class="font-semibold text-slate-800 prospect-name"><?= htmlspecialchars($p['nombre']?:'Sin nombre') ?></p><p class="text-xs text-slate-400"><?= htmlspecialchars($p['empresa']?:($p['email']?:$p['whatsapp'])) ?></p></div></div></td>
+        <td class="px-4 py-3 prospect-origin-col"><span class="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full"><?= htmlspecialchars($p['canales']?:'—') ?></span></td>
+        <td class="px-4 py-3 text-xs text-slate-500 prospect-date-col"><?= date('d/m/Y',strtotime($p['created_at'])) ?></td>
         <td class="px-4 py-3"><span class="text-xs font-semibold text-slate-600"><span class="inline-block h-1.5 w-1.5 rounded-full bg-<?= $tone ?>-500 mr-1"></span><?= $estadoLabel ?></span></td>
-        <td class="px-4 py-3"><div class="flex justify-end gap-1.5">
-          <?php if($telefono): ?><a href="tel:<?= htmlspecialchars($telefono) ?>" title="Llamar" class="inline-flex h-8 w-8 items-center justify-center rounded-md bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white">☎</a><a href="https://wa.me/<?= htmlspecialchars($telefono) ?>" target="_blank" rel="noopener" title="WhatsApp" class="inline-flex h-8 w-8 items-center justify-center rounded-md bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white">◉</a><?php endif; ?>
+        <td class="px-4 py-3"><div class="flex justify-end gap-1.5 prospect-actions">
+          <?php if($telefono): ?><a href="tel:<?= htmlspecialchars($telefono) ?>" title="Llamar" class="prospect-contact-action inline-flex h-8 w-8 items-center justify-center rounded-md bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white">☎</a><a href="https://wa.me/<?= htmlspecialchars($telefono) ?>" target="_blank" rel="noopener" title="WhatsApp" class="prospect-contact-action inline-flex h-8 w-8 items-center justify-center rounded-md bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white">◉</a><?php endif; ?>
           <a href="prospectos.php?id=<?= $p['id'] ?>&search=<?= urlencode($search) ?>&heat=<?= urlencode($heat) ?>" title="Editar ficha" class="inline-flex h-8 w-8 items-center justify-center rounded-md bg-slate-100 text-slate-600 hover:bg-slate-700 hover:text-white">✎</a>
           <form method="POST" onsubmit="return confirm('¿Eliminar este prospecto? Esta acción no se puede deshacer.');"><input type="hidden" name="action" value="delete"><input type="hidden" name="prospecto_id" value="<?= $p['id'] ?>"><button title="Eliminar" class="inline-flex h-8 w-8 items-center justify-center rounded-md bg-red-50 text-red-600 hover:bg-red-600 hover:text-white">⌫</button></form>
         </div></td>
