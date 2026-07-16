@@ -144,3 +144,6 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 - En una conversación se ofrecen como máximo dos alternativas por fecha. La agenda manual conserva la lista completa.
 - No usar respuestas prefabricadas repetitivas como “Lamentablemente, no tengo disponibilidad”. La respuesta debe describir naturalmente la búsqueda real y, ante una duda del visitante, volver a consultar antes de repetirla.
 - Las fechas relativas deben concordar con `America/Asuncion`: no llamar “mañana” a la fecha actual ni inventar fechas.
+- La acción estructurada `crear` o `reprogramar`, acompañada por los datos completos, ya representa la intención comprendida por WS. WC valida reglas y disponibilidad; nunca exige una “confirmación adicional”, explícita ni una frase determinada.
+- Si un horario está libre de colisiones pero queda dentro de la anticipación mínima, la IA debe explicar esa regla exacta. Nunca debe atribuir el rechazo a falta de autorización.
+- La conversación muestra como máximo dos horarios en total, no dos por cada fecha ni la jornada completa.
