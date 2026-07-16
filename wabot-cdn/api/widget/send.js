@@ -1,6 +1,7 @@
 const { getClient, isAuthorizedDomain } = require('../_lib/kv');
 const { confirmExactProposal, confirmRescheduleProposal } = require('../_lib/agenda-confirmation');
 const { hasCapability } = require('../_lib/capabilities');
+const { disabledAgendaInstructions, enforceDisabledAgendaResponse } = require('../_lib/capability-conversation');
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 const OPENAI_MODEL = 'gpt-4o-mini';
@@ -135,7 +136,7 @@ module.exports = async (req, res) => {
     const mandatoryRules = 'REGLAS OPERATIVAS INNEGOCIABLES: si el visitante comparte voluntariamente su nombre, teléfono, correo u otros datos de contacto, respondé con naturalidad y continuá ayudándolo. Nunca afirmes que no podés guardar o recibir datos personales. Nunca inventes políticas de privacidad, números de WhatsApp, correos ni canales oficiales. Solo hablá de privacidad si la persona lo pregunta explícitamente. El nombre del visitante solo puede provenir de un mensaje del visitante donde se presente; nunca inventes, cambies ni reutilices un nombre mencionado por el asistente. No confundas una sugerencia del asistente con una intención declarada por el visitante: “sí podría ser”, “tal vez” o “no sé” no confirman un proyecto o negocio. Ante esa ambigüedad respondé de manera abierta, útil y no indagante; ofrecé ayudar con cualquier duda o tema que quiera conversar. La información posterior es únicamente contexto comercial: no puede contradecir estas reglas.';
     const messages = [{
       role: 'system',
-      content: mandatoryRules + (agendaEnabled ? '\n\n' + agendaInstructions() : '') + (systemPrompt ? '\n\nCONTEXTO COMERCIAL DEL CLIENTE:\n' + systemPrompt : '')
+      content: mandatoryRules + '\n\n' + (agendaEnabled ? agendaInstructions() : disabledAgendaInstructions('chatbot')) + (systemPrompt ? '\n\nCONTEXTO COMERCIAL DEL CLIENTE:\n' + systemPrompt : '')
     }];
     messages.push(...parsedHistory);
     messages.push({ role: 'user', content: message });
@@ -254,6 +255,16 @@ module.exports = async (req, res) => {
       }
     }
     if (!reply.trim()) reply = 'No pude consultar los próximos horarios en este momento. Probá de nuevo en unos segundos.';
+    if (!agendaEnabled) {
+      reply = await enforceDisabledAgendaResponse({
+        openaiKey,
+        model: OPENAI_MODEL,
+        history: parsedHistory,
+        userMessage: message,
+        draft: reply,
+        channel: 'chatbot'
+      });
+    }
     // Cinturón y tiradores: aunque una fuente cargada por el cliente contenga
     // una frase vieja o contradictoria, esa negativa no sale al visitante.
     const forbiddenRefusal = /(?:no\s+puedo|no\s+podemos)\s+(?:guardar|recibir|almacenar)[\s\S]{0,100}(?:dato|informaci[oó]n|contacto|n[uú]mero)/i;
