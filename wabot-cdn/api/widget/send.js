@@ -278,6 +278,7 @@ module.exports = async (req, res) => {
       message: { role: 'assistant', content: polishResponse(reply) }
     });
   } catch (err) {
+    console.error('[widget/send] request failed', err?.stack || err);
     if (err.name === 'AbortError') {
       res.status(504).json({ success: false, error: 'Tiempo de espera agotado' });
       return;
