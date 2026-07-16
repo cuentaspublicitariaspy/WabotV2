@@ -211,37 +211,55 @@ class ChatManager
         }
 
         $prospectos = new ProspectManager();
-        $telefonoOriginal = (string)($chat['visitor_phone'] ?? '');
-        $telefono = $prospectos->normalizarTelefono($telefonoOriginal);
-        $email = strtolower(trim((string)($chat['visitor_email'] ?? '')));
-        if ($telefono === '' && $email === '') return '';
 
-        $prospectoId = $prospectos->resolverIdentidad([
-            'whatsapp' => $telefonoOriginal,
-            'email' => $email,
-        ], false);
-        $prospecto = $prospectoId ? $prospectos->obtener($prospectoId) : null;
+        // La instalación real guarda el contacto en Prospectos y relaciona
+        // el chat mediante prospecto_referencias. widget_chats puede no tener
+        // teléfono ni correo, por lo que esta referencia es la fuente primaria.
+        $prospecto = $prospectos->obtenerPorReferencia('chatbot', (string)$chat['id']);
+        $prospectoId = (int)($prospecto['id'] ?? 0);
+
+        $telefonoOriginal = trim((string)($chat['visitor_phone'] ?? ''));
+        if ($telefonoOriginal === '') $telefonoOriginal = trim((string)($prospecto['whatsapp'] ?? ''));
+        $email = strtolower(trim((string)($chat['visitor_email'] ?? '')));
+        if ($email === '') $email = strtolower(trim((string)($prospecto['email'] ?? '')));
+        $telefono = $prospectos->normalizarTelefono($telefonoOriginal);
         $nombre = trim((string)($prospecto['nombre'] ?? ''));
 
-        if ($nombre === '' || in_array(mb_strtolower($nombre, 'UTF-8'), ['visitante web', 'sin nombre', 'unknown'], true)) {
+        if (!$prospectoId && ($telefono !== '' || $email !== '')) {
+            $prospectoId = $prospectos->resolverIdentidad([
+                'whatsapp' => $telefonoOriginal,
+                'email' => $email,
+            ], false);
+            $prospecto = $prospectoId ? $prospectos->obtener($prospectoId) : null;
+            $nombre = trim((string)($prospecto['nombre'] ?? ''));
+        }
+
+        $nombreGenerico = $nombre === ''
+            || in_array(mb_strtolower($nombre, 'UTF-8'), ['visitante web', 'sin nombre', 'unknown'], true);
+
+        if ($nombreGenerico && ($telefono !== '' || $email !== '')) {
             $mapa = $this->identidadesDesdeCitas($prospectos);
             $cita = $telefono !== '' ? ($mapa['telefono'][$telefono] ?? null) : null;
             if (!$cita && $email !== '') $cita = $mapa['email'][$email] ?? null;
             if ($cita) {
-                $nombre = trim((string)$cita['nombre_cliente']);
-                if ($nombre !== '') {
-                    $prospectoId = $prospectos->resolverIdentidad([
+                $nombreCita = trim((string)$cita['nombre_cliente']);
+                if ($nombreCita !== '') {
+                    $nombre = $nombreCita;
+                    $datosIdentidad = [
                         'nombre' => $nombre,
                         'whatsapp' => $telefonoOriginal !== '' ? $telefonoOriginal : (string)$cita['telefono'],
                         'email' => $email !== '' ? $email : (string)$cita['email'],
-                    ]);
-                    $prospectos->vincular('chatbot', (string)$chat['id'], [
-                        'whatsapp' => $telefonoOriginal,
-                        'email' => $email,
-                    ]);
+                    ];
+                    if ($prospectoId) {
+                        $prospectos->actualizar($prospectoId, $datosIdentidad);
+                    } else {
+                        $prospectoId = $prospectos->resolverIdentidad($datosIdentidad);
+                    }
                 }
             }
-        } elseif ($prospectoId) {
+        }
+
+        if ($prospectoId) {
             $prospectos->vincular('chatbot', (string)$chat['id'], [
                 'whatsapp' => $telefonoOriginal,
                 'email' => $email,
@@ -263,7 +281,7 @@ class ChatManager
         try {
             $sql = "SELECT id, visitor_name, visitor_email, visitor_phone
                     FROM widget_chats
-                    WHERE (visitor_phone <> '' OR visitor_email <> '')";
+                    WHERE 1=1";
             $params = [];
             if ($soloChatId !== null) { $sql .= ' AND id = ?'; $params[] = $soloChatId; }
             $sql .= ' ORDER BY id DESC LIMIT 200';
