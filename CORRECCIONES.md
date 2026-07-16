@@ -84,3 +84,7 @@ Este documento registra decisiones funcionales, de nomenclatura y de interfaz ac
 
 - En móvil, Conversaciones se comporta como una lista. Al elegir un chat, el detalle se abre como una superficie modal a pantalla completa, con un control visible para volver a la lista. El estado de escritorio “Seleccioná una conversación…” no debe ocupar espacio en móvil.
 - Navegación móvil: botón hamburguesa arriba a la izquierda y barra inferior fija con, como mínimo, Dashboard, Chats, Prospectos y Agenda.
+
+- Móvil: no se permite scroll horizontal de la página, Dashboard ni Prospectos. En pantallas pequeñas se muestran solo las columnas útiles; las tablas no deben obligar a desplazar lateralmente.
+- Móvil: la barra inferior no puede tapar las últimas filas ni acciones de Prospectos. Toda pantalla debe dejar margen de desplazamiento final equivalente a la barra fija.
+- Móvil: la lista de Conversaciones debe conservar altura útil y renderizar sus chats; si no hay registros, debe verse explícitamente el estado vacío. Nunca puede quedar un panel blanco sin contenido.
