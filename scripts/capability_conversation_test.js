@@ -12,6 +12,7 @@ async function run() {
   assert.match(disabledAgendaInstructions('whatsapp'), /CANAL ACTUAL: WhatsApp/);
   assert.strictEqual(shouldInspectDisabledAgenda([], 'Quiero agendarme con Rolando', ''), true);
   assert.strictEqual(shouldInspectDisabledAgenda([], '¿Qué servicios ofrecen?', 'Te cuento.'), false);
+  assert.strictEqual(shouldInspectDisabledAgenda([{ role: 'user', content: 'Quiero una cita' }], 'Quiero dejarle un mensaje', 'La gestión de citas no está disponible.'), true);
   assert.strictEqual(unsafeDisabledAgendaReply('Pasame tu nombre y número para coordinar la reunión.'), true);
   assert.strictEqual(unsafeDisabledAgendaReply('Puedo ayudarte con información sobre nuestros servicios.'), false);
 
@@ -20,7 +21,7 @@ async function run() {
     calls++;
     return {
       ok: true,
-      json: async () => ({ choices: [{ message: { content: JSON.stringify({ solicita_gestion_de_cita: true, respuesta_segura: 'Ahora mismo no está disponible la gestión de citas. Con gusto puedo ayudarte con otra consulta.' }) } }] })
+      json: async () => ({ choices: [{ message: { content: JSON.stringify({ solicita_gestion_de_cita: true, bloqueo_indebido: false, respuesta_segura: 'Ahora mismo no está disponible la gestión de citas. Con gusto puedo ayudarte con otra consulta.', respuesta_corregida: '' }) } }] })
     };
   };
   const guarded = await enforceDisabledAgendaResponse({
@@ -56,11 +57,34 @@ async function run() {
   assert.strictEqual(untouched, 'Ofrecemos consultoría y soporte.');
   assert.strictEqual(calls, 0);
 
+  const corrected = await enforceDisabledAgendaResponse({
+    openaiKey: 'test',
+    history: [
+      { role: 'user', content: 'Quiero agendarme con Rolando' },
+      { role: 'assistant', content: 'La gestión de citas no está disponible.' }
+    ],
+    userMessage: 'Quiero dejarle un mensaje. Soy Humberto y mi número es 0985123456.',
+    draft: 'La gestión de citas no está disponible en este momento.',
+    fetchImpl: async () => ({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: JSON.stringify({
+        solicita_gestion_de_cita: false,
+        bloqueo_indebido: true,
+        respuesta_segura: '',
+        respuesta_corregida: 'Entendí, Humberto. Tu mensaje y número quedan registrados en esta conversación para que el equipo pueda verlos.'
+      }) } }] })
+    })
+  });
+  assert.match(corrected, /Humberto/);
+  assert.match(corrected, /registrados en esta conversación/i);
+  assert.doesNotMatch(corrected, /gestión de citas no está disponible/i);
+
   console.log('✓ regla prioritaria para Agenda deshabilitada');
   console.log('✓ detección semántica de intención de cita');
   console.log('✓ bloqueo de solicitud de datos y promesas falsas');
   console.log('✓ conversaciones ajenas a Agenda no pagan una segunda llamada');
-  console.log('4/4 pruebas superadas');
+  console.log('✓ una intención nueva no queda secuestrada por Agenda');
+  console.log('5/5 pruebas superadas');
 }
 
 run().catch(error => {
