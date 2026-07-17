@@ -2,6 +2,7 @@ const { getClient, isAuthorizedDomain } = require('../_lib/kv');
 const { confirmExactProposal, confirmRescheduleProposal } = require('../_lib/agenda-confirmation');
 const { hasCapability } = require('../_lib/capabilities');
 const { disabledAgendaInstructions, enforceDisabledAgendaResponse } = require('../_lib/capability-conversation');
+const { persistWidgetExchange } = require('../_lib/widget-storage');
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 const OPENAI_MODEL = 'gpt-4o-mini';
@@ -64,7 +65,7 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { key, message, history } = req.body || {};
+    const { key, message, history, session_id, visitor_message_id, assistant_message_id } = req.body || {};
 
     if (!key || !message) {
       res.status(400).json({ success: false, error: 'key y message requeridos' });
@@ -87,6 +88,25 @@ module.exports = async (req, res) => {
       return;
     }
     const agendaEnabled = hasCapability(client, 'agenda');
+
+    async function respond(content, success = true) {
+      const polished = polishResponse(content);
+      if (session_id && visitor_message_id && assistant_message_id) {
+        const persistence = await persistWidgetExchange({
+          client,
+          apiKey: key,
+          sessionId: session_id,
+          visitorMessage: message,
+          assistantMessage: polished,
+          visitorMessageId: visitor_message_id,
+          assistantMessageId: assistant_message_id
+        });
+        if (!persistence.stored) {
+          console.warn('[widget/send] WC persistence deferred to browser outbox', persistence.reason);
+        }
+      }
+      res.json({ success, message: { role: 'assistant', content: polished } });
+    }
 
     const openaiKey = process.env.OPENAI_API_KEY || process.env.OpenAIKey;
     if (!openaiKey) {
@@ -190,7 +210,7 @@ module.exports = async (req, res) => {
       }
     }
     if (confirmed?.handled) {
-      res.json({ success: confirmed.success, message: { role: 'assistant', content: polishResponse(confirmed.reply) } });
+      await respond(confirmed.reply, confirmed.success);
       return;
     }
 
@@ -273,10 +293,7 @@ module.exports = async (req, res) => {
       reply = 'Gracias por compartirlo. ¿En qué más puedo ayudarte?';
     }
 
-    res.json({
-      success: true,
-      message: { role: 'assistant', content: polishResponse(reply) }
-    });
+    await respond(reply, true);
   } catch (err) {
     console.error('[widget/send] request failed', err?.stack || err);
     if (err.name === 'AbortError') {
