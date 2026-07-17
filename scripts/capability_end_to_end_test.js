@@ -19,6 +19,7 @@ async function withDisabledAgendaMocks(run) {
   const originalFetch = global.fetch;
   const originalOpenAIKey = process.env.OPENAI_API_KEY;
   const openaiBodies = [];
+  const storagePosts = [];
   process.env.OPENAI_API_KEY = 'test-openai-key';
 
   Module._load = function(request, parent, isMain) {
@@ -45,6 +46,10 @@ async function withDisabledAgendaMocks(run) {
   };
 
   global.fetch = async (url, options = {}) => {
+    if (String(url).includes('/api/widget/store.php')) {
+      storagePosts.push(JSON.parse(options.body || '{}'));
+      return { ok: true, status: 200, json: async () => ({ success: true }) };
+    }
     if (String(url).includes('widget-config.php')) {
       return {
         ok: true,
@@ -62,7 +67,9 @@ async function withDisabledAgendaMocks(run) {
         json: async () => ({
           choices: [{ message: { content: JSON.stringify({
             solicita_gestion_de_cita: true,
-            respuesta_segura: 'Ahora mismo no está disponible la gestión de citas. Con gusto puedo ayudarte con otra consulta.'
+            bloqueo_indebido: false,
+            respuesta_segura: 'Ahora mismo no está disponible la gestión de citas. Con gusto puedo ayudarte con otra consulta.',
+            respuesta_corregida: ''
           }) } }]
         })
       };
@@ -75,7 +82,7 @@ async function withDisabledAgendaMocks(run) {
   };
 
   try {
-    await run(openaiBodies);
+    await run(openaiBodies, storagePosts);
   } finally {
     Module._load = originalLoad;
     global.fetch = originalFetch;
@@ -85,14 +92,17 @@ async function withDisabledAgendaMocks(run) {
 }
 
 async function testWidget() {
-  await withDisabledAgendaMocks(async openaiBodies => {
+  await withDisabledAgendaMocks(async (openaiBodies, storagePosts) => {
     const file = path.join(root, 'wabot-cdn/api/widget/send.js');
     delete require.cache[require.resolve(file)];
     const handler = require(file);
     const req = {
       method: 'POST',
       headers: { origin: 'https://cliente.example' },
-      body: { key: 'wak_test', message: 'Quiero agendarme con Rolando', history: [] }
+      body: {
+        key: 'wak_test', message: 'Quiero agendarme con Rolando', history: [],
+        session_id: 'session-test', visitor_message_id: 'visitor-test', assistant_message_id: 'assistant-test'
+      }
     };
     const res = responseCollector();
     await handler(req, res);
@@ -102,6 +112,9 @@ async function testWidget() {
     assert.doesNotMatch(res.body.message.content, /tel[eé]fono|pasar tus datos|coordinar la reuni[oó]n/i);
     assert.strictEqual(openaiBodies[0].tools, undefined);
     assert.match(openaiBodies[0].messages[0].content, /CAPACIDAD AGENDA DESHABILITADA/);
+    assert.deepStrictEqual(storagePosts.map(item => item.role), ['visitor', 'assistant']);
+    assert.deepStrictEqual(storagePosts.map(item => item.client_message_id), ['visitor-test', 'assistant-test']);
+    assert(storagePosts.every(item => item.session_id === 'session-test'));
   });
 }
 
