@@ -70,7 +70,18 @@ test('Agenda deshabilitada inyecta una regla prioritaria y una guardia semántic
   const guard = read('wabot-cdn/api/_lib/capability-conversation.js');
   assert.match(guard, /solicita_gestion_de_cita/);
   assert.match(guard, /No pidas nombre, teléfono, correo/);
-  assert.match(guard, /No prometas que alguien se comunicará/);
+  assert.match(guard, /Nunca dejes que esta restricción anule la conversación/);
+  assert.match(guard, /bloqueo_indebido/);
+});
+
+test('Chatbot persiste cada intercambio en WC por dos caminos idempotentes', () => {
+  const widget = read('wabot-cdn/public/widget.js');
+  const endpoint = read('wabot-cdn/api/widget/send.js');
+  assert.match(widget, /visitor_message_id/);
+  assert.match(widget, /assistant_message_id/);
+  assert.match(widget, /session_id/);
+  assert.match(endpoint, /persistWidgetExchange/);
+  assert.match(read('wabot-cdn/api/_lib/widget-storage.js'), /client_message_id/);
 });
 
 test('deshabilitar capacidades nunca borra estructura ni datos de Agenda', () => {
