@@ -2,7 +2,7 @@ const OPENAI_CHAT_URL = 'https://api.openai.com/v1/chat/completions';
 
 function disabledAgendaInstructions(channel = 'chatbot') {
   const channelLabel = channel === 'whatsapp' ? 'WhatsApp' : 'Chatbot web';
-  return `CAPACIDAD AGENDA DESHABILITADA: en esta cuenta no está habilitada la gestión de citas. CANAL ACTUAL: ${channelLabel}. Si la persona intenta agendar, consultar disponibilidad, reprogramar o cancelar una cita, explicá con amabilidad que la gestión de citas no está disponible en este momento y ofrecé ayudar con otra consulta. No pidas nombre, teléfono, correo ni otros datos para coordinar una cita. No prometas que alguien se comunicará, que pasarás sus datos, que coordinarán después ni que la solicitud quedó registrada. No simules reservas, derivaciones, seguimientos o acciones que el sistema no puede ejecutar. No menciones licencias, WS, capacidades ni detalles técnicos. Una pregunta meramente informativa sobre horarios de atención, servicios o el negocio no es una solicitud de cita y puede responderse normalmente con la información disponible.`;
+  return `CAPACIDAD AGENDA DESHABILITADA: en esta cuenta no está habilitada la gestión de citas. CANAL ACTUAL: ${channelLabel}. Esta restricción se aplica únicamente a crear, consultar disponibilidad, reprogramar o cancelar citas. Nunca dejes que esta restricción anule la conversación ni se arrastre a una intención nueva. Si la persona intenta una de esas acciones, explicá con amabilidad que la gestión de citas no está disponible en este momento y ofrecé ayudar con otra consulta. No pidas nombre, teléfono, correo ni otros datos para coordinar una cita. No simules reservas ni afirmes que una cita quedó registrada. Preguntas sobre horarios de atención, servicios o el negocio se responden normalmente. Si la persona quiere dejar un mensaje, comparte voluntariamente sus datos, solicita información, corrige lo que entendiste o cambia de tema, comprendé y atendé esa intención con naturalidad: sus datos pueden quedar registrados en esta conversación y su ficha de prospecto. Podés confirmar que el mensaje quedó registrado para que el equipo lo vea, pero nunca garantizar que una persona concreta responderá o se comunicará. No menciones licencias, WS, capacidades ni detalles técnicos.`;
 }
 
 function agendaUnavailableReply() {
@@ -10,10 +10,15 @@ function agendaUnavailableReply() {
 }
 
 function shouldInspectDisabledAgenda(history = [], userMessage = '', draft = '') {
-  const recent = [...history.slice(-8), { role: 'user', content: userMessage }, { role: 'assistant', content: draft }]
-    .map(item => String(item?.content || ''))
-    .join(' ');
-  return /\b(?:agend\w*|reserv\w*|cita\w*|turno\w*|reuni[oó]n\w*|disponibilidad\w*|reprogram\w*|cancel\w*|coordinar\w*|horario\w*)\b/i.test(recent);
+  // El historial sirve al clasificador semántico para resolver referencias,
+  // pero jamás debe activar por sí solo el bloqueo de una intención nueva.
+  const currentTurn = `${String(userMessage || '')} ${String(draft || '')}`;
+  return /\b(?:agend\w*|reserv\w*|cita\w*|turno\w*|reuni[oó]n\w*|disponibilidad\w*|reprogram\w*|cancel\w*|coordinar\w*|horario\w*)\b/i.test(currentTurn);
+}
+
+function looksLikeAgendaBlock(reply = '') {
+  const value = String(reply || '');
+  return /(?:gesti[oó]n|manejo)\s+de\s+citas[\s\S]{0,90}no\s+est[aá]\s+disponible|no\s+est[aá]\s+disponible[\s\S]{0,90}(?:cita|agenda|reserva|turno)/i.test(value);
 }
 
 function unsafeDisabledAgendaReply(reply = '') {
@@ -51,7 +56,7 @@ async function enforceDisabledAgendaResponse({
         messages: [
           {
             role: 'system',
-            content: `Clasificá la intención conversacional usando todo el tramo reciente. Respondé SOLO JSON válido: {"solicita_gestion_de_cita":true|false,"respuesta_segura":""}. Es true si la persona intenta crear, consultar disponibilidad, reprogramar o cancelar una cita/reunión/reserva, incluso mediante referencias contextuales. Es false para preguntas informativas sobre horarios de atención, servicios o el negocio. Cuando sea true, respuesta_segura debe comunicar en español natural y amable que la gestión de citas no está disponible en este momento y ofrecer ayuda con otra consulta. Nunca debe pedir datos personales, prometer contacto o derivación, ni afirmar que se registró o coordinó algo. Canal: ${channel === 'whatsapp' ? 'WhatsApp' : 'Chatbot web'}.`
+            content: `Protegé una capacidad deshabilitada sin destruir la conversación. Decidí exclusivamente la intención operativa del MENSAJE ACTUAL; usá el historial solo para resolver referencias y correcciones. Que antes se haya hablado de una cita NO convierte los turnos siguientes en solicitudes de cita. Respondé SOLO JSON válido: {"solicita_gestion_de_cita":true|false,"bloqueo_indebido":true|false,"respuesta_segura":"","respuesta_corregida":""}. solicita_gestion_de_cita es true solo si el mensaje actual intenta crear, consultar disponibilidad, reprogramar o cancelar una cita/reunión/reserva. Es false si quiere dejar un mensaje, comparte datos voluntariamente, pide contacto o información, corrige una incomprensión, pregunta por horarios del negocio o cambia de tema. bloqueo_indebido es true cuando el borrador habla de Agenda no disponible pese a que la intención actual es otra o ignora lo que la persona acaba de decir. Si solicita_gestion_de_cita=true, respuesta_segura comunica con naturalidad que la gestión de citas no está disponible y ofrece otra ayuda, sin pedir datos ni simular acciones. Si bloqueo_indebido=true, respuesta_corregida responde humana y directamente al mensaje actual: puede confirmar que un mensaje y datos voluntarios quedan registrados en la conversación para que el equipo los vea, pero no debe garantizar que una persona concreta responderá. Canal: ${channel === 'whatsapp' ? 'WhatsApp' : 'Chatbot web'}.`
           },
           { role: 'user', content: JSON.stringify({ conversacion: recent, borrador: draft }) }
         ]
@@ -60,11 +65,20 @@ async function enforceDisabledAgendaResponse({
     if (!response.ok) throw new Error(`CAPABILITY_GUARD_HTTP_${response.status}`);
     const data = await response.json();
     const parsed = JSON.parse(data?.choices?.[0]?.message?.content || '{}');
-    if (!parsed.solicita_gestion_de_cita) return draft;
-    const safeReply = String(parsed.respuesta_segura || '').trim();
-    return safeReply && !unsafeDisabledAgendaReply(safeReply) ? safeReply : agendaUnavailableReply();
+    if (parsed.solicita_gestion_de_cita) {
+      const safeReply = String(parsed.respuesta_segura || '').trim();
+      return safeReply && !unsafeDisabledAgendaReply(safeReply) ? safeReply : agendaUnavailableReply();
+    }
+    if (parsed.bloqueo_indebido) {
+      const corrected = String(parsed.respuesta_corregida || '').trim();
+      if (corrected && !looksLikeAgendaBlock(corrected)) return corrected;
+    }
+    return draft;
   } catch (error) {
     console.error('[capability-guard] disabled Agenda classification failed', error?.message || error);
+    if (looksLikeAgendaBlock(draft) && !/\b(?:agend\w*|reserv\w*|cita\w*|turno\w*|reprogram\w*|cancel\w*)\b/i.test(String(userMessage || ''))) {
+      return 'Entendí que no estás pidiendo una cita. Disculpá la confusión: contame qué necesitás y te respondo sobre eso.';
+    }
     return unsafeDisabledAgendaReply(draft) ? agendaUnavailableReply() : draft;
   }
 }
@@ -73,6 +87,7 @@ module.exports = {
   disabledAgendaInstructions,
   agendaUnavailableReply,
   shouldInspectDisabledAgenda,
+  looksLikeAgendaBlock,
   unsafeDisabledAgendaReply,
   enforceDisabledAgendaResponse
 };
