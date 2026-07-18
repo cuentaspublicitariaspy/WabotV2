@@ -1,18 +1,24 @@
 <?php
 require_once __DIR__ . '/../../includes/config.php';
 require_once __DIR__ . '/../../includes/Database.php';
-require_once __DIR__ . '/../../includes/ProspectManager.php';
 
 header('Content-Type: application/json');
-// El Chatbot se instala dentro del mismo dominio que WC. Solo exponemos CORS
-// cuando el origen coincide con este hosting; así no se abre el endpoint a
-// sitios de terceros que conozcan la API Key pública del Chatbot.
+
+function widgetStoreReply(int $status, array $payload): void
+{
+    http_response_code($status);
+    echo json_encode($payload);
+    exit;
+}
+
+// El Chatbot vive en el mismo dominio que WC. WS puede reenviar el mensaje
+// transitoriamente usando ese mismo Origin, pero ningún tercero puede escribir.
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-$requestHost = strtolower((string) preg_replace('/:\\d+$/', '', $_SERVER['HTTP_HOST'] ?? ''));
+$requestHost = strtolower((string) preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST'] ?? ''));
 $source = $origin !== '' ? $origin : ($_SERVER['HTTP_REFERER'] ?? '');
 $sourceHost = strtolower((string) parse_url($source, PHP_URL_HOST));
 if ($sourceHost === '' || !hash_equals($requestHost, $sourceHost)) {
-    http_response_code(403); header('Content-Type: application/json'); echo json_encode(['success'=>false, 'error'=>'Origen no autorizado']); exit;
+    widgetStoreReply(403, ['success' => false, 'error' => 'Origen no autorizado']);
 }
 if ($origin !== '') {
     header('Access-Control-Allow-Origin: ' . $origin);
@@ -20,88 +26,107 @@ if ($origin !== '') {
 }
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); echo json_encode(['success'=>false]); exit; }
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') widgetStoreReply(204, []);
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') widgetStoreReply(405, ['success' => false]);
 
 $input = json_decode(file_get_contents('php://input'), true) ?: [];
-$key = trim($input['api_key'] ?? '');
-$sessionId = trim($input['session_id'] ?? '');
-$role = $input['role'] ?? '';
-$content = trim($input['content'] ?? '');
-$clientMessageId = trim($input['client_message_id'] ?? '');
-if ($key === '' || $sessionId === '' || $content === '' || !in_array($role, ['visitor','assistant'], true)) {
-    http_response_code(400); echo json_encode(['success'=>false, 'error'=>'Datos incompletos']); exit;
+$key = trim((string) ($input['api_key'] ?? ''));
+$sessionId = trim((string) ($input['session_id'] ?? ''));
+$role = (string) ($input['role'] ?? '');
+$content = trim((string) ($input['content'] ?? ''));
+$clientMessageId = trim((string) ($input['client_message_id'] ?? ''));
+if ($key === '' || $sessionId === '' || $content === '' || !in_array($role, ['visitor', 'assistant'], true)) {
+    widgetStoreReply(400, ['success' => false, 'error' => 'Datos incompletos']);
 }
 
-$db = Database::getConnection();
-// Compatibilidad con instalaciones creadas antes de la memoria persistente.
-try { $db->exec('ALTER TABLE widget_chats ADD COLUMN memory_summary LONGTEXT NULL'); } catch (Throwable $e) {}
-try { $db->exec('ALTER TABLE widget_chats ADD COLUMN memory_message_count INT NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
-try { $db->exec('ALTER TABLE widget_messages ADD COLUMN client_message_id VARCHAR(80) NULL'); } catch (Throwable $e) {}
-try { $db->exec('ALTER TABLE widget_messages ADD UNIQUE KEY uq_widget_message_client (client_message_id)'); } catch (Throwable $e) {}
-$stmt = $db->prepare('SELECT id FROM widget_config WHERE api_key = ? AND enabled = 1');
-$stmt->execute([$key]);
-$config = $stmt->fetch();
-if (!$config) { http_response_code(404); echo json_encode(['success'=>false]); exit; }
+$requestId = bin2hex(random_bytes(6));
 
-$db->prepare('INSERT IGNORE INTO widget_chats (widget_config_id, session_id, unread) VALUES (?, ?, 0)')->execute([$config['id'], $sessionId]);
-$stmt = $db->prepare('SELECT wc.id FROM widget_chats wc INNER JOIN widget_config cfg ON cfg.id = wc.widget_config_id WHERE wc.session_id = ? AND cfg.api_key = ?');
-$stmt->execute([$sessionId, $key]);
-$chatId = (int) $stmt->fetchColumn();
-$prospecto = new ProspectManager();
-$prospectoId = $prospecto->vincular('chatbot', (string) $chatId);
-if ($role === 'visitor') {
-    // Nombre, correo, teléfono y web se detectan localmente y se muestran
-    // antes de pedir cualquier enriquecimiento a IA.
-    $datosBasicos = $prospecto->detectarDatosBasicos($content);
-    if ($datosBasicos) $prospecto->actualizar($prospectoId, $datosBasicos);
-    $nombre = trim((string) ($datosBasicos['nombre'] ?? ''));
-    $email = trim((string) ($datosBasicos['email'] ?? ''));
-    $telefono = preg_replace('/\D+/', '', (string) ($datosBasicos['whatsapp'] ?? ''));
-    if ($nombre !== '' || $email !== '' || $telefono !== '') {
-        // "Visitante web" es solo el texto de reserva de la interfaz: nunca
-        // debe impedir que un nombre declarado reemplace el dato visible.
-        $stmt = $db->prepare("UPDATE widget_chats SET
-            visitor_name = CASE WHEN ? <> '' AND (visitor_name IS NULL OR visitor_name = '' OR visitor_name IN ('Visitante web', 'Sin nombre', 'Unknown')) THEN ? ELSE visitor_name END,
-            visitor_email = COALESCE(NULLIF(?, ''), visitor_email),
-            visitor_phone = COALESCE(NULLIF(?, ''), visitor_phone)
-            WHERE id = ?");
-        $stmt->execute([$nombre, $nombre, $email, $telefono, $chatId]);
+try {
+    $db = Database::getConnection();
+
+    $stmt = $db->prepare('SELECT id FROM widget_config WHERE api_key = ? AND enabled = 1');
+    $stmt->execute([$key]);
+    $configId = (int) $stmt->fetchColumn();
+    if ($configId <= 0) widgetStoreReply(404, ['success' => false, 'error' => 'Configuración no encontrada']);
+
+    $db->prepare('INSERT IGNORE INTO widget_chats (widget_config_id, session_id, unread) VALUES (?, ?, 0)')
+        ->execute([$configId, $sessionId]);
+    $stmt = $db->prepare('SELECT id FROM widget_chats WHERE widget_config_id = ? AND session_id = ? LIMIT 1');
+    $stmt->execute([$configId, $sessionId]);
+    $chatId = (int) $stmt->fetchColumn();
+    if ($chatId <= 0) throw new RuntimeException('widget_chat_not_created');
+
+    // Primero se conserva el mensaje. Las instalaciones nuevas deduplican por
+    // client_message_id; las antiguas siguen funcionando con el esquema previo.
+    $inserted = false;
+    if ($clientMessageId !== '') {
+        try {
+            $stmt = $db->prepare('INSERT IGNORE INTO widget_messages (chat_id, role, content, client_message_id) VALUES (?, ?, ?, ?)');
+            $stmt->execute([$chatId, $role, $content, $clientMessageId]);
+            $inserted = $stmt->rowCount() === 1;
+        } catch (Throwable $compatibilityError) {
+            $stmt = $db->prepare('INSERT INTO widget_messages (chat_id, role, content) VALUES (?, ?, ?)');
+            $stmt->execute([$chatId, $role, $content]);
+            $inserted = true;
+        }
+    } else {
+        $stmt = $db->prepare('INSERT INTO widget_messages (chat_id, role, content) VALUES (?, ?, ?)');
+        $stmt->execute([$chatId, $role, $content]);
+        $inserted = true;
     }
+
+    if ($inserted) {
+        try {
+            $db->prepare('UPDATE widget_chats SET unread = ?, memory_message_count = memory_message_count + 1, updated_at = NOW() WHERE id = ?')
+                ->execute([$role === 'visitor' ? 1 : 0, $chatId]);
+        } catch (Throwable $compatibilityError) {
+            $db->prepare('UPDATE widget_chats SET unread = ?, updated_at = NOW() WHERE id = ?')
+                ->execute([$role === 'visitor' ? 1 : 0, $chatId]);
+        }
+    }
+} catch (Throwable $coreError) {
+    error_log('[widget-store][' . $requestId . '] core: ' . $coreError->getMessage());
+    widgetStoreReply(500, ['success' => false, 'error' => 'No se pudo guardar el mensaje', 'request_id' => $requestId]);
 }
-$stmt = $db->prepare('INSERT IGNORE INTO widget_messages (chat_id, role, content, client_message_id) VALUES (?, ?, ?, ?)');
-$stmt->execute([$chatId, $role, $content, $clientMessageId !== '' ? $clientMessageId : null]);
-if ($stmt->rowCount() === 1) {
-    $db->prepare('UPDATE widget_chats SET unread = ?, memory_message_count = memory_message_count + 1, updated_at = NOW() WHERE id = ?')->execute([$role === 'visitor' ? 1 : 0, $chatId]);
-}
+
+// Prospectos es enriquecimiento secundario: nunca puede impedir que el chat y
+// su mensaje aparezcan en Conversaciones.
 if ($role === 'visitor') {
-    // El enriquecimiento puede encontrar un nombre que no coincide con los
-    // patrones locales. Aplicamos ese mismo resultado a widget_chats: la
-    // lista de Conversaciones se alimenta de esta tabla, no de prospectos.
-    // Se analiza el tramo reciente, no una frase aislada. Con ello el
-    // extractor entiende respuestas humanas cortas dentro del diálogo.
-    $historialStmt = $db->prepare('SELECT role, content FROM widget_messages WHERE chat_id = ? ORDER BY id DESC LIMIT 16');
-    $historialStmt->execute([$chatId]);
-    $contexto = array_reverse($historialStmt->fetchAll());
-    // El enriquecimiento no puede impedir que se conserve el mensaje. Si WS
-    // o una extensión de PHP falla, los datos básicos ya detectados arriba
-    // siguen disponibles y el Chatbot recibe una respuesta JSON válida.
     try {
-        $datosDeclarados = $prospecto->registrarDatosDeclarados($prospectoId, $content, $contexto, $key);
-    } catch (Throwable $e) {
-        error_log('Wabot prospect enrichment failed: ' . $e->getMessage());
-        $datosDeclarados = $datosBasicos ?? [];
-    }
-    $nombreDeclarado = trim((string) ($datosDeclarados['nombre'] ?? ''));
-    $emailDeclarado = trim((string) ($datosDeclarados['email'] ?? ''));
-    $telefonoDeclarado = preg_replace('/\D+/', '', (string) ($datosDeclarados['whatsapp'] ?? ''));
-    if ($nombreDeclarado !== '' || $emailDeclarado !== '' || $telefonoDeclarado !== '') {
-        $stmt = $db->prepare("UPDATE widget_chats SET
-            visitor_name = CASE WHEN ? <> '' AND (visitor_name IS NULL OR visitor_name = '' OR visitor_name IN ('Visitante web', 'Sin nombre', 'Unknown')) THEN ? ELSE visitor_name END,
-            visitor_email = COALESCE(NULLIF(?, ''), visitor_email),
-            visitor_phone = COALESCE(NULLIF(?, ''), visitor_phone)
-            WHERE id = ?");
-        $stmt->execute([$nombreDeclarado, $nombreDeclarado, $emailDeclarado, $telefonoDeclarado, $chatId]);
+        $prospectManagerPath = __DIR__ . '/../../includes/ProspectManager.php';
+        if (is_file($prospectManagerPath)) require_once $prospectManagerPath;
+        if (class_exists('ProspectManager')) {
+            $prospecto = new ProspectManager();
+            $prospectoId = $prospecto->vincular('chatbot', (string) $chatId);
+            $datosBasicos = $prospecto->detectarDatosBasicos($content);
+            if ($datosBasicos) $prospecto->actualizar($prospectoId, $datosBasicos);
+
+            $historialStmt = $db->prepare('SELECT role, content FROM widget_messages WHERE chat_id = ? ORDER BY id DESC LIMIT 16');
+            $historialStmt->execute([$chatId]);
+            $contexto = array_reverse($historialStmt->fetchAll());
+            try {
+                $datosDeclarados = $prospecto->registrarDatosDeclarados($prospectoId, $content, $contexto, $key);
+            } catch (Throwable $enrichmentError) {
+                error_log('[widget-store][' . $requestId . '] enrichment: ' . $enrichmentError->getMessage());
+                $datosDeclarados = $datosBasicos;
+            }
+
+            $datos = array_merge($datosBasicos, is_array($datosDeclarados) ? $datosDeclarados : []);
+            $nombre = trim((string) ($datos['nombre'] ?? ''));
+            $email = trim((string) ($datos['email'] ?? ''));
+            $telefono = preg_replace('/\D+/', '', (string) ($datos['whatsapp'] ?? ''));
+            if ($nombre !== '' || $email !== '' || $telefono !== '') {
+                $stmt = $db->prepare("UPDATE widget_chats SET
+                    visitor_name = CASE WHEN ? <> '' AND (visitor_name IS NULL OR visitor_name = '' OR visitor_name IN ('Visitante web', 'Sin nombre', 'Unknown')) THEN ? ELSE visitor_name END,
+                    visitor_email = COALESCE(NULLIF(?, ''), visitor_email),
+                    visitor_phone = COALESCE(NULLIF(?, ''), visitor_phone)
+                    WHERE id = ?");
+                $stmt->execute([$nombre, $nombre, $email, $telefono, $chatId]);
+            }
+        }
+    } catch (Throwable $prospectError) {
+        error_log('[widget-store][' . $requestId . '] prospect: ' . $prospectError->getMessage());
     }
 }
-echo json_encode(['success'=>true]);
+
+widgetStoreReply(200, ['success' => true, 'chat_id' => $chatId, 'stored' => $inserted]);
