@@ -11,6 +11,20 @@ function widgetStoreReply(int $status, array $payload): void
     exit;
 }
 
+/**
+ * Conserva una única identidad telefónica paraguaya aunque el visitante use
+ * +595981966664, 0981966664, 981966664 o la abreviada 81966664.
+ */
+function widgetStoreNormalizePhone(string $value): string
+{
+    $digits = preg_replace('/\D+/', '', $value);
+    if ($digits === '') return '';
+    if (strlen($digits) === 10 && substr($digits, 0, 2) === '09') return '595' . substr($digits, 1);
+    if (strlen($digits) === 9 && substr($digits, 0, 1) === '9') return '595' . $digits;
+    if (strlen($digits) === 8) return '5959' . $digits;
+    return $digits;
+}
+
 // El Chatbot vive en el mismo dominio que WC. WS puede reenviar el mensaje
 // transitoriamente usando ese mismo Origin, pero ningún tercero puede escribir.
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
@@ -114,14 +128,14 @@ if ($role === 'visitor') {
             $datos = array_merge($datosBasicos, is_array($datosDeclarados) ? $datosDeclarados : []);
             $nombre = trim((string) ($datos['nombre'] ?? ''));
             $email = trim((string) ($datos['email'] ?? ''));
-            $telefono = preg_replace('/\D+/', '', (string) ($datos['whatsapp'] ?? ''));
+            $telefono = widgetStoreNormalizePhone((string) ($datos['whatsapp'] ?? ''));
             if ($nombre !== '' || $email !== '' || $telefono !== '') {
                 $stmt = $db->prepare("UPDATE widget_chats SET
-                    visitor_name = CASE WHEN ? <> '' AND (visitor_name IS NULL OR visitor_name = '' OR visitor_name IN ('Visitante web', 'Sin nombre', 'Unknown')) THEN ? ELSE visitor_name END,
+                    visitor_name = COALESCE(NULLIF(?, ''), visitor_name),
                     visitor_email = COALESCE(NULLIF(?, ''), visitor_email),
                     visitor_phone = COALESCE(NULLIF(?, ''), visitor_phone)
                     WHERE id = ?");
-                $stmt->execute([$nombre, $nombre, $email, $telefono, $chatId]);
+                $stmt->execute([$nombre, $email, $telefono, $chatId]);
             }
         }
     } catch (Throwable $prospectError) {
