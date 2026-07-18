@@ -29,7 +29,10 @@ $key = $_POST['key'] ?? '';
 $session_id = $_POST['session_id'] ?? '';
 $name = trim($_POST['name'] ?? '');
 $email = trim($_POST['email'] ?? '');
-$phone = trim($_POST['phone'] ?? '');
+$phone = preg_replace('/\D+/', '', trim($_POST['phone'] ?? ''));
+if (strlen($phone) === 10 && substr($phone, 0, 2) === '09') $phone = '595' . substr($phone, 1);
+elseif (strlen($phone) === 9 && substr($phone, 0, 1) === '9') $phone = '595' . $phone;
+elseif (strlen($phone) === 8) $phone = '5959' . $phone;
 
 if (!$key || !$session_id) {
     http_response_code(400);
@@ -48,11 +51,11 @@ if (!$chatId) {
 }
 
 $stmt = $db->prepare("UPDATE widget_chats SET
-    visitor_name = CASE WHEN ? <> '' AND (visitor_name IS NULL OR visitor_name = '' OR visitor_name = 'Visitante web') THEN ? ELSE visitor_name END,
+    visitor_name = COALESCE(NULLIF(?, ''), visitor_name),
     visitor_email = COALESCE(NULLIF(?, ''), visitor_email),
     visitor_phone = COALESCE(NULLIF(?, ''), visitor_phone)
     WHERE id = ?");
-$stmt->execute([$name, $name, $email, $phone, $chatId]);
+$stmt->execute([$name, $email, $phone, $chatId]);
 if ($chatId) {
     (new ProspectManager())->vincular('chatbot', (string) $chatId, ['nombre' => $name, 'email' => $email, 'whatsapp' => $phone]);
 }
