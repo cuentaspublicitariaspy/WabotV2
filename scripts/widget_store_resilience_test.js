@@ -38,4 +38,16 @@ test('un error de prospectos no altera el resultado del guardado', () => {
   assert(source.lastIndexOf("widgetStoreReply(200") > source.indexOf("'] prospect: '"));
 });
 
-console.log(`${passed}/6 widget store resilience tests passed`);
+test('un contacto declarado puede actualizar el nombre de una sesión reutilizada', () => {
+  assert(source.includes("visitor_name = COALESCE(NULLIF(?, ''), visitor_name)"));
+  assert(!source.includes("visitor_name = CASE WHEN ? <> ''"));
+});
+
+test('normaliza las cuatro variantes paraguayas antes de mostrar el contacto', () => {
+  assert(source.includes("strlen($digits) === 10"));
+  assert(source.includes("strlen($digits) === 9"));
+  assert(source.includes("strlen($digits) === 8"));
+  assert(source.includes("return '5959' . $digits"));
+});
+
+console.log(`${passed}/8 widget store resilience tests passed`);
